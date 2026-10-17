@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
+import MapBoundary from './MapBoundary';
 import FriendsList from './FriendsList';
 import { useMe, useTags } from './hooks';
 import { NEARBY_M } from './constants';
@@ -59,15 +60,24 @@ export default function App() {
 
   return (
     <div className="app">
-      <MapView
-        me={me}
-        tagged={tagged}
-        focus={focus?.spot ?? null}
-        focusKey={focus?.key ?? ''}
-        settingSpot={settingSpot}
-        onSetSpot={onSetSpot}
-        onPickFriend={pickFriend}
-      />
+      <MapBoundary
+        fallback={
+          <div className="map-fallback">
+            <p>The map needs WebGL, which is off in this preview.</p>
+            <p>Use the list to tag a friend, or open this page in a browser with WebGL on.</p>
+          </div>
+        }
+      >
+        <MapView
+          me={me}
+          tagged={tagged}
+          focus={focus?.spot ?? null}
+          focusKey={focus?.key ?? ''}
+          settingSpot={settingSpot}
+          onSetSpot={onSetSpot}
+          onPickFriend={pickFriend}
+        />
+      </MapBoundary>
 
       <header className="topbar">
         <h1 className="logo">Saath</h1>
