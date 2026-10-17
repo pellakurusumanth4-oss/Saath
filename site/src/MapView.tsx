@@ -9,12 +9,18 @@ import type { LatLng } from '../../src/geo';
 
 const PUNE: [number, number] = [73.8567, 18.5204];
 
-const friendFeatures = (tagged: string[]): FeatureCollection<Point, { id: string; tagged: boolean }> => ({
+const friendFeatures = (
+  tagged: string[],
+): FeatureCollection<Point, { id: string; color: string; tagged: boolean }> => ({
   type: 'FeatureCollection',
   features: FRIENDS.map((friend) => ({
     type: 'Feature' as const,
     geometry: { type: 'Point' as const, coordinates: [friend.lng, friend.lat] },
-    properties: { id: friend.id, tagged: tagged.includes(friend.id) },
+    properties: {
+      id: friend.id,
+      color: friend.color,
+      tagged: tagged.includes(friend.id),
+    },
   })),
 });
 
@@ -83,8 +89,9 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
       map.addLayer({
         id: 'friend-ring', type: 'circle', source: 'saath-friends',
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 17, 14, 26, 17, 36],
-          'circle-color': ['case', ['get', 'tagged'], '#FFC83D', '#FFFFFF'],
+          // ~4px bigger than the face icon (192px image @ pixelRatio 2 = 48px radius at size 1)
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 24, 14, 34, 17, 47],
+          'circle-color': ['case', ['get', 'tagged'], '#FFC83D', ['get', 'color']],
           'circle-stroke-color': '#111318', 'circle-stroke-width': 2.5,
         },
       });

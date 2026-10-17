@@ -88,9 +88,7 @@ export default function App() {
 
       {error && <div className="notice" role="alert">{error}</div>}
       {me && !error && nearestLine && (
-        <div className="notice notice-soft">
-          You’re at {me.lat.toFixed(4)}, {me.lng.toFixed(4)} · {nearestLine}
-        </div>
+        <div className="notice notice-soft">{nearestLine}</div>
       )}
 
       <FriendsList
