@@ -4,9 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-rigs.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-rigs.mjs",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "prepreview": "node scripts/copy-rigs.mjs",
+    "preview": "vite preview",
+    "copy-rigs": "node scripts/copy-rigs.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^4.7.1",

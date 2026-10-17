@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FACES } from '../../src/faces';
 import type { Friend } from '../../src/friends';
 import { distanceM, formatDistance } from '../../src/geo';
 import type { LatLng } from '../../src/geo';
 import { NEARBY_M } from './constants';
+import { currentActivity } from './activities';
+import WatchPanel from './WatchPanel';
 
 export default function FriendsList({ friends, me, tagged, selected, expanded, onPick, onTag, onToggle }: {
   friends: Friend[];
@@ -15,6 +17,9 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
   onTag: (id: string) => void;
   onToggle: () => void;
 }) {
+  const [watching, setWatching] = useState<string | null>(null);
+  const [greeted, setGreeted] = useState<Set<string>>(() => new Set());
+
   const rows = useMemo(() => {
     const withDistance = friends.map((friend) => ({
       friend,
@@ -27,6 +32,17 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
   const nearbyCount = rows.filter(
     (row) => row.distance !== null && row.distance <= NEARBY_M,
   ).length;
+
+  const watched = watching ? friends.find((friend) => friend.id === watching) ?? null : null;
+
+  const openWatch = (id: string) => {
+    setWatching(id);
+  };
+
+  const closeWatch = () => {
+    if (watching) setGreeted((prev) => new Set(prev).add(watching));
+    setWatching(null);
+  };
 
   return (
     <aside className={`friends ${expanded ? 'is-expanded' : ''}`} aria-label="Friends">
@@ -79,6 +95,7 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
                         ? 'Right here with you!'
                         : `${formatDistance(distance)} away`}
                   </p>
+                  <p className="card-now">Right now: {currentActivity(friend.character)}</p>
                 </div>
               </button>
 
@@ -96,6 +113,13 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
                   Tag
                 </button>
               )}
+              <button
+                className="card-watch"
+                onClick={() => openWatch(friend.id)}
+                title={`Watch ${friend.name}`}
+              >
+                Watch
+              </button>
               {!isTagged && !isNearby && distance !== null && (
                 <p className="card-hint">Walk closer to tag · {formatDistance(distance)} away</p>
               )}
@@ -103,6 +127,10 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
           );
         })}
       </div>
+
+      {watched && (
+        <WatchPanel friend={watched} firstOpen={!greeted.has(watched.id)} onClose={closeWatch} />
+      )}
     </aside>
   );
 }
