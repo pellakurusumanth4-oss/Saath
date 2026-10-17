@@ -135,9 +135,6 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
 
   return (
     <div className="watch talk" role="dialog" aria-label={`Talking with ${friend.name}`}>
-      <button className="watch-close" onClick={() => { window.speechSynthesis?.cancel(); onClose(); }} aria-label={`Stop talking with ${friend.name}`}>
-        ✕
-      </button>
       <div className="talk-head">
         <h3 className="talk-title">Talk to {friend.name}</h3>
         <button
@@ -147,6 +144,13 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
           title={soundOn ? 'Voice on' : 'Voice off'}
         >
           {soundOn ? '🔊' : '🔇'}
+        </button>
+        <button
+          className="watch-close talk-close"
+          onClick={() => { window.speechSynthesis?.cancel(); onClose(); }}
+          aria-label={`Stop talking with ${friend.name}`}
+        >
+          ✕
         </button>
       </div>
       <div className="talk-scroll" ref={scroller}>

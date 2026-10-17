@@ -446,6 +446,14 @@ body {
   box-shadow: none;
 }
 
+/* In the chat header the close button sits inline after the sound toggle. */
+.talk-close {
+  position: static;
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
 .watch-stage {
   position: relative;
   width: 300px;
@@ -511,6 +519,9 @@ body {
 }
 
 .talk-sound {
+  flex: none;
+  width: 40px;
+  height: 40px;
   font: inherit;
   font-size: 16px;
   line-height: 1;
@@ -518,7 +529,7 @@ body {
   border: 2px solid var(--ink);
   border-radius: 999px;
   box-shadow: 2px 2px 0 var(--ink);
-  padding: 5px 8px;
+  padding: 0;
   cursor: pointer;
 }
 
