@@ -12,6 +12,9 @@ type Saath = {
 const FOOT_X = 150;
 const FOOT_Y = 400;
 const HEIGHT_PX = 360;
+// Goku's hair reaches higher than the others, so he sits lower and smaller in the window.
+const GOKU_FOOT_Y = 420;
+const GOKU_HEIGHT_PX = 300;
 const POLL_MS = 100;
 const POLL_MAX_MS = 5000;
 
@@ -31,7 +34,12 @@ export default function WatchPanel({ friend, firstOpen, onClose }: { friend: Fri
       const saath = win?.saath;
       if (saath) {
         saath.mystery(false);
-        saath.place(FOOT_X, FOOT_Y, HEIGHT_PX, 0);
+        saath.place(
+          FOOT_X,
+          friend.character === 'goku' ? GOKU_FOOT_Y : FOOT_Y,
+          friend.character === 'goku' ? GOKU_HEIGHT_PX : HEIGHT_PX,
+          0,
+        );
         saath.play([firstOpen ? 'arrive' : 'hi']);
         setReady(true);
         return;
