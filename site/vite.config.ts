@@ -6,4 +6,5 @@ export default defineConfig({
   server: {
     fs: { allow: ['..'] },
   },
+  build: { outDir: '../dist', emptyOutDir: true },
 });

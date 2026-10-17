@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "dev:site": "npm --prefix site run dev",
-    "build:web": "npm --prefix site install --no-audit --no-fund && npm --prefix site run build"
+    "build:web": "npm --prefix site install --no-audit --no-fund && npm --prefix site run build",
+    "dev": "npm --prefix site install && npm --prefix site run dev",
+    "build": "npm --prefix site install && npm --prefix site run build"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
