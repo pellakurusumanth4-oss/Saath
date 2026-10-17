@@ -26,6 +26,12 @@ export function saveSoundPref(on: boolean) {
   }
 }
 
+/** True when the browser's speech synthesis has at least one voice loaded. */
+export function speechVoicesReady(): boolean {
+  if (!('speechSynthesis' in window)) return false;
+  return window.speechSynthesis.getVoices().length > 0;
+}
+
 /** Prefer an Indian English voice, then US English, then any English. */
 export function pickEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   return (

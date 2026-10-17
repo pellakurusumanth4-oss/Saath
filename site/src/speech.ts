@@ -11,6 +11,8 @@ type SpeechRecognitionEventLike = {
   results: { length: number; [index: number]: SpeechRecognitionResultLike };
 };
 
+type SpeechRecognitionErrorEventLike = { error: string };
+
 export type RecognitionHandle = { stop: () => void };
 
 type RecognitionCtor = new () => {
@@ -19,7 +21,7 @@ type RecognitionCtor = new () => {
   maxAlternatives: number;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -39,7 +41,7 @@ export function speechSupported(): boolean {
 export function listenOnce(handlers: {
   onPartial: (text: string) => void;
   onFinal: (text: string) => void;
-  onError: () => void;
+  onError: (code: string) => void;
 }): RecognitionHandle | null {
   const win = window as RecognitionWindow;
   const Ctor = win.SpeechRecognition ?? win.webkitSpeechRecognition;
@@ -64,16 +66,16 @@ export function listenOnce(handlers: {
     }
     if (interim) handlers.onPartial(interim);
   };
-  recognition.onerror = () => {
+  recognition.onerror = (event) => {
     if (!done) {
       done = true;
-      handlers.onError();
+      handlers.onError(event?.error ?? 'unknown');
     }
   };
   recognition.onend = () => {
     if (!done) {
       done = true;
-      handlers.onError();
+      handlers.onError('no-speech');
     }
   };
   recognition.start();

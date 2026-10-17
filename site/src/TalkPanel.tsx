@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Friend } from '../../src/friends';
 import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
-import { loadSoundPref, pickEnglishVoice, saveSoundPref, VOICES } from './voices';
+import { loadSoundPref, pickEnglishVoice, saveSoundPref, speechVoicesReady, VOICES } from './voices';
 
 type PanelMessage = ChatMessage & { replayable?: boolean };
 
@@ -58,6 +58,8 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   const [listening, setListening] = useState(false);
   const [soundOn, setSoundOn] = useState(() => loadSoundPref());
   const [error, setError] = useState<string | null>(null);
+  const [noVoices, setNoVoices] = useState(false);
+  const [micHint, setMicHint] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const recognition = useRef<RecognitionHandle | null>(null);
 
@@ -66,6 +68,27 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   }, [messages, waiting]);
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      setNoVoices(true);
+      return;
+    }
+    if (speechVoicesReady()) return;
+    const check = setTimeout(() => setNoVoices(!speechVoicesReady()), 2000);
+    const onVoicesChanged = () => {
+      if (speechVoicesReady()) {
+        setNoVoices(false);
+        clearTimeout(check);
+      }
+    };
+    synth.addEventListener('voiceschanged', onVoicesChanged);
+    return () => {
+      clearTimeout(check);
+      synth.removeEventListener('voiceschanged', onVoicesChanged);
+    };
+  }, []);
 
   const toggleSound = () => {
     setSoundOn((prev) => {
@@ -117,10 +140,17 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
         setDraft('');
         void send(text);
       },
-      onError: () => {
+      onError: (code) => {
         setListening(false);
         recognition.current = null;
         setError('Couldn’t hear that — try saying it again.');
+        if (code === 'not-allowed') {
+          setMicHint('Mic blocked — allow it in the browser');
+        } else if (code === 'network') {
+          setMicHint('Mic needs Chrome with Google speech');
+        } else {
+          setMicHint(null);
+        }
       },
     });
     if (handle) {
@@ -178,6 +208,9 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
         ))}
         {waiting && <p className="talk-bubble is-friend talk-waiting">…</p>}
         {listening && <p className="talk-listening">Listening…</p>}
+        {noVoices && (
+          <p className="talk-note" role="status">This browser has no voices — try Chrome on your phone.</p>
+        )}
         {error && <p className="talk-error" role="alert">{error}</p>}
       </div>
       <div className="talk-chips">
@@ -192,6 +225,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
         onSubmit={(event) => {
           event.preventDefault();
           recognition.current?.stop();
+          setMicHint(null);
           void send(draft);
         }}
       >
@@ -199,7 +233,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
           className="talk-input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder={`Say something to ${firstName}…`}
+          placeholder={micHint ?? `Say something to ${firstName}…`}
           maxLength={500}
           aria-label={`Message for ${friend.name}`}
         />
