@@ -10,6 +10,9 @@ export type ChatMessage = {
   content: string;
 };
 
+/** Thrown when the edge function rate-limits the visitor (HTTP 429). The message is meant to be shown. */
+export class RateLimitError extends Error {}
+
 /** Ask the friend's edge function for a reply. Throws with a friendly message on failure. */
 export async function askFriend(friendId: string, messages: ChatMessage[]): Promise<string> {
   const response = await fetch(TALK_URL, {
@@ -21,6 +24,18 @@ export async function askFriend(friendId: string, messages: ChatMessage[]): Prom
     body: JSON.stringify({ friendId, messages }),
   });
   if (!response.ok) {
+    if (response.status === 429) {
+      const body: unknown = await response.json().catch(() => null);
+      const message =
+        typeof body === 'object' && body !== null && 'error' in body
+          ? (body as { error: unknown }).error
+          : null;
+      throw new RateLimitError(
+        typeof message === 'string' && message.length > 0
+          ? message
+          : 'Too many messages, try again in a minute',
+      );
+    }
     throw new Error(`talk failed: ${response.status}`);
   }
   const data: unknown = await response.json();

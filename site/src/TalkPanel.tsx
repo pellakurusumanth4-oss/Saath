@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Friend } from '../../src/friends';
-import { askFriend, type ChatMessage } from './talk';
+import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, pickEnglishVoice, saveSoundPref, VOICES } from './voices';
+
+type PanelMessage = ChatMessage & { replayable?: boolean };
 
 type Chip = { label: string; send: string };
 
@@ -50,7 +52,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   onClose: () => void;
   onReplySpoken?: () => void;
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [waiting, setWaiting] = useState(false);
   const [listening, setListening] = useState(false);
@@ -75,7 +77,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   };
 
   const reply = (text: string) => {
-    setMessages((prev) => [...prev, { role: 'assistant', content: text }]);
+    setMessages((prev) => [...prev, { role: 'assistant', content: text, replayable: true }]);
     if (soundOn) speak(friend.character, text);
     onReplySpoken?.();
   };
@@ -91,8 +93,12 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     try {
       const answer = await askFriend(friend.id, next.slice(-12));
       reply(answer);
-    } catch {
-      setError(`${friend.name.split(' ')[0]} didn’t hear you — try again in a moment.`);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: err.message }]);
+      } else {
+        setError(`${friend.name.split(' ')[0]} didn’t hear you — try again in a moment.`);
+      }
     } finally {
       setWaiting(false);
     }
@@ -153,14 +159,16 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
           ) : (
             <span key={index} className="talk-bubble is-friend">
               {message.content}
-              <button
-                className="talk-replay"
-                onClick={() => speak(friend.character, message.content)}
-                aria-label={`Play ${firstName}'s reply again`}
-                title="▶ play"
-              >
-                ▶ play
-              </button>
+              {message.replayable && (
+                <button
+                  className="talk-replay"
+                  onClick={() => speak(friend.character, message.content)}
+                  aria-label={`Play ${firstName}'s reply again`}
+                  title="▶ play"
+                >
+                  ▶ play
+                </button>
+              )}
             </span>
           )
         ))}
