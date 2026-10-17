@@ -21,6 +21,7 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
   const [watching, setWatching] = useState<string | null>(null);
   const [talking, setTalking] = useState<string | null>(null);
   const [greeted, setGreeted] = useState<Set<string>>(() => new Set());
+  const [waveCounts, setWaveCounts] = useState<Record<string, number>>({});
 
   const rows = useMemo(() => {
     const withDistance = friends.map((friend) => ({
@@ -40,6 +41,10 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
 
   const openWatch = (id: string) => {
     setWatching(id);
+  };
+
+  const markSpoken = (id: string) => {
+    setWaveCounts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   };
 
   const closeWatch = () => {
@@ -140,10 +145,21 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
       </div>
 
       {watched && (
-        <WatchPanel friend={watched} firstOpen={!greeted.has(watched.id)} onClose={closeWatch} />
+        <WatchPanel
+          friend={watched}
+          firstOpen={!greeted.has(watched.id)}
+          waveKey={waveCounts[watched.id]}
+          onClose={closeWatch}
+        />
       )}
 
-      {talked && <TalkPanel friend={talked} onClose={() => setTalking(null)} />}
+      {talked && (
+        <TalkPanel
+          friend={talked}
+          onReplySpoken={() => markSpoken(talked.id)}
+          onClose={() => setTalking(null)}
+        />
+      )}
     </aside>
   );
 }

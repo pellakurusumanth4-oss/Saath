@@ -18,7 +18,7 @@ const GOKU_HEIGHT_PX = 300;
 const POLL_MS = 100;
 const POLL_MAX_MS = 5000;
 
-export default function WatchPanel({ friend, firstOpen, onClose }: { friend: Friend; firstOpen: boolean; onClose: () => void }) {
+export default function WatchPanel({ friend, firstOpen, onClose, waveKey }: { friend: Friend; firstOpen: boolean; onClose: () => void; waveKey?: number }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
@@ -53,6 +53,18 @@ export default function WatchPanel({ friend, firstOpen, onClose }: { friend: Fri
     timer = window.setTimeout(poll, POLL_MS);
     return () => window.clearTimeout(timer);
   }, [friend.id, firstOpen]);
+
+  // Wave once when the friend starts talking in the chat while this window is open.
+  const waveFirst = useRef(true);
+  useEffect(() => {
+    if (waveFirst.current) {
+      waveFirst.current = false;
+      if (waveKey === undefined) return;
+    }
+    if (!ready) return;
+    const win = frame.current?.contentWindow as (Window & { saath?: Saath }) | null | undefined;
+    win?.saath?.play(['hi']);
+  }, [waveKey, ready]);
 
   return (
     <div className="watch" role="dialog" aria-label={`Watching ${friend.name}`}>

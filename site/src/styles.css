@@ -496,9 +496,35 @@ body {
   gap: 10px;
 }
 
+.talk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+
 .talk-title {
   margin: 0;
   font-size: 18px;
+}
+
+.talk-sound {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.talk-sound:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 .talk-scroll {
@@ -538,6 +564,24 @@ body {
 
 .talk-bubble.is-user {
   align-self: flex-end;
+  background: var(--yellow);
+}
+
+.talk-replay {
+  display: block;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--white);
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.talk-replay:hover {
   background: var(--yellow);
 }
 
@@ -590,6 +634,43 @@ body {
 .talk-chip:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.talk-listening {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-align: center;
+  color: #1b7f3b;
+}
+
+.talk-mic {
+  flex: none;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+.talk-mic.is-active {
+  background: #ffe1e1;
+  animation: talk-pulse 1s ease-in-out infinite;
+}
+
+@keyframes talk-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.12);
+  }
 }
 
 .talk-form {
