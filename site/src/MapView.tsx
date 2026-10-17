@@ -100,6 +100,8 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
         layout: {
           'icon-image': ['get', 'id'],
           'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.42, 14, 0.62, 17, 0.9],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
         },
       });
       // A bigger, invisible circle so taps on a phone land on the pin.
