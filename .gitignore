@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# generated native folders (expo prebuild)
+/ios
+/android
+
+# debug and local files
+*.log
+.metro-health-check*
+.DS_Store
+*.tsbuildinfo
+.env*.local

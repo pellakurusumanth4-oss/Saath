@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saath AR demo</title>
+<!--
+  THROWAWAY SPIKE (17 Oct): Nobita standing on the real floor, tracked by ARCore through Chrome's
+  WebXR (immersive-ar + hit-test), to show the user how the AR+ version would feel before building
+  it into Saath. Run: node serve.mjs, adb reverse tcp:8099 tcp:8099, open http://localhost:8099 in
+  Chrome on the phone. ?preview plays a scripted walk with a simulated camera (no phone needed).
+  grounded.html = index.html plus grounding, so he looks physically there rather than pasted on:
+  lit by ARCore's light estimate, a tight contact shadow plus a soft one cast away from the main
+  light, and hidden where ARCore's depth says something real is in front of him. Each part is
+  skipped when Chrome doesn't grant its feature. ?before shows index.html's look; ?gain=1.3 scales
+  the estimated light (calibration on the phone).
+-->
+<style>
+  :root { --ink: #111318; --gold: #FFC83D; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111318; color: #fff; font-family: system-ui, Roboto, sans-serif; }
+  canvas.gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #rig { position: fixed; left: 0; top: 0; width: 400px; height: 900px; border: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  #intro { position: fixed; left: 16px; right: 16px; top: 28%; text-align: center; font-weight: 700; font-size: 18px; line-height: 1.45; }
+  #start { position: fixed; left: 16px; right: 16px; bottom: 36px; padding: 18px; border: 2.5px solid var(--ink); border-radius: 18px;
+           background: var(--gold); box-shadow: 3px 3px 0 var(--ink); color: var(--ink); font: 900 20px system-ui, Roboto, sans-serif; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  #tip { position: absolute; left: 16px; right: 16px; bottom: 36px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
+         border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 800; font-size: 17px; text-align: center; display: none; }
+</style>
+</head>
+<body>
+<iframe id="rig" title="Nobita's drawing" aria-hidden="true"></iframe>
+<div id="intro">Saath · AR demo<br><span style="font-weight:500;opacity:.8">Nobita on your real floor, tracked by ARCore</span></div>
+<button id="start">Loading…</button>
+<div id="overlay"><div id="tip"></div></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), BEFORE = Q.has('before');
+// shortcut: ARCore's light units are taken as-is (as its own sample renders them); if he reads too dark or bright on the phone, tune ?gain.
+const GAIN = Number(Q.get('gain')) || 1;
+const TALL_M = 1.4;   // Nobita's height (src/friends.ts)
+const VFOV = 72.7;    // S24 main camera (notes/ar-stability.md); only the preview camera uses it
+const tipEl = document.getElementById('tip'), start = document.getElementById('start'), intro = document.getElementById('intro');
+const tip = (s) => { if (tipEl.textContent !== s) tipEl.textContent = s; tipEl.style.display = s ? 'block' : 'none'; };
+const canvasTex = (w, h, paint) => {
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  paint(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+};
+
+// ---- Nobita: the app's own 2D rig, copied onto a card that stands on the floor ----------------
+// The rig page runs in a same-origin frame with its clock loops removed, so this page drives it
+// (renderAt) and copies each new drawing (12 a second) into a canvas texture.
+const frame = document.getElementById('rig');
+frame.srcdoc = (await (await fetch('nobita.html')).text()).replaceAll('requestAnimationFrame(loop);', '');
+await new Promise((r) => frame.addEventListener('load', r, { once: true }));
+const rig = frame.contentWindow;
+const svg = [...frame.contentDocument.body.children].find((e) => e.tagName === 'svg' && e.querySelector('.head'));
+const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number), A = rig.SAATH_AR;
+const own = svg.querySelector('.contact'); if (own) own.style.display = 'none';   // he gets a real shadow instead
+const PX_H = 1024, PX_W = Math.round((PX_H * vb[2]) / vb[3]);
+const art = Object.assign(document.createElement('canvas'), { width: PX_W, height: PX_H }), artG = art.getContext('2d');
+const artTex = new THREE.CanvasTexture(art); artTex.colorSpace = THREE.SRGBColorSpace;
+let dirty = true, drawing = null;
+new MutationObserver(() => (dirty = true)).observe(svg, { attributes: true, childList: true, subtree: true });
+const rasterise = () => {
+  if (!dirty || drawing) return drawing || Promise.resolve();
+  dirty = false;
+  const c = svg.cloneNode(true);
+  c.removeAttribute('style'); c.setAttribute('width', PX_W); c.setAttribute('height', PX_H); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  drawing = new Promise((done) => {
+    img.onload = () => { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(img, 0, 0, PX_W, PX_H); artTex.needsUpdate = true; done(); };
+    img.onerror = done;
+    img.src = url;
+  }).finally(() => { URL.revokeObjectURL(url); drawing = null; });
+  return drawing;
+};
+
+// ---- The scene: Nobita (card, shadow, speech bubble), the floor ring, the pop-in sparkles -------
+const scene = new THREE.Scene();
+const unitM = TALL_M / A.tall, cardW = vb[2] * unitM, cardH = vb[3] * unitM;
+const cardGeo = new THREE.PlaneGeometry(cardW, cardH);
+cardGeo.translate(-((A.ground[0] - vb[0]) / vb[2] - 0.5) * cardW, ((A.ground[1] - vb[1]) / vb[3] - 0.5) * cardH, 0);   // feet at the origin
+const card = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: artTex, transparent: true, alphaTest: 0.03 }));
+// A soft dark ellipse on the floor, w x d metres, alpha falling off along `stops` ([radius 0-1, alpha]).
+const blob = (w, d, stops) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g) => {
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    for (const [at, a] of stops) r.addColorStop(at, `rgba(20,14,8,${a})`);
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  }) }));
+  m.position.y = 0.002; m.renderOrder = -1; return m;
+};
+// index.html's single weak blob, or a tight dark core under his (0.46 m wide) shoes plus a wide soft shadow cast away from the light.
+const shadows = BEFORE ? [blob(0.62, 0.434, [[0, 0.55], [0.5, 0.3], [1, 0]])]
+  : [blob(0.62, 0.22, [[0, 0.9], [0.45, 0.62], [0.75, 0.2], [1, 0]]), blob(1, 0.7, [[0, 0.42], [0.5, 0.22], [1, 0]])];
+const soft = shadows[1];
+
+// Occlusion in the shader: real things in front of him hide him (ARCore's depth image, in mm, compared
+// with each pixel's own depth; the margin stops noisy floor depth eating his soles).
+const occ = { uDepth: { value: null }, uUvFromView: { value: new THREE.Matrix4() }, uRawToM: { value: 0.001 }, uOcc: { value: 0 } };
+const occlude = (s) => {
+  Object.assign(s.uniforms, occ);
+  s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec4 vClip;')
+    .replace('#include <project_vertex>', '#include <project_vertex>\nvClip = gl_Position;');
+  s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vClip;\nuniform sampler2D uDepth; uniform mat4 uUvFromView; uniform float uRawToM, uOcc;')
+    .replace('#include <alphatest_fragment>', `if (uOcc > 0.5) {
+        vec2 ndc = vClip.xy / vClip.w;   // normalized view coords have y down; the depth's two bytes are low, high
+        vec2 uv = (uUvFromView * vec4(0.5 + 0.5 * ndc.x, 0.5 - 0.5 * ndc.y, 0.0, 1.0)).xy;
+        float real = dot(texture2D(uDepth, uv).rg, vec2(255.0, 65280.0)) * uRawToM;
+        if (real > 0.0) diffuseColor.a *= smoothstep(-0.25, -0.1, real - vClip.w);   // 0 = no depth there
+      }
+      #include <alphatest_fragment>`);
+};
+if (!BEFORE) for (const m of [card, ...shadows]) m.material.onBeforeCompile = occlude;
+let depthTex = null;
+const setDepth = (bytes, w, h, uvFromView, rawToM) => {
+  if (depthTex?.image.width !== w || depthTex?.image.height !== h) {
+    depthTex?.dispose();
+    occ.uDepth.value = depthTex = new THREE.DataTexture(bytes, w, h, THREE.RGFormat);   // RG8: the same 2 bytes per pixel as luminance-alpha
+    depthTex.magFilter = depthTex.minFilter = THREE.LinearFilter;   // fine: the decode is linear in the two bytes
+  }
+  depthTex.image.data = bytes; depthTex.needsUpdate = true;
+  occ.uUvFromView.value.fromArray(uvFromView); occ.uRawToM.value = rawToM; occ.uOcc.value = 1;
+};
+
+// ARCore's light estimate shaded the way ARCore's own sample does (hello_ar_java environmental_hdr.frag):
+// 9 SH terms pre-scaled by these factors (basis, 1/pi, cosine lobe) plus the main light's Lambert term.
+const SH_K = [0.282095, -0.325735, 0.325735, -0.325735, 0.273137, -0.273137, 0.078848, -0.273137, 0.136569];
+const lightAt = (est, n, out) => {
+  const c = est.sphericalHarmonicsCoefficients, { x, y, z } = n, basis = [1, y, z, x, y * x, y * z, 3 * z * z - 1, z * x, x * x - y * y];
+  const d = est.primaryLightDirection, I = est.primaryLightIntensity, lambert = Math.max(0, x * d.x + y * d.y + z * d.z) / Math.PI;
+  const sh = (ch) => Math.max(0, basis.reduce((sum, b, i) => sum + c[i * 3 + ch] * SH_K[i] * b, 0));
+  return out.setRGB(sh(0) + I.x * lambert, sh(1) + I.y * lambert, sh(2) + I.z * lambert).multiplyScalar(GAIN);
+};
+const bubble = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.95, 0.3),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(640, 200, (g, w, h) => {
+    g.lineWidth = 8; g.strokeStyle = '#111318'; g.fillStyle = '#fff';
+    g.beginPath(); g.roundRect(8, 8, w - 16, h - 64, 44); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(w / 2 - 34, h - 60); g.lineTo(w / 2, h - 10); g.lineTo(w / 2 + 34, h - 60); g.fill(); g.stroke();
+    g.fillRect(w / 2 - 30, h - 68, 60, 10);   // opens the bubble's edge into the tail
+    g.fillStyle = '#111318'; g.font = '800 64px system-ui, Roboto, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText("Hi! I'm Nobita!", w / 2, (h - 56) / 2 + 6);
+  }) }),
+);
+bubble.position.y = TALL_M + 0.3; bubble.visible = false;
+const nobita = new THREE.Group();
+nobita.add(...shadows, card, bubble); nobita.visible = false; scene.add(nobita);
+
+// The gold ring with footprints that sits on the detected floor before he is called.
+const reticle = new THREE.Group(), reticleInner = new THREE.Group();
+reticle.matrixAutoUpdate = false; reticle.visible = false; reticle.add(reticleInner); scene.add(reticle);
+const flat = (geo, color, opacity = 1) => new THREE.Mesh(geo.rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: false }));
+reticleInner.add(flat(new THREE.CircleGeometry(0.2, 48), 0xffc457, 0.28), flat(new THREE.RingGeometry(0.19, 0.225, 48), 0xffb43c));
+for (const x of [-0.065, 0.065]) { const f = flat(new THREE.CircleGeometry(0.04, 20), 0xffc457); f.position.set(x, 0.001, 0); reticleInner.add(f); }
+
+// Sparkles and a dust ring when he pops in (like a Pokémon bursting out of the grass).
+let seed = 7; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const sparkTex = canvasTex(64, 64, (g) => {
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,214,90,1)'); r.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+});
+const sparks = Array.from({ length: 18 }, () => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  s.visible = false; scene.add(s); return s;
+});
+const dust = flat(new THREE.RingGeometry(0.85, 1, 48), 0xffe2a6, 0.6); dust.visible = false; scene.add(dust);
+
+let placedAt = null;
+const place = (pos, now) => {
+  nobita.position.copy(pos); nobita.visible = true; placedAt = now; reticle.visible = false;
+  dust.position.copy(pos).setY(pos.y + 0.003);
+  sparks.forEach((s, i) => {
+    const a = (i / sparks.length) * Math.PI * 2 + rand() * 0.5, sp = 0.45 + rand() * 0.6;
+    s.userData = { p0: pos.clone().add(new THREE.Vector3(0, 0.15, 0)), v: new THREE.Vector3(Math.cos(a) * sp, 1.1 + rand() * 1.3, Math.sin(a) * sp), size: 0.06 + rand() * 0.07 };
+  });
+  rig.saath.play(['hi']);
+  tip('Nobita is here! Walk around him.');
+};
+const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+const UP = new THREE.Vector3(0, 1, 0), facing = new THREE.Vector3(), away = new THREE.Vector3(), lit = new THREE.Color();
+let lastNow = 0;
+// Each frame: the pop-in, the sparkles, the bubble, the pulsing ring; he turns to face the camera.
+// est: the room's light (an XRLightEstimate), or null to draw him at the art's own brightness.
+const update = (now, cam, est) => {
+  reticleInner.scale.setScalar(1 + 0.05 * Math.sin(now * 5));
+  if (placedAt === null) return;
+  const k = now - placedAt, dt = Math.min(1, Math.abs(now - lastNow));
+  lastNow = now;
+  card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
+  for (const s of shadows) s.material.opacity = Math.min(1, k / 0.35);
+  nobita.rotation.y = Math.atan2(cam.x - nobita.position.x, cam.z - nobita.position.z);
+  if (!BEFORE) {
+    // Lit by the light falling on his front, kept between 10% and 100% of the art's brightness; eased over ~0.3 s.
+    if (est) lightAt(est, facing.set(cam.x - nobita.position.x, 0, cam.z - nobita.position.z).normalize(), lit);
+    else lit.setRGB(1, 1, 1);
+    const Y = 0.2126 * lit.r + 0.7152 * lit.g + 0.0722 * lit.b;
+    lit.multiplyScalar(THREE.MathUtils.clamp(Y, 0.1, 1) / Math.max(Y, 1e-4));
+    card.material.color.lerp(lit, 1 - Math.exp(-dt / 0.3));
+    // With a main light the soft shadow narrows to 0.8 m, slides away from the light and stretches that way,
+    // further for a lower light (reach = 1 at 45°); without one it stays a 1 x 0.7 m ellipse under him.
+    const d = est?.primaryLightDirection, I = est?.primaryLightIntensity;
+    const reach = est && I.x + I.y + I.z > 0 ? Math.min(1.5, Math.hypot(d.x, d.z) / Math.max(0.05, d.y)) : 0;
+    away.set(reach ? -d.x : 0, 0, reach ? -d.z : 0).normalize();
+    soft.rotation.y = reach ? Math.atan2(away.x, away.z) - nobita.rotation.y : 0;
+    soft.scale.set(reach ? 0.8 : 1, 1, reach ? (0.8 * (1 + 0.5 * reach)) / 0.7 : 1);
+    soft.position.copy(away).multiplyScalar(0.2 * reach).applyAxisAngle(UP, -nobita.rotation.y).setY(0.002);
+  }
+  bubble.visible = k > 0.35 && k < 3.6;
+  dust.visible = k < 0.6;
+  if (dust.visible) { dust.scale.setScalar(0.15 + (k / 0.6) * 0.6); dust.material.opacity = 0.6 * (1 - k / 0.6); }
+  for (const s of sparks) {
+    s.visible = k < 0.9;
+    if (!s.visible) continue;
+    const { p0, v, size } = s.userData;
+    s.position.copy(p0).addScaledVector(v, k).add(new THREE.Vector3(0, -1.6 * k * k, 0));
+    s.material.opacity = 1 - k / 0.9; s.scale.setScalar(size * (1 - 0.4 * k));
+  }
+};
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.className = 'gl'; document.body.prepend(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(VFOV, innerWidth / innerHeight, 0.02, 60);
+camera.rotation.order = 'YXZ';
+
+if (PREVIEW) {
+  // ---- Preview: a dim, warm evening room and a scripted walk, one frame at a time (previewAt) ----
+  // The room stands in for the camera image: it is drawn first and its depth thrown away, as in AR,
+  // so nothing in it can hide him unless the page handles occlusion itself.
+  start.style.display = 'none'; intro.style.display = 'none';
+  const deg = THREE.MathUtils.degToRad, room = new THREE.Scene();
+  // Evening light (linear RGB): a warm ambient glow plus a table lamp up to the left, on the camera's side.
+  const AMBIENT = new THREE.Color(0.12, 0.085, 0.055), LAMP = new THREE.Color(0.19, 0.127, 0.073), LAMP_DIR = new THREE.Vector3(-0.55, 0.7, 0.45).normalize();
+  const shade = (albedo, n) => new THREE.Color(albedo).multiply(LAMP.clone().multiplyScalar(Math.max(0, n.dot(LAMP_DIR))).add(AMBIENT));
+  const floorTex = canvasTex(512, 512, (g) => {
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#d9cfbf' : '#d2c7b5'; g.fillRect(i * 256, j * 256, 256, 256); }
+    for (let n = 0; n < 900; n++) { g.fillStyle = `rgba(90,70,50,${0.04 + rand() * 0.05})`; g.fillRect(rand() * 512, rand() * 512, 2 + rand() * 5, 1 + rand() * 3); }
+    g.strokeStyle = '#b3a690'; g.lineWidth = 6; g.strokeRect(0, 0, 512, 512); g.beginPath(); g.moveTo(256, 0); g.lineTo(256, 512); g.moveTo(0, 256); g.lineTo(512, 256); g.stroke();
+  });
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(30 / 1.2, 30 / 1.2); floorTex.anisotropy = 8;
+  room.add(new THREE.Mesh(new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorTex, color: shade('#fff', UP) })));
+  renderer.setClearColor(shade('#cdbfa8', new THREE.Vector3(0, 0, 1)), 1); renderer.autoClear = false;   // the far wall
+  // A cardboard box on the floor (0.45 x 0.62 x 0.35 m), beside him at first and between you later.
+  const BOX = [0.45, 0.62, 0.35], boxNormals = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const box = new THREE.Mesh(new THREE.BoxGeometry(...BOX).translate(0, BOX[1] / 2, 0));
+  room.add(box);
+  const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+  const hit = new THREE.Vector3(), look = new THREE.Vector3(), P = new THREE.Vector3(), EYE = 1.4;
+  // 0-2.6 s look around the floor (the ring appears at 0.9 s) and tap 2.5 m away; he says hi there.
+  // 6-8 s step in to 1.5 m, then 8.5-11 s circle 75° round him, so the box comes between you and his feet.
+  const scan = (s) => {
+    camera.position.set(0, EYE, 0); camera.rotation.set(-Math.atan2(EYE, 2.5), deg(-14 + 20 * ease(s / 2.6)), 0);
+    camera.updateMatrixWorld();
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    hit.copy(camera.position).addScaledVector(dir, -camera.position.y / dir.y).setY(0);   // the floor under the middle of the view
+  };
+  scan(2.6); P.copy(hit);   // where the tap lands, so the box can stand beside it
+  const phi0 = Math.atan2(-P.x, -P.z), phiB = phi0 - deg(75);
+  box.position.copy(P).addScaledVector(new THREE.Vector3(Math.sin(phiB), 0, Math.cos(phiB)), 0.45); box.rotation.y = phiB;
+  box.material = boxNormals.map((n) => new THREE.MeshBasicMaterial({ color: shade('#b08a5a', new THREE.Vector3(...n).applyAxisAngle(UP, phiB)) }));
+  box.updateMatrixWorld();
+  // What ARCore would report for this room: the ambient as the SH's constant term, the lamp as the main light.
+  const sh = new Float32Array(27); [AMBIENT.r, AMBIENT.g, AMBIENT.b].forEach((v, i) => (sh[i] = v / 0.282095));
+  const roomLight = { sphericalHarmonicsCoefficients: sh, primaryLightDirection: LAMP_DIR, primaryLightIntensity: { x: LAMP.r * Math.PI, y: LAMP.g * Math.PI, z: LAMP.b * Math.PI } };
+  // ...and its depth image: 160 x 120 mm along the view axis, the sensor's long side down the portrait screen,
+  // which shows the middle 62% of its short side (a quarter-turned crop, the kind of transform Chrome hands over).
+  const DW = 160, DH = 120, crop = camera.aspect / (DH / DW), depth = new Uint16Array(DW * DH);
+  const uvFromView = new THREE.Matrix4().set(0, 1, 0, 0, -crop, 0, 0, 0.5 + 0.5 * crop, 0, 0, 1, 0, 0, 0, 0, 1);
+  const boxLocal = new THREE.Box3(new THREE.Vector3(-BOX[0] / 2, 0, -BOX[2] / 2), new THREE.Vector3(BOX[0] / 2, BOX[1], BOX[2] / 2));
+  const ray = new THREE.Ray(), local = new THREE.Ray(), toBox = box.matrixWorld.clone().invert(), fwd = new THREE.Vector3(), q = new THREE.Vector3();
+  const roomDepth = () => {
+    const tanV = Math.tan(deg(VFOV / 2)), tanH = tanV * camera.aspect;
+    camera.getWorldDirection(fwd);
+    for (let row = 0; row < DH; row++) for (let col = 0; col < DW; col++) {
+      const v = (col + 0.5) / DW, u = (0.5 + 0.5 * crop - (row + 0.5) / DH) / crop;
+      ray.set(camera.position, q.set((2 * u - 1) * tanH, (1 - 2 * v) * tanV, -1).transformDirection(camera.matrixWorld));
+      let dist = ray.direction.y < 0 ? -ray.origin.y / ray.direction.y : Infinity;
+      if (local.copy(ray).applyMatrix4(toBox).intersectBox(boxLocal, q)) dist = Math.min(dist, q.distanceTo(local.origin));
+      depth[row * DW + col] = Number.isFinite(dist) ? Math.min(65535, Math.round(dist * ray.direction.dot(fwd) * 1000)) : 0;
+    }
+    setDepth(new Uint8Array(depth.buffer), DW, DH, uvFromView.elements, 0.001);
+  };
+  let placed = false;
+  // hide: the same frame without him (the tests compare the two).
+  window.previewAt = async (t, hide = false) => {
+    rig.renderAt(t);
+    if (!placed && t >= 2.6) { placed = true; place(P.clone(), t); }
+    if (t < 2.6) scan(t);
+    else {
+      const r = 2.5 - ease((t - 6) / 2), phi = phi0 - deg(75) * ease((t - 8.5) / 2.5);
+      camera.position.set(P.x + r * Math.sin(phi), EYE + 0.01 * Math.sin(t * 7.1), P.z + r * Math.cos(phi));
+      look.copy(P).setY(0.78 * ease((t - 2.6) / 0.8) + 0.01 * Math.sin(t * 5.3));
+      camera.lookAt(look);
+    }
+    camera.updateMatrixWorld();
+    if (!placed) {
+      reticle.visible = t >= 0.9; reticle.matrix.makeTranslation(hit.x, 0.004, hit.z);
+      tip(t >= 0.9 ? 'Tap to call Nobita here' : 'Slowly look around the floor with your camera');
+    }
+    await Promise.resolve(); await rasterise();
+    update(t, camera.position, roomLight);
+    if (!BEFORE) roomDepth();
+    nobita.visible = placed && !hide;
+    renderer.clear(); renderer.render(room, camera); renderer.clearDepth(); renderer.render(scene, camera);
+    return { P: P.toArray(), cam: camera.position.toArray(), lampDir: LAMP_DIR.toArray(), floorLight: shade('#fff', UP).toArray(), box: [box.position.toArray(), phiB, BOX] };
+  };
+  window.previewProject = (pts) => pts.map((p) => { const v = new THREE.Vector3(...p).project(camera); return [((v.x + 1) / 2) * innerWidth, ((1 - v.y) / 2) * innerHeight]; });
+} else {
+  // ---- AR: ARCore through WebXR; the floor comes from hit tests, the spot from an anchor ------
+  let hitSource = null, lastHit = null, anchor = null, probe = null, light = null, depthOn = false;
+  const t0 = performance.now() / 1000, cam = new THREE.Vector3(), here = new THREE.Vector3();
+  const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
+  start.textContent = ok ? 'Start AR' : 'AR is not available in this browser';
+  start.disabled = !ok;
+  start.onclick = async () => {
+    const session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'anchors', ...(BEFORE ? [] : ['light-estimation', 'depth-sensing'])],
+      domOverlay: { root: document.getElementById('overlay') },
+      // Chrome on ARCore only does CPU depth, 16-bit mm in either 2-byte layout (both decode the same here).
+      depthSensing: { usagePreference: ['cpu-optimized'], dataFormatPreference: ['luminance-alpha', 'unsigned-short'] },
+    });
+    renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+    hitSource = await session.requestHitTestSource({ space: await session.requestReferenceSpace('viewer') });
+    // Both optional: without them he keeps the art's brightness, a centred shadow, and draws over everything.
+    if (session.enabledFeatures?.includes('light-estimation')) probe = await session.requestLightProbe().catch(() => null);
+    depthOn = !!session.enabledFeatures?.includes('depth-sensing') && session.depthUsage === 'cpu-optimized';
+    session.addEventListener('select', () => {
+      if (placedAt !== null || !lastHit) return;
+      place(here.setFromMatrixPosition(reticle.matrix).clone(), performance.now() / 1000);
+      lastHit.createAnchor?.().then((a) => (anchor = a)).catch(() => {});
+    });
+    session.addEventListener('end', () => location.reload());
+    start.style.display = 'none'; intro.style.display = 'none';
+    tip('Slowly look around the floor with your camera');
+  };
+  renderer.setAnimationLoop((time, xrFrame) => {
+    const now = performance.now() / 1000;
+    if (xrFrame && hitSource) {
+      const ref = renderer.xr.getReferenceSpace(), pose = xrFrame.getViewerPose(ref);
+      if (pose) cam.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
+      if (probe) light = xrFrame.getLightEstimate(probe) || light;   // null until ARCore has one; keep the last
+      if (depthOn && pose) {
+        try {
+          const d = xrFrame.getDepthInformation(pose.views[0]);
+          if (d) setDepth(new Uint8Array(d.data), d.width, d.height, d.normDepthBufferFromNormView.matrix, d.rawValueToMeters);
+        } catch { /* no depth this frame */ }
+      }
+      // Only floor-like surfaces: a hit pose's Y axis is the surface normal (m[5] = how much it points up).
+      lastHit = xrFrame.getHitTestResults(hitSource).find((h) => h.getPose(ref).transform.matrix[5] > 0.8) || null;
+      if (placedAt === null) {
+        reticle.visible = !!lastHit;
+        if (lastHit) { reticle.matrix.fromArray(lastHit.getPose(ref).transform.matrix); tip('Tap to call Nobita here'); }
+      }
+      if (anchor && xrFrame.trackedAnchors?.has(anchor)) {
+        const p = xrFrame.getPose(anchor.anchorSpace, ref);
+        if (p) nobita.position.set(p.transform.position.x, p.transform.position.y, p.transform.position.z);
+      }
+    }
+    rig.renderAt(now - t0); rasterise();
+    update(now, cam, light);
+    renderer.render(scene, camera);
+  });
+}
+window.ready = true;
+</script>
+</body>
+</html>

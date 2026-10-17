@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saath AR camera</title>
+<!--
+  Saath's AR camera: a friend standing on your real floor, tracked by ARCore through Chrome's WebXR.
+  The app opens it in Chrome at a friend's spot: ?friend=doraemon|figure|shinchan|goku&name=&tall=
+  (metres)&return=<a deep link back into the app>. Built from four methods tried on 17 Oct:
+  - the floor is ARCore's detected floor (the lowest plane facing up), then hit tests, then a local-floor
+    guess; their spot is 2.5 m ahead on seen floor (else about 2 m on the flat floor), never on furniture;
+  - no tap needed: once that spot has held for 1 s with the phone looking ahead they burst out
+    (Pokémon GO AR+); within 1 m the view greys and asks you to step back;
+  - a tight contact shadow plus a soft one away from the room's main light, and the room's light dims
+    them gently (no colour cast). No occlusion: on the S24 ARCore's coarse depth of the floor around
+    their feet hid their feet and legs in open floor (17 Oct), so they are always drawn whole.
+  Serve web/ (node web/serve.mjs), then adb reverse tcp:8099 tcp:8099 for the phone. ?preview plays a
+  scripted room; ?debug shows distances; ?gain= scales the light. Rig pages come from scripts/build-rigs.mjs.
+-->
+<style>
+  :root { --ink: #111318; --gold: #FFC83D; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111318; color: #fff; font-family: system-ui, Roboto, sans-serif; }
+  canvas.gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #rig { position: fixed; left: 0; top: 0; width: 400px; height: 900px; border: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  #intro { position: fixed; left: 16px; right: 16px; top: 28%; text-align: center; font-weight: 700; font-size: 18px; line-height: 1.45; }
+  #start { position: fixed; left: 16px; right: 16px; bottom: 36px; padding: 18px; border: 2.5px solid var(--ink); border-radius: 18px;
+           background: var(--gold); box-shadow: 3px 3px 0 var(--ink); color: var(--ink); font: 900 20px system-ui, Roboto, sans-serif; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; transition: background .25s; }
+  #overlay.close { background: rgba(70, 70, 70, .45); }   /* too close: the view greys, as in Pokémon GO AR+ */
+  #overlay.close #tip { bottom: 46%; }
+  #tip { position: absolute; left: 16px; right: 16px; bottom: 36px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
+         border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 800; font-size: 17px; text-align: center; display: none; }
+  #hud { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 5px 12px; border-radius: 99px; white-space: nowrap;
+         background: rgba(17, 19, 24, .62); color: #fff; font: 700 13px system-ui, Roboto, sans-serif; }
+  #hud:empty { display: none; }
+  #home { position: fixed; left: 16px; right: 16px; bottom: 112px; display: none; text-align: center; color: #fff; font: 800 17px system-ui, Roboto, sans-serif; }
+  #back { position: absolute; right: 16px; top: 16px; display: none; padding: 10px 14px; border-radius: 99px; border: 2.5px solid var(--ink); background: #fff;
+          color: var(--ink); box-shadow: 2px 2px 0 var(--ink); font: 800 15px system-ui, Roboto, sans-serif; text-decoration: none; pointer-events: auto; }
+</style>
+</head>
+<body>
+<iframe id="rig" title="Your friend's drawing" aria-hidden="true"></iframe>
+<div id="intro">Saath<br><span id="introLine" style="font-weight:500;opacity:.8"></span></div>
+<button id="start">Loading…</button>
+<a id="home" href="#" role="button">Back to Saath</a>
+<div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
+// Which friend, from the app (src/friends.ts): only the four rigs there are; the name is only ever used as text.
+const FRIEND = ['doraemon', 'nobita', 'shinchan', 'goku'].includes(Q.get('friend')) ? Q.get('friend') : 'nobita';
+const NAME = (Q.get('name') || FRIEND).slice(0, 24), TALL_M = Number(Q.get('tall')) || 1.4;   // their height in metres
+const BACK = Q.get('return');   // a deep link back into the app, if it opened this page
+const VFOV = 72.7;    // S24 main camera (notes/ar-stability.md); only the preview camera uses it
+// Pokémon GO AR+ timing and distances: he comes out once his spot has held for 1 s; under 1 m you're told
+// to step back, cleared past 1.2 m.
+const HOLD_S = 1, NEAR_M = 1.0, CLEAR_M = 1.2;
+// The room's light only sets his brightness, between 80% and 100% of the art, with no colour cast, so he
+// sits in the room but still looks like himself. shortcut: ARCore's light units are taken as-is; tune ?gain on the phone.
+const GAIN = Number(Q.get('gain')) || 1.5, DIMMEST = 0.8;
+const tipEl = document.getElementById('tip'), start = document.getElementById('start'), intro = document.getElementById('intro');
+const overlay = document.getElementById('overlay'), hud = document.getElementById('hud');
+const tip = (s) => { if (tipEl.textContent !== s) tipEl.textContent = s; tipEl.style.display = s ? 'block' : 'none'; };
+const canvasTex = (w, h, paint) => {
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  paint(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+};
+
+// ---- The friend: the app's own 2D rig, copied onto a card that stands on the floor ----------------
+// The rig page runs in a same-origin frame with its clock loops removed, so this page drives it
+// (renderAt) and copies each new drawing (12 a second) into a canvas texture.
+const frame = document.getElementById('rig');
+const rigHtml = (await (await fetch(`rigs/${FRIEND}.html`, { cache: 'no-store' })).text()).replaceAll('requestAnimationFrame(loop);', '');
+// The frame's first, blank page can finish loading after the fetch above, so wait for the load that has the rig in it.
+await new Promise((r) => {
+  frame.addEventListener('load', function loaded() { if (frame.contentWindow.saath) { frame.removeEventListener('load', loaded); r(); } });
+  frame.srcdoc = rigHtml;
+});
+const rig = frame.contentWindow;
+const svg = [...frame.contentDocument.body.children].find((e) => e.tagName === 'svg' && e.querySelector('.head'));
+const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number), A = rig.SAATH_AR;
+const own = svg.querySelector('.contact'); if (own) own.style.display = 'none';   // he gets a real shadow instead
+const PX_H = 1024, PX_W = Math.round((PX_H * vb[2]) / vb[3]);
+const art = Object.assign(document.createElement('canvas'), { width: PX_W, height: PX_H }), artG = art.getContext('2d');
+const artTex = new THREE.CanvasTexture(art); artTex.colorSpace = THREE.SRGBColorSpace;
+let dirty = true, drawing = null;
+new MutationObserver(() => (dirty = true)).observe(svg, { attributes: true, childList: true, subtree: true });
+const rasterise = () => {
+  if (!dirty || drawing) return drawing || Promise.resolve();
+  dirty = false;
+  const c = svg.cloneNode(true);
+  c.removeAttribute('style'); c.setAttribute('width', PX_W); c.setAttribute('height', PX_H); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  drawing = new Promise((done) => {
+    img.onload = () => { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(img, 0, 0, PX_W, PX_H); artTex.needsUpdate = true; done(); };
+    img.onerror = done;
+    img.src = url;
+  }).finally(() => { URL.revokeObjectURL(url); drawing = null; });
+  return drawing;
+};
+
+// ---- The scene: the friend (card, two shadows, speech bubble), the floor ring, the pop-in sparkles -------
+const scene = new THREE.Scene();
+const unitM = TALL_M / A.tall, cardW = vb[2] * unitM, cardH = vb[3] * unitM;
+const cardGeo = new THREE.PlaneGeometry(cardW, cardH);
+cardGeo.translate(-((A.ground[0] - vb[0]) / vb[2] - 0.5) * cardW, ((A.ground[1] - vb[1]) / vb[3] - 0.5) * cardH, 0);   // feet at the origin
+const card = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: artTex, transparent: true, alphaTest: 0.03 }));
+// A soft dark ellipse on the floor, w x d metres, alpha falling off along `stops` ([radius 0-1, alpha]).
+const blob = (w, d, stops) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g) => {
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    for (const [at, a] of stops) r.addColorStop(at, `rgba(20,14,8,${a})`);
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  }) }));
+  m.position.y = 0.002; m.renderOrder = -1; return m;
+};
+// A tight dark core under his (0.46 m wide) shoes plus a wide soft shadow cast away from the light.
+const shadows = [blob(0.62, 0.22, [[0, 0.9], [0.45, 0.62], [0.75, 0.2], [1, 0]]), blob(1, 0.7, [[0, 0.42], [0.5, 0.22], [1, 0]])];
+const soft = shadows[1];
+
+// ARCore's light estimate, shaded the way ARCore's own sample does (hello_ar_java environmental_hdr.frag):
+// 9 SH terms pre-scaled by these factors (basis, 1/pi, cosine lobe) plus the main light's Lambert term.
+const SH_K = [0.282095, -0.325735, 0.325735, -0.325735, 0.273137, -0.273137, 0.078848, -0.273137, 0.136569];
+const lightAt = (est, n, out) => {
+  const c = est.sphericalHarmonicsCoefficients, { x, y, z } = n, basis = [1, y, z, x, y * x, y * z, 3 * z * z - 1, z * x, x * x - y * y];
+  const d = est.primaryLightDirection, I = est.primaryLightIntensity, lambert = Math.max(0, x * d.x + y * d.y + z * d.z) / Math.PI;
+  const sh = (ch) => Math.max(0, basis.reduce((sum, b, i) => sum + c[i * 3 + ch] * SH_K[i] * b, 0));
+  return out.setRGB(sh(0) + I.x * lambert, sh(1) + I.y * lambert, sh(2) + I.z * lambert);
+};
+
+const bubble = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.95, 0.3),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(640, 200, (g, w, h) => {
+    g.lineWidth = 8; g.strokeStyle = '#111318'; g.fillStyle = '#fff';
+    g.beginPath(); g.roundRect(8, 8, w - 16, h - 64, 44); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(w / 2 - 34, h - 60); g.lineTo(w / 2, h - 10); g.lineTo(w / 2 + 34, h - 60); g.fill(); g.stroke();
+    g.fillRect(w / 2 - 30, h - 68, 60, 10);   // opens the bubble's edge into the tail
+    g.fillStyle = '#111318'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const hello = `Hi! I'm ${NAME}!`;
+    let px = 64;
+    do g.font = `800 ${px}px system-ui, Roboto, sans-serif`; while (g.measureText(hello).width > w - 70 && --px > 30);   // longer names get smaller text
+    g.fillText(hello, w / 2, (h - 56) / 2 + 6);
+  }) }),
+);
+bubble.position.y = TALL_M + 0.3; bubble.visible = false;
+const figure = new THREE.Group();
+figure.add(...shadows, card, bubble); figure.visible = false; scene.add(figure);
+
+// The gold ring with footprints that marks where he will come out.
+const reticle = new THREE.Group(), reticleInner = new THREE.Group();
+reticle.matrixAutoUpdate = false; reticle.visible = false; reticle.add(reticleInner); scene.add(reticle);
+const flat = (geo, color, opacity = 1) => new THREE.Mesh(geo.rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: false }));
+reticleInner.add(flat(new THREE.CircleGeometry(0.2, 48), 0xffc457, 0.28), flat(new THREE.RingGeometry(0.19, 0.225, 48), 0xffb43c));
+for (const x of [-0.065, 0.065]) { const f = flat(new THREE.CircleGeometry(0.04, 20), 0xffc457); f.position.set(x, 0.001, 0); reticleInner.add(f); }
+
+// Sparkles and a dust ring when he pops in (like a Pokémon bursting out of the grass).
+let seed = 7; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const sparkTex = canvasTex(64, 64, (g) => {
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,214,90,1)'); r.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+});
+const sparks = Array.from({ length: 18 }, () => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  s.visible = false; scene.add(s); return s;
+});
+const dust = flat(new THREE.RingGeometry(0.85, 1, 48), 0xffe2a6, 0.6); dust.visible = false; scene.add(dust);
+
+let placedAt = null, floorY = null;
+const place = (pos, now) => {
+  figure.position.copy(pos); figure.visible = true; placedAt = now; reticle.visible = false;
+  dust.position.copy(pos).setY(pos.y + 0.003);
+  sparks.forEach((s, i) => {
+    const a = (i / sparks.length) * Math.PI * 2 + rand() * 0.5, sp = 0.45 + rand() * 0.6;
+    s.userData = { p0: pos.clone().add(new THREE.Vector3(0, 0.15, 0)), v: new THREE.Vector3(Math.cos(a) * sp, 1.1 + rand() * 1.3, Math.sin(a) * sp), size: 0.06 + rand() * 0.07 };
+  });
+  rig.saath.play(['hi']);
+  tip(`${NAME} is here! Walk around him.`);
+  showBack();
+};
+
+// Back into the app. Chrome hands an Android intent link straight to the app (Expo Go while developing); once
+// they have met, the link says so (met=1, kept in this page's URL so a reload remembers it).
+const home = document.getElementById('home'), back = document.getElementById('back');
+const homeLink = () => {
+  const u = new URL(BACK);
+  if (new URLSearchParams(location.search).get('met') === '1') u.searchParams.set('met', '1');
+  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.slice(0, -1)};${u.protocol === 'exp:' ? 'package=host.exp.exponent;' : ''}end`;
+};
+const showBack = () => {
+  try { const u = new URL(location.href); u.searchParams.set('met', '1'); history.replaceState(null, '', u); } catch {}
+  back.style.display = BACK ? 'block' : 'none';
+};
+for (const el of [home, back]) {
+  el.addEventListener('click', (e) => { e.preventDefault(); location.href = homeLink(); });
+  el.addEventListener('beforexrselect', (e) => e.preventDefault());   // a tap on it isn't an AR tap
+}
+if (BACK) home.style.display = 'block';
+document.getElementById('introLine').textContent = `Meet ${NAME} on your real floor`;
+const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+const UP = new THREE.Vector3(0, 1, 0), facing = new THREE.Vector3(), away = new THREE.Vector3(), lit = new THREE.Color(), want = new THREE.Color();
+let lastNow = 0, close = false;
+// Each frame: the pop-in, the sparkles, the bubble, the pulsing ring; he turns to face the camera, takes the
+// room's brightness, and if you come within 1 m he stays on his spot while the view greys and asks you to
+// step back. est: the room's light (an XRLightEstimate), or null.
+const update = (now, cam, est) => {
+  reticleInner.scale.setScalar(1 + 0.05 * Math.sin(now * 5));
+  const dt = Math.min(1, Math.abs(now - lastNow)), dist = Math.hypot(cam.x - figure.position.x, cam.z - figure.position.z);
+  lastNow = now;
+  if (DEBUG) hud.textContent = floorY === null ? '' : `floor ${(cam.y - floorY).toFixed(2)} m below` + (placedAt === null ? '' : ` · ${NAME} ${dist.toFixed(2)} m away`);
+  if (placedAt === null) return;
+  close = dist < NEAR_M || (close && dist < CLEAR_M);
+  overlay.classList.toggle('close', close);
+  tip(close ? 'You’re too close — step back a little' : `${NAME} is here! Walk around him.`);
+  const k = now - placedAt;
+  card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
+  for (const s of shadows) s.material.opacity = Math.min(1, k / 0.35);
+  figure.rotation.y = Math.atan2(cam.x - figure.position.x, cam.z - figure.position.z);
+  // Gentle room light: the brightness of the light falling on his front, kept between 80% and 100%, eased over ~0.3 s.
+  if (est) {
+    lightAt(est, facing.set(cam.x - figure.position.x, 0, cam.z - figure.position.z).normalize(), lit);
+    const b = THREE.MathUtils.clamp((0.2126 * lit.r + 0.7152 * lit.g + 0.0722 * lit.b) * GAIN, DIMMEST, 1);
+    want.setRGB(b, b, b);
+  } else want.setRGB(1, 1, 1);
+  card.material.color.lerp(want, 1 - Math.exp(-dt / 0.3));
+  // With a main light the soft shadow narrows to 0.8 m, slides away from the light and stretches that way,
+  // further for a lower light (reach = 1 at 45°); without one it stays a 1 x 0.7 m ellipse under him.
+  const d = est?.primaryLightDirection, I = est?.primaryLightIntensity;
+  const reach = est && I.x + I.y + I.z > 0 ? Math.min(1.5, Math.hypot(d.x, d.z) / Math.max(0.05, d.y)) : 0;
+  away.set(reach ? -d.x : 0, 0, reach ? -d.z : 0).normalize();
+  soft.rotation.y = reach ? Math.atan2(away.x, away.z) - figure.rotation.y : 0;
+  soft.scale.set(reach ? 0.8 : 1, 1, reach ? (0.8 * (1 + 0.5 * reach)) / 0.7 : 1);
+  soft.position.copy(away).multiplyScalar(0.2 * reach).applyAxisAngle(UP, -figure.rotation.y).setY(0.002);
+  bubble.visible = k > 0.35 && k < 3.6;
+  dust.visible = k < 0.6;
+  if (dust.visible) { dust.scale.setScalar(0.15 + (k / 0.6) * 0.6); dust.material.opacity = 0.6 * (1 - k / 0.6); }
+  for (const s of sparks) {
+    s.visible = k < 0.9;
+    if (!s.visible) continue;
+    const { p0, v, size } = s.userData;
+    s.position.copy(p0).addScaledVector(v, k).add(new THREE.Vector3(0, -1.6 * k * k, 0));
+    s.material.opacity = 1 - k / 0.9; s.scale.setScalar(size * (1 - 0.4 * k));
+  }
+};
+
+// ---- His spot, from planes as WebXR reports them: { m: pose matrix (Y axis = normal), poly: outline in plane space } ----
+// The floor is the lowest big plane facing up (ARCore calls ceilings "horizontal" too). He stands on it 2.5 m
+// ahead along the phone's level forward, at the first distance that is on seen floor and not under furniture.
+// Why 2.5 m: with the phone 1.4 m up, his feet are 29° below the horizon, the floor in front of him 32° and the
+// bubble top 10° above, so all of it fits the 72.7° view at any tilt from -26° to +5°.
+const DISTS = [2.5, 2.25, 2.75, 2, 3, 1.8];
+const area = (poly) => Math.abs(poly.reduce((s, p, i) => { const q = poly[(i + 1) % poly.length]; return s + p.x * q.z - q.x * p.z; }, 0)) / 2;
+const inside = ({ m, poly }, x, z) => {   // seen from above; the pose is rigid, so plane-space x, z are dots with its axes
+  const u = (x - m[12]) * m[0] + (z - m[14]) * m[2], v = (x - m[12]) * m[8] + (z - m[14]) * m[10];
+  let k = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.z > v) !== (b.z > v) && u < ((b.x - a.x) * (v - a.z)) / (b.z - a.z) + a.x) k = !k;
+  }
+  return k;
+};
+// lowHit: the lowest floor-like hit-test height seen so far (Infinity if none). On the S24, in a small room,
+// ARCore's floor outline rarely reached 1.8 m ahead, so when no seen floor is there he stands on the flat
+// floor at that height about 2 m ahead instead (still never on furniture).
+// seen (in AR): points ARCore's hit tests actually found. He only stands where the camera has seen floor (a seen
+// point within 0.5 m), never on floor it hasn't, such as behind a bed: ARCore's floor outline can reach there,
+// and with no occlusion he would look pasted on top of the bed. When the mapped floor doesn't reach far enough he
+// stands on the seen point nearest 2.25 m ahead, 1.5-3 m away and within 35° of the view. null: no such check.
+const pickSpot = (planes, cam, fwd, lowHit = Infinity, seen = null) => {
+  const up = planes.filter((p) => p.m[5] > 0.9), y = Math.min(lowHit, ...up.map((p) => p.m[13]));
+  if (!isFinite(y)) return null;
+  const floor = up.filter((p) => p.m[13] < y + 0.05), furniture = up.filter((p) => p.m[13] > y + 0.1);
+  const free = (x, z) => !furniture.some((p) => inside(p, x, z));
+  const onSeen = (x, z) => !seen || seen.some((p) => Math.abs(p.y - y) < 0.08 && Math.hypot(p.x - x, p.z - z) < 0.5);
+  for (const d of DISTS) {
+    const x = cam.x + fwd.x * d, z = cam.z + fwd.z * d;
+    if (floor.some((p) => inside(p, x, z)) && free(x, z) && onSeen(x, z)) return { x, y, z };
+  }
+  let best = null, bestErr = Infinity;
+  for (const p of seen || []) {
+    const dx = p.x - cam.x, dz = p.z - cam.z, d = Math.hypot(dx, dz);
+    if (d < 1.5 || d > 3 || Math.abs(p.y - y) > 0.08 || (dx * fwd.x + dz * fwd.z) / d < 0.82 || !free(p.x, p.z)) continue;
+    const err = Math.hypot(p.x - (cam.x + fwd.x * 2.25), p.z - (cam.z + fwd.z * 2.25));
+    if (err < bestErr) { best = p; bestErr = err; }
+  }
+  return best && { x: best.x, y, z: best.z };
+};
+// The phone's forward, levelled (its top edge when it points straight down). m is a column-major pose.
+const levelForward = (m) => { let x = -m[8], z = -m[10]; if (Math.hypot(x, z) < 0.2) { x = m[4]; z = m[6]; } const l = Math.hypot(x, z); return { x: x / l, z: z / l }; };
+// A floor known only by its height (from hit tests or local-floor): a huge flat plane.
+const flatAt = (y) => ({ m: new THREE.Matrix4().makeTranslation(0, y, 0).elements, poly: [[-1e3, -1e3], [1e3, -1e3], [1e3, 1e3], [-1e3, 1e3]].map(([x, z]) => ({ x, z })) });
+// Until he is out: the ring shows his spot, and he bursts out once it has held for HOLD_S with the phone looking
+// ahead (at most 30° down: with the 72.7° view his feet at 2.5 m, 29° below level, and his head at eye level are
+// then both on screen). A guessed floor never calls him by itself. lookY: the camera forward's up component.
+let heldSince = null;
+const ready = (spot, lookY, now, guessed) => {
+  const ahead = lookY > -0.5;
+  heldSince = spot && ahead && !guessed ? (heldSince ?? now) : null;
+  tip(!spot ? 'Slowly look around the floor a few steps ahead' : guessed ? `Floor not found yet: tap to call ${NAME} anyway`
+    : !ahead ? 'Floor found! Now look ahead of you' : `${NAME} is coming…`);
+  return heldSince !== null && now - heldSince >= HOLD_S;
+};
+// For tests: what the page is doing.
+window.state = () => ({ placed: placedAt !== null, at: figure.position.toArray().map((v) => +v.toFixed(3)), ring: reticle.visible,
+  close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
+  backShown: back.style.display === 'block', back: BACK ? homeLink() : null });
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.className = 'gl'; document.body.prepend(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(VFOV, innerWidth / innerHeight, 0.02, 60);
+camera.rotation.order = 'YXZ';
+
+if (PREVIEW) {
+  // ---- Preview: a room (floor, a 0.5 m box 0.9 m ahead, a 0.45 m bed on the left), the planes ARCore
+  // would detect in it, and a scripted phone, rendered one frame at a time (previewAt) ----
+  start.style.display = 'none'; intro.style.display = 'none';
+  const floorTex = canvasTex(512, 512, (g) => {
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#d9cfbf' : '#d2c7b5'; g.fillRect(i * 256, j * 256, 256, 256); }
+    for (let n = 0; n < 900; n++) { g.fillStyle = `rgba(90,70,50,${0.04 + rand() * 0.05})`; g.fillRect(rand() * 512, rand() * 512, 2 + rand() * 5, 1 + rand() * 3); }
+    g.strokeStyle = '#b3a690'; g.lineWidth = 6; g.strokeRect(0, 0, 512, 512); g.beginPath(); g.moveTo(256, 0); g.lineTo(256, 512); g.moveTo(0, 256); g.lineTo(512, 256); g.stroke();
+  });
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(30 / 1.2, 30 / 1.2); floorTex.anisotropy = 8;
+  // renderOrder -2: three.js sorts opaque meshes by material before depth, so without it the room would be
+  // drawn after the ring's band and footprints (which write no depth) and hide them.
+  scene.add(Object.assign(new THREE.Mesh(new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorTex })), { renderOrder: -2 }));
+  scene.background = new THREE.Color('#ece7df');
+  const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)), rad = THREE.MathUtils.degToRad;
+  const block = (w, h, d, x, y, z, [top, side, front]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [side, side, top, top, front, side].map((color) => new THREE.MeshBasicMaterial({ color })));
+    m.position.set(x, y, z); m.renderOrder = -2; m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: '#7a6a58' }))); scene.add(m);
+  };
+  block(5.4, 2.6, 0.01, -0.1, 1.3, -4.6, ['#e6dfd3', '#e6dfd3', '#e6dfd3']); block(0.01, 2.6, 5.8, -2.8, 1.3, -1.7, ['#dcd4c6', '#dcd4c6', '#dcd4c6']);
+  block(0.01, 2.6, 5.8, 2.6, 1.3, -1.7, ['#d6cebf', '#d6cebf', '#d6cebf']);
+  block(0.5, 0.5, 0.5, 0.15, 0.25, -0.9, ['#d9b07c', '#a87c50', '#c49562']);   // the box
+  block(1.4, 0.45, 2, -2.1, 0.225, -1.4, ['#9cbbe0', '#6f8fb8', '#86a6cf']);   // the bed
+  const rect = (x, y, z, w, d) => ({ m: new THREE.Matrix4().makeTranslation(x, y, z).elements,
+    poly: [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([a, b]) => ({ x: a, y: 0, z: b })) });
+  const planes = [rect(-0.1, 0, -1.7, 5, 5.4), rect(0.15, 0.5, -0.9, 0.5, 0.5), rect(-2.1, 0.45, -1.4, 1.4, 2)];   // floor, box top, bed top
+  // A plain room light as ARCore would report it: an even glow (SH constant term) and a soft lamp up to the left.
+  const sh = new Float32Array(27); [0.5, 0.5, 0.5].forEach((v, i) => (sh[i] = v / 0.282095));
+  const LAMP = new THREE.Vector3(-0.55, 0.7, 0.45).normalize();
+  const roomLight = { sphericalHarmonicsCoefficients: sh, primaryLightDirection: LAMP, primaryLightIntensity: { x: 0.25, y: 0.25, z: 0.25 } };
+  const EYE = 1.4, look = new THREE.Vector3(), aim0 = new THREE.Vector3(), P = new THREE.Vector3(), dir = new THREE.Vector3();
+  let placedT = null;
+  // 0-3 s: look down at the floor in front (the box is there), glance left at the bed and back; the planes are
+  // found at 0.6 s. 3-3.8 s: raise the phone to a natural tilt, so he comes out about 1 s later. Then walk up
+  // to him until the view greys, and step back.
+  const scan = (s) => {
+    const g = Math.sin(Math.PI * ease((s - 0.9) / 1.6)), up = ease((s - 3) / 0.8);
+    camera.position.set(0, EYE, 0); camera.rotation.set(rad(-45 + 7 * g + 30 * up), rad(36 * g), 0); camera.updateMatrixWorld();
+  };
+  window.previewAt = async (t) => {
+    rig.renderAt(t);
+    if (placedT === null) {
+      scan(t);
+      const spot = t < 0.6 ? null : pickSpot(planes, camera.position, levelForward(camera.matrixWorld.elements));
+      reticle.visible = !!spot;
+      if (spot) { reticle.matrix.makeTranslation(spot.x, spot.y + 0.004, spot.z); floorY = spot.y; }   // 4 mm up: the simulated floor is a real surface
+      if (ready(spot, camera.getWorldDirection(dir).y, t, false)) {
+        P.set(spot.x, spot.y, spot.z); placedT = t; place(P.clone(), t);
+        aim0.copy(camera.position).addScaledVector(camera.getWorldDirection(dir), 2);
+      }
+    } else {
+      const k = t - placedT, r0 = Math.hypot(P.x, P.z), phi0 = Math.atan2(-P.x, -P.z);
+      const walkIn = ease((k - 3) / 2.5), walkOut = ease((k - 6.5) / 2.5), r = r0 + (0.8 - r0) * walkIn + (2.2 - 0.8) * walkOut;
+      const phi = phi0 + rad(25 * walkOut);
+      camera.position.set(P.x + r * Math.sin(phi), EYE + 0.01 * Math.sin(t * 7.1), P.z + r * Math.cos(phi));
+      camera.lookAt(look.lerpVectors(aim0, new THREE.Vector3(P.x, P.y + 0.7, P.z), ease(k / 1.2)));
+    }
+    camera.updateMatrixWorld();
+    await Promise.resolve(); await rasterise();
+    update(t, camera.position, roomLight);
+    renderer.render(scene, camera);
+    return window.state();
+  };
+} else {
+  // ---- AR: ARCore through WebXR. The floor comes from detected planes; without them, from the lowest
+  // floor-like hit-test result; with neither after 6 s, from local-floor (on ARCore a fixed 1.2 m below where
+  // the phone started, so only a guess). His spot is held by an anchor; the room's light is used when granted ----
+  let hitSource = null, anchor = null, planesOn = false, localFloor = false, lowHit = Infinity, startedAt = 0, probe = null, light = null;
+  const seen = [];   // floor-like hit-test points, for pickSpot
+  const t0 = performance.now() / 1000, cam = new THREE.Vector3(), here = new THREE.Vector3();
+  const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
+  start.textContent = ok ? 'Start AR' : 'AR is not available in this browser';
+  start.disabled = !ok;
+  const anchorAt = (xrFrame, p) => {
+    try { xrFrame.createAnchor?.(new XRRigidTransform({ x: p.x, y: p.y, z: p.z }), renderer.xr.getReferenceSpace())?.then((a) => (anchor = a), () => {}); } catch {}
+  };
+  start.onclick = async () => {
+    const session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay', 'anchors', 'plane-detection', 'local-floor', 'light-estimation'],
+      domOverlay: { root: overlay },
+    });
+    const has = (f) => !!session.enabledFeatures?.includes(f);
+    planesOn = has('plane-detection'); localFloor = has('local-floor');
+    renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType(localFloor ? 'local-floor' : 'local');
+    await renderer.xr.setSession(session);
+    hitSource = await session.requestHitTestSource({ space: await session.requestReferenceSpace('viewer') });
+    if (has('light-estimation')) probe = await session.requestLightProbe().catch(() => null);
+    // A tap calls him straight away (and is the only way on a guessed floor).
+    session.addEventListener('select', (e) => {
+      if (placedAt !== null || !reticle.visible) return;
+      const p = here.setFromMatrixPosition(reticle.matrix).clone();
+      place(p, performance.now() / 1000);
+      anchorAt(e.frame, p);   // the event's frame is only live during this call
+    });
+    session.addEventListener('end', () => location.reload());
+    start.style.display = 'none'; intro.style.display = 'none'; home.style.display = 'none';
+    startedAt = performance.now() / 1000;
+    tip('Slowly look around the floor a few steps ahead');
+  };
+  renderer.setAnimationLoop((time, xrFrame) => {
+    const now = performance.now() / 1000;
+    if (xrFrame && hitSource) {
+      const ref = renderer.xr.getReferenceSpace(), view = xrFrame.getViewerPose(ref);
+      if (view) cam.set(view.transform.position.x, view.transform.position.y, view.transform.position.z);
+      if (probe) light = xrFrame.getLightEstimate(probe) || light;   // null until ARCore has one; keep the last
+      if (placedAt === null && view) {
+        for (const h of xrFrame.getHitTestResults(hitSource)) {   // a hit pose's Y axis is the surface normal
+          const m = h.getPose(ref)?.transform.matrix;
+          if (m && m[5] > 0.9) { lowHit = Math.min(lowHit, m[13]); seen.push({ x: m[12], y: m[13], z: m[14] }); }
+        }
+        if (seen.length > 300) seen.splice(0, seen.length - 300);
+        const planes = planesOn ? [...xrFrame.detectedPlanes].map((p) => ({ m: xrFrame.getPose(p.planeSpace, ref)?.transform.matrix, poly: p.polygon })).filter((p) => p.m) : [];
+        const guessed = !planes.length && lowHit === Infinity && localFloor && now - startedAt > 6;
+        const spot = pickSpot(guessed ? [flatAt(0)] : planes, cam, levelForward(view.transform.matrix), lowHit, guessed ? null : seen);
+        reticle.visible = !!spot;
+        if (spot) { reticle.matrix.makeTranslation(spot.x, spot.y, spot.z); floorY = spot.y; }
+        if (ready(spot, -view.transform.matrix[9], now, guessed)) { const p = new THREE.Vector3(spot.x, spot.y, spot.z); place(p, now); anchorAt(xrFrame, p); }
+      }
+      if (anchor && xrFrame.trackedAnchors?.has(anchor)) {
+        const p = xrFrame.getPose(anchor.anchorSpace, ref);
+        if (p) figure.position.set(p.transform.position.x, p.transform.position.y, p.transform.position.z);
+      }
+    }
+    rig.renderAt(now - t0); rasterise();
+    update(now, cam, light);
+    renderer.render(scene, camera);
+  });
+}
+window.ready = true;
+</script>
+</body>
+</html>

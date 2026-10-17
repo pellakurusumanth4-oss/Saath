@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saath AR floor distance</title>
+<!--
+  THROWAWAY SPIKE (17 Oct), a copy of index.html: the ring only lands on the floor (the lowest up-facing
+  surface ARCore has hit, give or take 12 cm, so not a box, bed or table) and never nearer than 2.2 m
+  or further than 4 m, so his whole body and the floor round his feet fit on screen.
+  Run: node serve.mjs, adb reverse tcp:8099 tcp:8099, open http://localhost:8099/floor-distance.html in
+  Chrome on the phone. ?preview plays a scripted walk past a box and a bed with a simulated camera.
+-->
+<style>
+  :root { --ink: #111318; --gold: #FFC83D; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111318; color: #fff; font-family: system-ui, Roboto, sans-serif; }
+  canvas.gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #rig { position: fixed; left: 0; top: 0; width: 400px; height: 900px; border: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  #intro { position: fixed; left: 16px; right: 16px; top: 28%; text-align: center; font-weight: 700; font-size: 18px; line-height: 1.45; }
+  #start { position: fixed; left: 16px; right: 16px; bottom: 36px; padding: 18px; border: 2.5px solid var(--ink); border-radius: 18px;
+           background: var(--gold); box-shadow: 3px 3px 0 var(--ink); color: var(--ink); font: 900 20px system-ui, Roboto, sans-serif; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  #tip { position: absolute; left: 16px; right: 16px; bottom: 36px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
+         border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 800; font-size: 17px; text-align: center; display: none; }
+</style>
+</head>
+<body>
+<iframe id="rig" title="Nobita's drawing" aria-hidden="true"></iframe>
+<div id="intro">Saath · AR demo<br><span style="font-weight:500;opacity:.8">Nobita on your real floor, tracked by ARCore</span></div>
+<button id="start">Loading…</button>
+<div id="overlay"><div id="tip"></div></div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+const PREVIEW = new URLSearchParams(location.search).has('preview');
+const TALL_M = 1.4;   // Nobita's height (src/friends.ts)
+const VFOV = 72.7;    // S24 main camera (notes/ar-stability.md); only the preview camera uses it
+const tipEl = document.getElementById('tip'), start = document.getElementById('start'), intro = document.getElementById('intro');
+const tip = (s) => { if (tipEl.textContent !== s) tipEl.textContent = s; tipEl.style.display = s ? 'block' : 'none'; };
+const canvasTex = (w, h, paint) => {
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  paint(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+};
+
+// ---- Nobita: the app's own 2D rig, copied onto a card that stands on the floor ----------------
+// The rig page runs in a same-origin frame with its clock loops removed, so this page drives it
+// (renderAt) and copies each new drawing (12 a second) into a canvas texture.
+const frame = document.getElementById('rig');
+frame.srcdoc = (await (await fetch('nobita.html')).text()).replaceAll('requestAnimationFrame(loop);', '');
+await new Promise((r) => frame.addEventListener('load', r, { once: true }));
+const rig = frame.contentWindow;
+const svg = [...frame.contentDocument.body.children].find((e) => e.tagName === 'svg' && e.querySelector('.head'));
+const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number), A = rig.SAATH_AR;
+const own = svg.querySelector('.contact'); if (own) own.style.display = 'none';   // he gets a real shadow instead
+const PX_H = 1024, PX_W = Math.round((PX_H * vb[2]) / vb[3]);
+const art = Object.assign(document.createElement('canvas'), { width: PX_W, height: PX_H }), artG = art.getContext('2d');
+const artTex = new THREE.CanvasTexture(art); artTex.colorSpace = THREE.SRGBColorSpace;
+let dirty = true, drawing = null;
+new MutationObserver(() => (dirty = true)).observe(svg, { attributes: true, childList: true, subtree: true });
+const rasterise = () => {
+  if (!dirty || drawing) return drawing || Promise.resolve();
+  dirty = false;
+  const c = svg.cloneNode(true);
+  c.removeAttribute('style'); c.setAttribute('width', PX_W); c.setAttribute('height', PX_H); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  drawing = new Promise((done) => {
+    img.onload = () => { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(img, 0, 0, PX_W, PX_H); artTex.needsUpdate = true; done(); };
+    img.onerror = done;
+    img.src = url;
+  }).finally(() => { URL.revokeObjectURL(url); drawing = null; });
+  return drawing;
+};
+
+// ---- The scene: Nobita (card, shadow, speech bubble), the floor ring, the pop-in sparkles -------
+const scene = new THREE.Scene();
+const unitM = TALL_M / A.tall, cardW = vb[2] * unitM, cardH = vb[3] * unitM;
+const cardGeo = new THREE.PlaneGeometry(cardW, cardH);
+cardGeo.translate(-((A.ground[0] - vb[0]) / vb[2] - 0.5) * cardW, ((A.ground[1] - vb[1]) / vb[3] - 0.5) * cardH, 0);   // feet at the origin
+const card = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: artTex, transparent: true, alphaTest: 0.03 }));
+const shadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.62, 0.62).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g) => {
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    r.addColorStop(0, 'rgba(20,14,8,.55)'); r.addColorStop(0.5, 'rgba(20,14,8,.3)'); r.addColorStop(1, 'rgba(20,14,8,0)');
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  }) }),
+);
+shadow.scale.z = 0.7; shadow.position.y = 0.002; shadow.renderOrder = -1;
+const bubble = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.95, 0.3),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(640, 200, (g, w, h) => {
+    g.lineWidth = 8; g.strokeStyle = '#111318'; g.fillStyle = '#fff';
+    g.beginPath(); g.roundRect(8, 8, w - 16, h - 64, 44); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(w / 2 - 34, h - 60); g.lineTo(w / 2, h - 10); g.lineTo(w / 2 + 34, h - 60); g.fill(); g.stroke();
+    g.fillRect(w / 2 - 30, h - 68, 60, 10);   // opens the bubble's edge into the tail
+    g.fillStyle = '#111318'; g.font = '800 64px system-ui, Roboto, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText("Hi! I'm Nobita!", w / 2, (h - 56) / 2 + 6);
+  }) }),
+);
+bubble.position.y = TALL_M + 0.3; bubble.visible = false;
+const nobita = new THREE.Group();
+nobita.add(shadow, card, bubble); nobita.visible = false; scene.add(nobita);
+
+// The gold ring with footprints that sits on the detected floor before he is called.
+const reticle = new THREE.Group(), reticleInner = new THREE.Group();
+reticle.matrixAutoUpdate = false; reticle.visible = false; reticle.add(reticleInner); scene.add(reticle);
+const flat = (geo, color, opacity = 1) => new THREE.Mesh(geo.rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: false }));
+reticleInner.add(flat(new THREE.CircleGeometry(0.2, 48), 0xffc457, 0.28), flat(new THREE.RingGeometry(0.19, 0.225, 48), 0xffb43c));
+for (const x of [-0.065, 0.065]) { const f = flat(new THREE.CircleGeometry(0.04, 20), 0xffc457); f.position.set(x, 0.001, 0); reticleInner.add(f); }
+
+// Sparkles and a dust ring when he pops in (like a Pokémon bursting out of the grass).
+let seed = 7; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const sparkTex = canvasTex(64, 64, (g) => {
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,214,90,1)'); r.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+});
+const sparks = Array.from({ length: 18 }, () => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  s.visible = false; scene.add(s); return s;
+});
+const dust = flat(new THREE.RingGeometry(0.85, 1, 48), 0xffe2a6, 0.6); dust.visible = false; scene.add(dust);
+
+let placedAt = null;
+const place = (pos, now) => {
+  nobita.position.copy(pos); nobita.visible = true; placedAt = now; reticle.visible = false;
+  dust.position.copy(pos).setY(pos.y + 0.003);
+  sparks.forEach((s, i) => {
+    const a = (i / sparks.length) * Math.PI * 2 + rand() * 0.5, sp = 0.45 + rand() * 0.6;
+    s.userData = { p0: pos.clone().add(new THREE.Vector3(0, 0.15, 0)), v: new THREE.Vector3(Math.cos(a) * sp, 1.1 + rand() * 1.3, Math.sin(a) * sp), size: 0.06 + rand() * 0.07 };
+  });
+  rig.saath.play(['hi']);
+  tip('Nobita is here! Walk around him.');
+};
+const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
+// Each frame: the pop-in, the sparkles, the bubble, the pulsing ring; he turns to face the camera.
+const update = (now, cam) => {
+  reticleInner.scale.setScalar(1 + 0.05 * Math.sin(now * 5));
+  if (placedAt === null) return;
+  const k = now - placedAt;
+  card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
+  shadow.material.opacity = Math.min(1, k / 0.35);
+  bubble.visible = k > 0.35 && k < 3.6;
+  dust.visible = k < 0.6;
+  if (dust.visible) { dust.scale.setScalar(0.15 + (k / 0.6) * 0.6); dust.material.opacity = 0.6 * (1 - k / 0.6); }
+  for (const s of sparks) {
+    s.visible = k < 0.9;
+    if (!s.visible) continue;
+    const { p0, v, size } = s.userData;
+    s.position.copy(p0).addScaledVector(v, k).add(new THREE.Vector3(0, -1.6 * k * k, 0));
+    s.material.opacity = 1 - k / 0.9; s.scale.setScalar(size * (1 - 0.4 * k));
+  }
+  nobita.rotation.y = Math.atan2(cam.x - nobita.position.x, cam.z - nobita.position.z);
+};
+
+// ---- Where he would stand, or null for no ring. poses: ARCore's hits for the middle of the screen, nearest
+// first, each a 16-number matrix whose Y axis is the surface normal (m[5] = how much it faces up); c: the
+// camera's matrix. 2.2-4 m keeps his whole body and the floor round his feet on screen.
+const OLD = new URLSearchParams(location.search).has('old');   // ?old: index.html's rule, to compare
+const NEAR = 2.2, FAR = 4;   // metres from the phone, along the floor
+let floorY = Infinity;       // the lowest up-facing surface hit so far
+const stand = (poses, c) => {
+  const up = poses.filter((m) => m[5] > 0.8);
+  if (OLD) return up[0] ? new THREE.Vector3(up[0][12], up[0][13], up[0][14]) : null;   // the nearest surface that faces up
+  for (const m of up) floorY = Math.min(floorY, m[13]);
+  const m = poses[0];   // what the middle of the screen is on
+  if (!m || m[5] <= 0.8 || m[13] > floorY + 0.12) return null;   // a wall, or a box, bed or table top
+  const d = Math.hypot(m[12] - c[12], m[14] - c[14]);
+  if (d >= NEAR && d <= FAR) return new THREE.Vector3(m[12], m[13], m[14]);
+  // Slide out to 2.2 m (or in to 4 m) along the camera's level forward; -Z plus +Y still points ahead when the phone looks straight down.
+  const fx = c[4] - c[8], fz = c[6] - c[10], k = (d < NEAR ? NEAR : FAR) / Math.hypot(fx, fz);
+  return new THREE.Vector3(c[12] + fx * k, m[13], c[14] + fz * k);
+};
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.className = 'gl'; document.body.prepend(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(VFOV, innerWidth / innerHeight, 0.02, 60);
+camera.rotation.order = 'YXZ';
+
+if (PREVIEW) {
+  // ---- Preview: a tiled room with a box and a bed, ARCore's hit test faked with a ray, and a scripted walk,
+  // rendered one frame at a time (previewAt). The room is drawn first and never hides Nobita, like the camera
+  // picture in AR.
+  start.style.display = 'none'; intro.style.display = 'none';
+  const room = new THREE.Scene();
+  const floorTex = canvasTex(512, 512, (g) => {
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#d9cfbf' : '#d2c7b5'; g.fillRect(i * 256, j * 256, 256, 256); }
+    for (let n = 0; n < 900; n++) { g.fillStyle = `rgba(90,70,50,${0.04 + rand() * 0.05})`; g.fillRect(rand() * 512, rand() * 512, 2 + rand() * 5, 1 + rand() * 3); }
+    g.strokeStyle = '#b3a690'; g.lineWidth = 6; g.strokeRect(0, 0, 512, 512); g.beginPath(); g.moveTo(256, 0); g.lineTo(256, 512); g.moveTo(0, 256); g.lineTo(512, 256); g.stroke();
+  });
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(30 / 1.2, 30 / 1.2); floorTex.anisotropy = 8;
+  room.add(new THREE.Mesh(new THREE.PlaneGeometry(30, 30).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: floorTex })));
+  room.background = new THREE.Color('#ece7df');
+  const block = (w, h, d, x, z, [side, top, front, edge]) => {   // an unrotated block standing on the floor
+    const geo = new THREE.BoxGeometry(w, h, d), m = new THREE.Mesh(geo, [side, side, top, side, front, front].map((color) => new THREE.MeshBasicMaterial({ color })));
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: edge })));
+    m.position.set(x, h / 2, z); room.add(m);
+  };
+  block(0.5, 0.5, 0.5, 0, -0.9, ['#b07d4b', '#d4a874', '#a06e40', '#6b4a2b']);            // a box 0.9 m ahead, 0.5 m tall
+  block(1.4, 0.55, 2, -1.3, -2.2, ['#8a6a52', '#a9c3dc', '#7a5c46', '#4f3a2c']);           // a bed to the left
+  room.updateMatrixWorld();
+  // ARCore's hit test, faked: every surface on the line through the middle of the screen, nearest first, as a
+  // pose whose Y axis is the surface normal. The room's surfaces count as found from 0.9 s.
+  const ray = new THREE.Raycaster(), UP = new THREE.Vector3(0, 1, 0), ONE = new THREE.Vector3(1, 1, 1);
+  const hitPoses = () => {
+    ray.setFromCamera(new THREE.Vector2(), camera);
+    return ray.intersectObjects(room.children, false).map((h) => new THREE.Matrix4().compose(h.point, new THREE.Quaternion().setFromUnitVectors(UP, h.face.normal), ONE).elements);
+  };
+  const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)), deg = THREE.MathUtils.degToRad;
+  const look = new THREE.Vector3(), aim = new THREE.Vector3(), EYE = 1.4;
+  // Look at the box, across to the bed, then just over the box at the floor behind it; the user taps whenever a
+  // ring shows at 1.5 s and 3.6 s. Then say hi, walk two-thirds of the way round him while stepping closer,
+  // and step back at the end.
+  const KEYS = [[0, 4, -40], [1.2, 0, -45], [1.5, 0, -45], [2.4, 30, -28], [2.7, 30, -28], [3.4, 0, -37]];   // [s, yaw°, pitch°]
+  const taps = [1.5, 3.6];
+  const hud = document.body.appendChild(document.createElement('div'));
+  hud.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;padding:8px 12px;border-radius:12px;background:rgba(17,19,24,.72);color:#fff;font:700 17px system-ui,Roboto,sans-serif;text-align:center';
+  const away = (p) => `${Math.hypot(p.x - camera.position.x, p.z - camera.position.z).toFixed(2)} m away, ${p.y.toFixed(2)} m up`;
+  let spot = null;
+  window.previewAt = async (t) => {
+    rig.renderAt(t);
+    if (placedAt === null) {
+      let i = 0; while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
+      const [s0, y0, p0] = KEYS[i], [s1, y1, p1] = KEYS[i + 1], k = ease((t - s0) / (s1 - s0));
+      camera.position.set(0, EYE, 0); camera.rotation.set(deg(p0 + (p1 - p0) * k), deg(y0 + (y1 - y0) * k), 0);
+      camera.updateMatrixWorld();
+      const poses = t >= 0.9 ? hitPoses() : [];
+      spot = stand(poses, camera.matrixWorld.elements);
+      reticle.visible = !!spot; if (spot) reticle.matrix.makeTranslation(spot.x, spot.y, spot.z);
+      tip(spot ? 'Tap to call Nobita here' : 'Slowly look around the floor with your camera');
+      while (taps.length && t >= taps[0]) { taps.shift(); if (spot) { aim.fromArray(poses[0], 12); place(spot.clone(), t); } }
+    } else {
+      const P = nobita.position, u = t - placedAt;   // u: seconds since he was called; the camera was at 0, EYE, 0
+      const r0 = Math.hypot(P.x, P.z), phi0 = Math.atan2(-P.x, -P.z);
+      const orbit = ease((u - 3.4) / 6), back = ease((u - 9.4) / 2), r = r0 + (1.2 - r0) * orbit + (2.4 - 1.2) * back;
+      const phi = phi0 + deg(70 * orbit + 12 * back);
+      camera.position.set(P.x + r * Math.sin(phi), EYE + 0.01 * Math.sin(t * 7.1), P.z + r * Math.cos(phi));
+      camera.lookAt(look.set(P.x, P.y + 0.78 + 0.01 * Math.sin(t * 5.3), P.z).lerp(aim, 1 - ease(u / 0.8)));   // from where he was called up to his middle
+      camera.updateMatrixWorld();
+    }
+    hud.textContent = (OLD ? 'OLD rule · ' : 'NEW rule · ') + (placedAt !== null ? `Nobita ${away(nobita.position)}` : spot ? `ring ${away(spot)}` : 'no ring');
+    await Promise.resolve(); await rasterise();
+    update(t, camera.position);
+    renderer.render(room, camera);
+    renderer.autoClear = false; renderer.clearDepth(); renderer.render(scene, camera); renderer.autoClear = true;
+  };
+  Object.assign(window, { camera, nobita, stand, hitPoses });   // for the test harness
+} else {
+  // ---- AR: ARCore through WebXR; the floor comes from hit tests, the spot from an anchor ------
+  let hitSource = null, spot = null, anchor = null;
+  const t0 = performance.now() / 1000, cam = new THREE.Vector3();
+  const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
+  start.textContent = ok ? 'Start AR' : 'AR is not available in this browser';
+  start.disabled = !ok;
+  start.onclick = async () => {
+    const session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'anchors'], domOverlay: { root: document.getElementById('overlay') },
+    });
+    renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+    hitSource = await session.requestHitTestSource({ space: await session.requestReferenceSpace('viewer') });
+    session.addEventListener('select', (e) => {
+      if (placedAt !== null || !spot) return;
+      place(spot.clone(), performance.now() / 1000);
+      // Anchor the spot itself, which may be further out than the hit, so ARCore keeps him there as its map improves.
+      e.frame.createAnchor?.(new XRRigidTransform(spot), renderer.xr.getReferenceSpace()).then((a) => (anchor = a)).catch(() => {});
+    });
+    session.addEventListener('end', () => location.reload());
+    start.style.display = 'none'; intro.style.display = 'none';
+    tip('Slowly look around the floor with your camera');
+  };
+  renderer.setAnimationLoop((time, xrFrame) => {
+    const now = performance.now() / 1000;
+    if (xrFrame && hitSource) {
+      const ref = renderer.xr.getReferenceSpace(), view = xrFrame.getViewerPose(ref);
+      if (view) cam.set(view.transform.position.x, view.transform.position.y, view.transform.position.z);
+      spot = view && stand(xrFrame.getHitTestResults(hitSource).map((h) => h.getPose(ref)?.transform.matrix).filter(Boolean), view.transform.matrix);
+      if (placedAt === null) {
+        reticle.visible = !!spot;
+        if (spot) reticle.matrix.makeTranslation(spot.x, spot.y, spot.z);
+        tip(spot ? 'Tap to call Nobita here' : 'Slowly look around the floor with your camera');
+      }
+      if (anchor && xrFrame.trackedAnchors?.has(anchor)) {
+        const p = xrFrame.getPose(anchor.anchorSpace, ref);
+        if (p) nobita.position.set(p.transform.position.x, p.transform.position.y, p.transform.position.z);
+      }
+    }
+    rig.renderAt(now - t0); rasterise();
+    update(now, cam);
+    renderer.render(scene, camera);
+  });
+}
+window.ready = true;
+</script>
+</body>
+</html>

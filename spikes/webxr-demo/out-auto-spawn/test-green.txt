@@ -1,0 +1,31 @@
+PASS  he comes out by himself within 4 s  (got 3.30)
+PASS  his feet are on the floor (y 0), not on the 0.48 m box  (got -0.00)
+PASS  he comes out 2.2-2.8 m ahead  (got 2.59)
+PASS  as he comes out, his feet and the top of his head are both on screen  (got {"feet":-1.0262477226828566e-16,"head":0.7358251217176724,"pitch":-28.216598710125883})
+PASS  at a natural tilt (4.5-6.5 s) his feet, the floor under them and his head are on screen  (got {"feet":-0.3351642455189701,"head":0.3534589684446199,"pitch":-14.75162271364183})
+PASS  the walk takes the camera within 1 m of him  (got 0.89)
+PASS  within 1 m the page says "too close"  (got "You’re too close — step back a little")
+PASS  beyond 1.2 m (incl. after stepping back) it does not
+PASS  after stepping back he is in front of the camera again  (got 2.26)
+PASS  his spot never moves after he comes out  (got 0.00)
+PASS  no page errors or warnings
+
+ALL PASSED
+timeline: 0s - pitch -48.99 "Slowly look around the floor with your camera"
+  1s - pitch -49.03 "Slowly look around the floor with your camera"
+  2s - pitch -49.29 "Floor found! Now look ahead of you"
+  3s - pitch -39.68 "Floor found! Now look ahead of you"
+  3.3s 2.59m pitch -28.22 "Nobita is here! Walk around him."
+  4s 2.59m pitch -15.22 "Nobita is here! Walk around him."
+  5s 2.59m pitch -14.40 "Nobita is here! Walk around him."
+  6s 2.59m pitch -14.36 "Nobita is here! Walk around him."
+  7s 2.50m pitch -15.01 "Nobita is here! Walk around him."
+  8s 1.98m pitch -19.05 "Nobita is here! Walk around him."
+  9s 1.30m pitch -28.47 "Nobita is here! Walk around him."
+  10s 0.89m pitch -39.46 "You’re too close — step back a little"
+  11s 0.89m pitch -39.24 "You’re too close — step back a little"
+  12s 1.06m pitch -33.42 "You’re too close — step back a little"
+  13s 1.85m pitch -20.00 "Nobita is here! Walk around him."
+  14s 2.26m pitch -16.43 "Nobita is here! Walk around him."
+  15s 2.26m pitch -16.58 "Nobita is here! Walk around him."
+  16s 2.26m pitch -16.77 "Nobita is here! Walk around him."

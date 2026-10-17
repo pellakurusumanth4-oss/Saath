@@ -1,0 +1,30 @@
+PASS  he comes out by himself within 4 s  (got 2.60)
+FAIL  his feet are on the floor (y 0), not on the 0.48 m box  (got 0.48)
+FAIL  he comes out 2.2-2.8 m ahead  (got 0.80)
+FAIL  at a natural tilt (4.5-6.5 s) his feet, the floor under them and his head are on screen  (got {"feet":-0.9341943927538832,"head":1.3995701164897474,"pitch":-14.75162271364183})
+PASS  the walk takes the camera within 1 m of him  (got 0.55)
+FAIL  within 1 m the page says "too close"  (got "Nobita is here! Walk around him.")
+PASS  beyond 1.2 m (incl. after stepping back) it does not
+FAIL  after stepping back he is in front of the camera again  (got 0.57)
+PASS  his spot never moves after he comes out  (got 0.00)
+PASS  no page errors or warnings
+
+5 FAILED
+timeline: 0s - pitch -48.99 "Slowly look around the floor with your camera"
+  1s - pitch -49.03 "Slowly look around the floor with your camera"
+  2s - pitch -49.29 "Tap to call Nobita here"
+  2.6s 0.80m pitch -48.87 "Nobita is here! Walk around him."
+  3s 0.80m pitch -39.68 "Nobita is here! Walk around him."
+  4s 0.80m pitch -15.22 "Nobita is here! Walk around him."
+  5s 0.80m pitch -14.40 "Nobita is here! Walk around him."
+  6s 0.80m pitch -14.36 "Nobita is here! Walk around him."
+  7s 0.72m pitch -14.96 "Nobita is here! Walk around him."
+  8s 0.56m pitch -18.60 "Nobita is here! Walk around him."
+  9s 0.72m pitch -26.70 "Nobita is here! Walk around him."
+  10s 0.87m pitch -35.52 "Nobita is here! Walk around him."
+  11s 0.87m pitch -35.30 "Nobita is here! Walk around him."
+  12s 0.79m pitch -30.68 "Nobita is here! Walk around him."
+  13s 0.60m pitch -19.40 "Nobita is here! Walk around him."
+  14s 0.57m pitch -16.25 "Nobita is here! Walk around him."
+  15s 0.57m pitch -16.39 "Nobita is here! Walk around him."
+  16s 0.57m pitch -16.58 "Nobita is here! Walk around him."
