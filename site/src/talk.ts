@@ -1,0 +1,35 @@
+/** Connection details for the Supabase project that hosts the talk function. */
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+export const TALK_URL = `${SUPABASE_URL}/functions/v1/talk`;
+
+export type ChatRole = 'user' | 'assistant';
+
+export type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
+
+/** Ask the friend's edge function for a reply. Throws with a friendly message on failure. */
+export async function askFriend(friendId: string, messages: ChatMessage[]): Promise<string> {
+  const response = await fetch(TALK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ friendId, messages }),
+  });
+  if (!response.ok) {
+    throw new Error(`talk failed: ${response.status}`);
+  }
+  const data: unknown = await response.json();
+  const reply =
+    typeof data === 'object' && data !== null && 'reply' in data
+      ? (data as { reply: unknown }).reply
+      : null;
+  if (typeof reply !== 'string' || reply.length === 0) {
+    throw new Error('talk returned no reply');
+  }
+  return reply;
+}

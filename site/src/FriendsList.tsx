@@ -6,6 +6,7 @@ import type { LatLng } from '../../src/geo';
 import { NEARBY_M } from './constants';
 import { currentActivity } from './activities';
 import WatchPanel from './WatchPanel';
+import TalkPanel from './TalkPanel';
 
 export default function FriendsList({ friends, me, tagged, selected, expanded, onPick, onTag, onToggle }: {
   friends: Friend[];
@@ -18,6 +19,7 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
   onToggle: () => void;
 }) {
   const [watching, setWatching] = useState<string | null>(null);
+  const [talking, setTalking] = useState<string | null>(null);
   const [greeted, setGreeted] = useState<Set<string>>(() => new Set());
 
   const rows = useMemo(() => {
@@ -34,6 +36,7 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
   ).length;
 
   const watched = watching ? friends.find((friend) => friend.id === watching) ?? null : null;
+  const talked = talking ? friends.find((friend) => friend.id === talking) ?? null : null;
 
   const openWatch = (id: string) => {
     setWatching(id);
@@ -120,6 +123,14 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
               >
                 Watch
               </button>
+              <button
+                className="card-watch card-talk"
+                disabled={!isNearby && !isTagged}
+                onClick={() => setTalking(friend.id)}
+                title={!isNearby && !isTagged ? `Get closer to talk with ${friend.name}` : `Talk with ${friend.name}`}
+              >
+                Talk
+              </button>
               {!isTagged && !isNearby && distance !== null && (
                 <p className="card-hint">Walk closer to tag · {formatDistance(distance)} away</p>
               )}
@@ -131,6 +142,8 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
       {watched && (
         <WatchPanel friend={watched} firstOpen={!greeted.has(watched.id)} onClose={closeWatch} />
       )}
+
+      {talked && <TalkPanel friend={talked} onClose={() => setTalking(null)} />}
     </aside>
   );
 }
