@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS shops (
   name text NOT NULL CHECK (char_length(name) BETWEEN 2 AND 60),
   -- the business section: picks the map pin
   section text NOT NULL DEFAULT 'restaurant' CHECK (section IN ('restaurant', 'cafe', 'juice', 'bakery',
-    'grocery', 'streetfood', 'boutique', 'mall', 'realestate', 'salon', 'pharmacy', 'books', 'electronics',
+    'grocery', 'streetfood', 'boutique', 'mall', 'realestate', 'salon', 'pharmacy', 'bookstore', 'electronics',
     'gym', 'hotel')),
   -- the host at the door: a character / mascot id (its AR rig is /ar/rigs/<friend>.html)
   friend text NOT NULL DEFAULT 'nobita' CHECK (friend ~ '^[a-z0-9-]{2,30}$'),
