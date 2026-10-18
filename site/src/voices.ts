@@ -1,11 +1,21 @@
 /** Per-friend speech settings for reading replies aloud. */
+
+/** Kokoro TTS voice id + playback rate (pitch is shaped via preservesPitch=false + playbackRate). */
+export type KokoroVoice = { voice: string; rate: number };
+
+/** Legacy speechSynthesis settings, used as the fallback. */
 export type VoiceSettings = { pitch: number; rate: number };
 
-export const VOICES: Record<string, VoiceSettings> = {
-  doraemon: { pitch: 1.4, rate: 1.0 },
-  nobita: { pitch: 1.2, rate: 0.95 },
-  shinchan: { pitch: 1.8, rate: 1.15 },
-  goku: { pitch: 0.9, rate: 1.05 },
+export type FriendVoice = {
+  kokoro: KokoroVoice;
+  fallback: VoiceSettings;
+};
+
+export const VOICES: Record<string, FriendVoice> = {
+  doraemon: { kokoro: { voice: 'af_bella', rate: 1.15 }, fallback: { pitch: 1.4, rate: 1.0 } },
+  nobita: { kokoro: { voice: 'af_sky', rate: 1.1 }, fallback: { pitch: 1.2, rate: 0.95 } },
+  shinchan: { kokoro: { voice: 'af_nicole', rate: 0.95 }, fallback: { pitch: 1.8, rate: 1.15 } },
+  goku: { kokoro: { voice: 'am_puck', rate: 1.1 }, fallback: { pitch: 0.9, rate: 1.05 } },
 };
 
 const SOUND_PREF_KEY = 'saath-talk-sound';

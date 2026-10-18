@@ -518,6 +518,13 @@ body {
   font-size: 18px;
 }
 
+.talk-voice-loading {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
 .talk-sound {
   flex: none;
   width: 40px;

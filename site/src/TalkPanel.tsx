@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Friend } from '../../src/friends';
 import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
-import { loadSoundPref, pickEnglishVoice, saveSoundPref, speechVoicesReady, VOICES } from './voices';
+import { loadSoundPref, saveSoundPref, speechVoicesReady, VOICES } from './voices';
+import { kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, subscribeKokoroState, type KokoroStatus, type SpeakHandle } from './kokoro';
 
 type PanelMessage = ChatMessage & { replayable?: boolean };
 
@@ -31,22 +32,6 @@ const STARTERS: Record<string, Chip[]> = {
   ],
 };
 
-function speak(friendId: string, text: string) {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
-  synth.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  const settings = VOICES[friendId];
-  if (settings) {
-    utterance.pitch = settings.pitch;
-    utterance.rate = settings.rate;
-  }
-  const voice = pickEnglishVoice(synth.getVoices());
-  if (voice) utterance.voice = voice;
-  utterance.lang = voice?.lang ?? 'en-IN';
-  synth.speak(utterance);
-}
-
 export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   friend: Friend;
   onClose: () => void;
@@ -60,14 +45,35 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   const [error, setError] = useState<string | null>(null);
   const [noVoices, setNoVoices] = useState(false);
   const [micHint, setMicHint] = useState<string | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [kokoroState, setKokoroState] = useState<KokoroStatus>('idle');
   const scroller = useRef<HTMLDivElement | null>(null);
   const recognition = useRef<RecognitionHandle | null>(null);
+  const currentSpeak = useRef<SpeakHandle | null>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [messages, waiting]);
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  // Kick off Kokoro load as soon as a chat opens, so the first reply can use it.
+  useEffect(() => {
+    if (kokoroUnavailable()) return;
+    let active = true;
+    setVoiceLoading(true);
+    loadKokoro()
+      .catch(() => { /* state subscription marks it unavailable */ })
+      .finally(() => { if (active) setVoiceLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => subscribeKokoroState(setKokoroState), []);
+
+  // Cancel any playback when the chat closes.
+  useEffect(() => () => {
+    currentSpeak.current?.cancel();
+    currentSpeak.current = null;
+    stopAllSpeaking();
+  }, []);
 
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -94,14 +100,25 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     setSoundOn((prev) => {
       const next = !prev;
       saveSoundPref(next);
-      if (!next) window.speechSynthesis?.cancel();
+      if (!next) {
+        currentSpeak.current?.cancel();
+        currentSpeak.current = null;
+        stopAllSpeaking();
+      }
       return next;
     });
   };
 
+  const speak = async (text: string) => {
+    currentSpeak.current?.cancel();
+    currentSpeak.current = null;
+    const handle = await speakReply(friend.character, text);
+    currentSpeak.current = handle;
+  };
+
   const reply = (text: string) => {
     setMessages((prev) => [...prev, { role: 'assistant', content: text, replayable: true }]);
-    if (soundOn) speak(friend.character, text);
+    if (soundOn) void speak(text);
     onReplySpoken?.();
   };
 
@@ -113,6 +130,9 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     setDraft('');
     setWaiting(true);
     setError(null);
+    // Cancel any previous playback when a new reply starts.
+    currentSpeak.current?.cancel();
+    currentSpeak.current = null;
     try {
       const answer = await askFriend(friend.id, next.slice(-12));
       reply(answer);
@@ -162,11 +182,15 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
 
   const starters = STARTERS[friend.character] ?? [];
   const firstName = friend.name.split(' ')[0];
+  const loadingVoice = voiceLoading && kokoroState === 'loading';
 
   return (
     <div className="watch talk" role="dialog" aria-label={`Talking with ${friend.name}`}>
       <div className="talk-head">
-        <h3 className="talk-title">Talk to {friend.name}</h3>
+        <h3 className="talk-title">
+          Talk to {friend.name}
+          {loadingVoice && <span className="talk-voice-loading"> Loading voice…</span>}
+        </h3>
         <button
           className="talk-sound"
           onClick={toggleSound}
@@ -177,7 +201,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
         </button>
         <button
           className="watch-close talk-close"
-          onClick={() => { window.speechSynthesis?.cancel(); onClose(); }}
+          onClick={() => { currentSpeak.current?.cancel(); currentSpeak.current = null; stopAllSpeaking(); onClose(); }}
           aria-label={`Stop talking with ${friend.name}`}
         >
           ✕
@@ -193,10 +217,10 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
           ) : (
             <span key={index} className="talk-bubble is-friend">
               {message.content}
-              {message.replayable && (
+              {message.replayable && soundOn && (
                 <button
                   className="talk-replay"
-                  onClick={() => speak(friend.character, message.content)}
+                  onClick={() => void speak(message.content)}
                   aria-label={`Play ${firstName}'s reply again`}
                   title="▶ play"
                 >
@@ -208,7 +232,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
         ))}
         {waiting && <p className="talk-bubble is-friend talk-waiting">…</p>}
         {listening && <p className="talk-listening">Listening…</p>}
-        {noVoices && (
+        {noVoices && kokoroState === 'unavailable' && (
           <p className="talk-note" role="status">This browser has no voices — try Chrome on your phone.</p>
         )}
         {error && <p className="talk-error" role="alert">{error}</p>}
