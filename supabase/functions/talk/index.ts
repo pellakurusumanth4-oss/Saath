@@ -4,9 +4,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const RATE_LIMIT_PER_MINUTE = 10;
-const RATE_LIMIT_PER_DAY = 60;
+const RATE_LIMIT_PER_MINUTE = 30;
+const RATE_LIMIT_PER_DAY = 1000; // owner pays for the hackathon demo; key is removed after judging
 const RATE_LIMIT_MESSAGE = "Too many messages, try again in a minute";
+
+/**
+ * ElevenLabs voice per friend (default voices; override with secrets
+ * ELEVENLABS_VOICE_DORAEMON / _NOBITA / _SHINCHAN / _GOKU, e.g. voices made with Voice Design).
+ * shortcut: default voices only work on ElevenLabs accounts made before March 2026 and expire
+ * 31 Dec 2026; set the secrets to your own voice IDs if speech falls back to the browser voice.
+ */
+const ELEVEN_VOICES: Record<string, { voice: string; speed: number; stability: number; style: number }> = {
+  doraemon: { voice: "cgSgspJ2msm6clMCkdW9", speed: 1.05, stability: 0.35, style: 0.5 }, // Jessica: bright, playful
+  nobita: { voice: "bIHbv24MWmeRgasZH58o", speed: 0.95, stability: 0.3, style: 0.6 }, // Will: friendly young male
+  shinchan: { voice: "FGY2WhTYpPnrIDTdsKH5", speed: 0.9, stability: 0.3, style: 0.7 }, // Laura: quirky, upbeat
+  goku: { voice: "TX3LPaxmHKxFdv7VOQHJ", speed: 1.1, stability: 0.4, style: 0.6 }, // Liam: energetic young male
+};
+const MAX_SPEAK_CHARS = 600;
 
 const FRIENDS = {
   doraemon: "You are Doraemon, a kind robot cat from the 22nd century standing at the Shaniwar Wada gate in Pune. You love dorayaki, fear mice, and happily offer gadgets from your fourth-dimensional pocket to help people. Stay in character and keep every reply family-friendly. Reply in plain spoken text only: no markdown, no asterisks, no *actions*, no bold, no emojis. 1–3 short sentences.",
@@ -83,8 +97,9 @@ async function checkRateLimit(req: Request): Promise<Response | null> {
   return null;
 }
 
+/** Plain spoken text: drop *stage directions* whole (they'd be read aloud), then stray markdown. */
 function stripFormatting(text: string): string {
-  return text.replace(/[*_]/g, "").trim();
+  return text.replace(/\*[^*]*\*/g, " ").replace(/[*_]/g, "").replace(/\s+([!?.,])/g, "$1").replace(/\s{2,}/g, " ").trim();
 }
 
 /** Parse "<speaker_id>: <line>" from the model output. Falls back to addressee or first friend. */
@@ -125,6 +140,63 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null);
     const mode = body?.mode ?? "single";
+
+    // ---- Voice: is ElevenLabs set up? (free, not rate limited) ----
+    if (mode === "voice-status") {
+      return new Response(JSON.stringify({ eleven: !!Deno.env.get("ELEVENLABS_API_KEY") }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ---- Voice: speak one friend's line with ElevenLabs, returns audio/mpeg ----
+    if (mode === "speak") {
+      const elevenKey = Deno.env.get("ELEVENLABS_API_KEY");
+      if (!elevenKey) {
+        return new Response(JSON.stringify({ error: "Voice is not set up" }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const friendId = body?.friendId;
+      const text = body?.text;
+      const settings = typeof friendId === "string" ? ELEVEN_VOICES[friendId] : undefined;
+      if (!settings || typeof text !== "string" || text.trim().length === 0 || text.length > MAX_SPEAK_CHARS) {
+        return new Response(JSON.stringify({ error: "Invalid voice request" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const limited = await checkRateLimit(req);
+      if (limited) return limited;
+
+      const voiceId = Deno.env.get(`ELEVENLABS_VOICE_${friendId.toUpperCase()}`) || settings.voice;
+      const tts = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_64`,
+        {
+          method: "POST",
+          headers: { "xi-api-key": elevenKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
+          body: JSON.stringify({
+            text: text.trim(),
+            model_id: "eleven_flash_v2_5",
+            voice_settings: {
+              stability: settings.stability,
+              similarity_boost: 0.75,
+              style: settings.style,
+              use_speaker_boost: true,
+              speed: settings.speed,
+            },
+          }),
+        },
+      );
+      if (!tts.ok) {
+        console.error("ElevenLabs failed", tts.status, (await tts.text()).slice(0, 300));
+        return new Response(JSON.stringify({ error: "Voice failed", status: tts.status }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(tts.body, { headers: { ...corsHeaders, "Content-Type": "audio/mpeg" } });
+    }
 
     // ---- Group mode ----
     if (mode === "group") {
@@ -282,12 +354,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await anthropic.json();
-    const reply = data?.content
+    const rawReply = data?.content
       ?.filter((block: any) => block?.type === "text")
       .map((block: any) => block.text)
-      .join("\n")
-      .replace(/[*_]/g, "")
-      .trim();
+      .join("\n");
+    const reply = rawReply ? stripFormatting(rawReply) : "";
 
     if (!reply) {
       return new Response(JSON.stringify({ error: "The friend didn't answer" }), {

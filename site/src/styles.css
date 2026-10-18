@@ -749,7 +749,7 @@ body {
 .hangout-btn {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 364px; /* left of the 340px friends panel, which sits above it on desktop */
   z-index: 10;
   padding: 8px 18px;
 }
@@ -870,6 +870,10 @@ body {
 /* ---------- Small screens: bottom sheet ---------- */
 
 @media (max-width: 720px) {
+  .hangout-btn {
+    right: 12px; /* the friends list is a bottom sheet here */
+  }
+
   .hangout-rigs {
     display: grid;
     grid-template-columns: 1fr 1fr;

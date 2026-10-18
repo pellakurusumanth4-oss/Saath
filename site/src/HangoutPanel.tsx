@@ -3,7 +3,7 @@ import { FRIENDS, type Friend, type Character } from '../../src/friends';
 import { askGroup, RateLimitError, type GroupMessage, type GroupSpeaker } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
-import { kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
+import { elevenAvailable, kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
 import { useSaathRig } from './useSaathRig';
 
 type HangoutMessage = GroupMessage & { id: number };
@@ -96,7 +96,7 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
   // Preload Kokoro when the hangout opens.
   useEffect(() => {
     if (kokoroUnavailable()) return;
-    loadKokoro().catch(() => {});
+    void elevenAvailable().then((eleven) => { if (!eleven) loadKokoro().catch(() => {}); });
   }, []);
 
   // Cleanup on close.
@@ -188,7 +188,7 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
       return true;
     } catch (err) {
       if (err instanceof RateLimitError) {
-        appendMessage('doraemon', err.message);
+        setError(err.message);
       } else {
         setError('They didn’t catch that — try again in a moment.');
       }
@@ -210,8 +210,8 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
     const history: GroupMessage[] = messagesRef.current.map((m) => ({ speaker: m.speaker, text: m.text }));
     // The function needs at least one line; open an empty hangout with a scene cue (not shown in the log).
     if (history.length === 0) history.push({ speaker: 'user', text: '(You four are hanging out together in Pune. Someone starts chatting.)' });
-    await requestAndSpeak(history, null);
-    if (banterCount.current < MAX_BANTER_IN_A_ROW) {
+    const ok = await requestAndSpeak(history, null);
+    if (ok && banterCount.current < MAX_BANTER_IN_A_ROW) {
       scheduleBanter();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,10 +229,10 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
     const addressee = detectAddressee(content);
     const updated = appendMessage('user', content);
     const history: GroupMessage[] = updated.map((m) => ({ speaker: m.speaker, text: m.text }));
-    await requestAndSpeak(history, addressee);
-    // After the user speaks, reset banter and schedule the next one.
+    const ok = await requestAndSpeak(history, addressee);
+    // After the user speaks, reset banter and schedule the next one (not after an error).
     banterCount.current = 0;
-    scheduleBanter();
+    if (ok) scheduleBanter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appendMessage, requestAndSpeak, scheduleBanter, waiting]);
 

@@ -3,7 +3,7 @@ import type { Friend } from '../../src/friends';
 import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref, speechVoicesReady, VOICES } from './voices';
-import { kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, subscribeKokoroState, type KokoroStatus, type SpeakHandle } from './kokoro';
+import { elevenAvailable, kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, subscribeKokoroState, type KokoroStatus, type SpeakHandle } from './kokoro';
 
 type PanelMessage = ChatMessage & { replayable?: boolean };
 
@@ -56,13 +56,17 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
   }, [messages, waiting]);
 
   // Kick off Kokoro load as soon as a chat opens, so the first reply can use it.
+  // With ElevenLabs set up, skip the 90 MB Kokoro download entirely.
   useEffect(() => {
     if (kokoroUnavailable()) return;
     let active = true;
-    setVoiceLoading(true);
-    loadKokoro()
-      .catch(() => { /* state subscription marks it unavailable */ })
-      .finally(() => { if (active) setVoiceLoading(false); });
+    void elevenAvailable().then((eleven) => {
+      if (eleven || !active) return;
+      setVoiceLoading(true);
+      loadKokoro()
+        .catch(() => { /* state subscription marks it unavailable */ })
+        .finally(() => { if (active) setVoiceLoading(false); });
+    });
     return () => { active = false; };
   }, []);
 
