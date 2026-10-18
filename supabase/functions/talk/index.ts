@@ -97,8 +97,9 @@ async function checkRateLimit(req: Request): Promise<Response | null> {
   return null;
 }
 
+/** Plain spoken text: drop *stage directions* whole (they'd be read aloud), then stray markdown. */
 function stripFormatting(text: string): string {
-  return text.replace(/[*_]/g, "").trim();
+  return text.replace(/\*[^*]*\*/g, " ").replace(/[*_]/g, "").replace(/\s+([!?.,])/g, "$1").replace(/\s{2,}/g, " ").trim();
 }
 
 /** Parse "<speaker_id>: <line>" from the model output. Falls back to addressee or first friend. */
@@ -353,12 +354,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await anthropic.json();
-    const reply = data?.content
+    const rawReply = data?.content
       ?.filter((block: any) => block?.type === "text")
       .map((block: any) => block.text)
-      .join("\n")
-      .replace(/[*_]/g, "")
-      .trim();
+      .join("\n");
+    const reply = rawReply ? stripFormatting(rawReply) : "";
 
     if (!reply) {
       return new Response(JSON.stringify({ error: "The friend didn't answer" }), {
