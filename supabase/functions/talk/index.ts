@@ -9,17 +9,18 @@ const RATE_LIMIT_PER_DAY = 1000; // owner pays for the hackathon demo; key is re
 const RATE_LIMIT_MESSAGE = "Too many messages, try again in a minute";
 
 /**
- * ElevenLabs voice per friend (default voices; override with secrets
- * ELEVENLABS_VOICE_DORAEMON / _NOBITA / _SHINCHAN / _GOKU, e.g. voices made with Voice Design).
- * shortcut: default voices only work on ElevenLabs accounts made before March 2026 and expire
- * 31 Dec 2026; set the secrets to your own voice IDs if speech falls back to the browser voice.
+ * Saath's own character voices, the same ones the phone app uses (web/talk/voices.json):
+ * designed from written descriptions with open-source Qwen3-TTS (no real person or actor),
+ * then loaded into the owner's ElevenLabs account. Override with ELEVENLABS_VOICE_<FRIEND> secrets.
  */
-const ELEVEN_VOICES: Record<string, { voice: string; speed: number; stability: number; style: number }> = {
-  doraemon: { voice: "cgSgspJ2msm6clMCkdW9", speed: 1.05, stability: 0.35, style: 0.5 }, // Jessica: bright, playful
-  nobita: { voice: "bIHbv24MWmeRgasZH58o", speed: 0.95, stability: 0.3, style: 0.6 }, // Will: friendly young male
-  shinchan: { voice: "FGY2WhTYpPnrIDTdsKH5", speed: 0.9, stability: 0.3, style: 0.7 }, // Laura: quirky, upbeat
-  goku: { voice: "TX3LPaxmHKxFdv7VOQHJ", speed: 1.1, stability: 0.4, style: 0.6 }, // Liam: energetic young male
+const ELEVEN_VOICES: Record<string, string> = {
+  doraemon: "J0lJebHBcbJXRg92zRzT",
+  nobita: "LasN4GAs8M2H8gKwsin9",
+  shinchan: "70cqcJftET6PVzXmUJyh",
+  goku: "6UA5cRqz08Jse4Dnzk3C",
 };
+// Neutral settings, as in the app (web/talk/server.mjs), so each designed voice keeps its own character.
+const ELEVEN_SETTINGS = { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: false, speed: 1 };
 const MAX_SPEAK_CHARS = 600;
 
 const FRIENDS = {
@@ -159,8 +160,8 @@ Deno.serve(async (req: Request) => {
       }
       const friendId = body?.friendId;
       const text = body?.text;
-      const settings = typeof friendId === "string" ? ELEVEN_VOICES[friendId] : undefined;
-      if (!settings || typeof text !== "string" || text.trim().length === 0 || text.length > MAX_SPEAK_CHARS) {
+      const defaultVoice = typeof friendId === "string" ? ELEVEN_VOICES[friendId] : undefined;
+      if (!defaultVoice || typeof text !== "string" || text.trim().length === 0 || text.length > MAX_SPEAK_CHARS) {
         return new Response(JSON.stringify({ error: "Invalid voice request" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -169,7 +170,7 @@ Deno.serve(async (req: Request) => {
       const limited = await checkRateLimit(req);
       if (limited) return limited;
 
-      const voiceId = Deno.env.get(`ELEVENLABS_VOICE_${friendId.toUpperCase()}`) || settings.voice;
+      const voiceId = Deno.env.get(`ELEVENLABS_VOICE_${friendId.toUpperCase()}`) || defaultVoice;
       const tts = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_64`,
         {
@@ -178,13 +179,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             text: text.trim(),
             model_id: "eleven_flash_v2_5",
-            voice_settings: {
-              stability: settings.stability,
-              similarity_boost: 0.75,
-              style: settings.style,
-              use_speaker_boost: true,
-              speed: settings.speed,
-            },
+            voice_settings: ELEVEN_SETTINGS,
           }),
         },
       );
