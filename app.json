@@ -2,7 +2,6 @@
   "expo": {
     "name": "Saath",
     "slug": "saath-prototype",
-    "scheme": "saath",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,14 +22,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "VIBRATE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.CAMERA"
+        "VIBRATE"
       ]
     },
     "web": {
@@ -54,12 +46,6 @@
         }
       ],
       "expo-asset"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "72e904c1-257b-475c-a674-add07427452f"
-      }
-    },
-    "owner": "citrst"
+    ]
   }
 }

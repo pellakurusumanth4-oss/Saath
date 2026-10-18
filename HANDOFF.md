@@ -14,8 +14,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
 | The friends' approved 2D anime rigs in the app, and their round portraits (both **generated**; re-run after a rig changes: `node scripts/build-rigs.mjs --faces <CDP port>`) | `src/rigs.ts`, `src/faces.ts`, `scripts/build-rigs.mjs` |
 | A friend's live rig in the camera (transparent WebView on their spot) | `src/FriendRig.tsx`, used by `src/CameraScreen.tsx` |
 | React Native screen hosting the WebView (top card, bottom bar, insets) | `src/MapScreen.tsx` |
-| Somewhere to walk near each friend: the map page reads paths and roads round their random spots from its own tiles | `src/mapWalk.ts` |
-| Headless test harness | `~/.cache/saath-recovery/harness/mapcheck/` (`shot.mjs`, `placement-test.mjs`, `roof-test.mjs`, `tap-test.mjs`, `walk-test.mjs`, `cdp-eval.mjs`, `load-map.mjs`, `scene-wada.js`) |
+| Headless test harness | `~/.cache/saath-recovery/harness/mapcheck/` (`shot.mjs`, `placement-test.mjs`, `roof-test.mjs`, `tap-test.mjs`, `cdp-eval.mjs`, `load-map.mjs`, `scene-wada.js`) |
 | Backups of the 4 map modules from before the restyle | `~/.cache/saath-recovery/backup-v1/{mapStyle,mapNav,mapFigures,mapHtml}.ts` |
 | Approved design, in Figma | https://www.figma.com/design/R4uZryTjtoaorGubniAG3x, page `0:1`, section `10:2` (7 frames: Direction, Navigate, Arrived, Dusk option, Palette & Light, Components, Build plan) |
 | Design source files | `~/.cache/saath-recovery/design/`. `comp_golden.png` is **the target picture**; `render_comp.py` has the exact numbers (`PALETTES['golden']`, tree rules around lines 320–355); `comp_dusk.png`, `comp_arrive.png`, `screens.png`, `board.html`, `build_board.py` |
@@ -249,14 +248,6 @@ Read this first. It covers where everything lives, what the user wants, what is 
 - **Phone test (S24, 18 Oct, 19:56; recording `~/.cache/saath-recordings/test-2/trip-1.mp4`, out of the repo):** the map showed the near test Nobita at once ("3 m, a few steps from you", Arrived); "Meet Nobita in AR" → Chrome → Start AR; the ring showed about 5 s later, "Too close" for a moment as the user aimed nearer than 1.2 m, then the tap: **Nobita out about 11 s after Start AR** (1 min 43 s in the earlier automatic flow), and he held his spot for the next 90 s while the user walked round him. Talking: one "Didn't catch that" on a short hold, then questions answered with "Nobita is thinking…" under the mic and no words on screen. The camera card's line still described the old flow ("finds the floor…"), fixed in `src/CameraScreen.tsx`. Chrome's "to exit full screen" banner covered the tip for the first ~6 s of AR (the ring was there, "Tap to bring…" wasn't readable): the tip now sits 96 px up instead of 36 px; not re-tested on the phone.
 - When testing: Metro must be running (`npx expo start --localhost --port 8081`), `node web/serve.mjs` on 8099, and `adb reverse` for both ports.
 
-### Release build (18 Oct, evening): an APK from EAS, no Metro
-- `eas.json` has one profile, `preview` (an installable APK). Build: `EAS_NO_VCS=1 npx eas-cli@latest build -p android --profile preview` (no git commands are run; `.easignore` says what is uploaded: the app only, never `.env*`, `web/`, `spikes/`, `tools/`, `site/`). The Expo account signed in on the laptop is `citrst` (project `@citrst/saath-prototype`, id in `app.json` → `extra.eas.projectId`, `owner` set by `eas init`). Install the APK with `adb install <file>` or from the build page on the phone.
-- `app.json` now has `scheme: "saath"`: in a release build Chrome's "Back to Saath" opens `saath://ar-done?friend=…&met=1` (`CameraScreen.openAr` picks `exp://…/--/ar-done` only inside Expo Go; `App.tsx` accepts both; the AR page's intent link names `com.saath.prototype`).
-- The AR page's origin comes from `EXPO_PUBLIC_AR_ORIGIN` at build time (`src/CameraScreen.tsx`), default `http://localhost:8099`: an APK built without it still needs the laptop (`adb reverse tcp:8099`, `node web/serve.mjs`), which works for any app on the phone. Once the site hosts `web/ar` and the talk API on HTTPS (bolt.one is doing that), put the origin in `eas.json` → `build.preview.env.EXPO_PUBLIC_AR_ORIGIN` and build again.
-- **First build, 18 Oct 20:32:** EAS build `4911e789` (the `preview` profile, 103 MB APK, kept at `~/.cache/saath-builds/`), installed on the S24 as `com.saath.prototype` 0.1.0 next to Expo Go. Its JS was snapshotted while the walkable-ground session was still editing `src/`, so it may hold part of that change; the second build (with `EXPO_PUBLIC_AR_ORIGIN`) replaces it. The release deep link (`saath://ar-done`) is untested on the phone. The user tried it off the cable: "Meet in AR" opened `localhost:8099` in Chrome, as expected for this build.
-- **The AR page is hosted (bolt.one, 18 Oct ~20:45):** `https://pellakurusumanth4-os-39c4.bolt.host/ar/?friend=&name=&tall=&return=`, with the talk API as the Supabase function `ar` (`/api/talk` NDJSON and `/api/hear`, CORS for the site origin only, per-IP 30/min and 1000/day shared with the website); `talk.js` reads the API base and the public anon key from a `<meta name="saath-api">` that only the hosted copy gets (`site/vite.config.ts`). After editing `web/talk`, run `node site/scripts/sync-ar-function.mjs`, push, open the Bolt project (it redeploys functions on open), Publish → Web. The hosted `/ar/index.html` was built before the 20:19 `package=com.saath.prototype` line in `homeLink`: re-publish to pick it up.
-- **Second build (18 Oct 20:47), EAS `079ccff7`:** `eas.json` → `build.preview.env.EXPO_PUBLIC_AR_ORIGIN` = that origin, so the app opens the hosted page and needs no laptop. Untested on the phone when written.
-
 ### Talking friends (17-18 Oct; the core feature)
 - **Where the decisions are:**
   - Research: `notes/talking-characters.md`.
@@ -378,11 +369,6 @@ This replaces the test friend above. The user asked for friends anywhere in the 
 - **Hourly moves:** a spot is a hash of the friend's id, the hour (`hourIndex` = now / 3600000, rounded down) and the place's coordinates.
   - Nothing is saved: a restart within the hour shows the same spots, and on the hour everyone but Nobita moves. App.tsx checks the clock once a minute.
   - The place is in the hash, so a friend's spot and the time can't give away where someone lives.
-- **Somewhere to walk** (18 Oct, later): a random spot can be in a lake, a building or private ground, so each ring friend stands on the nearest path or road to it that is still in their ring.
-  - The map page (`src/mapWalk.ts`, `window.saath.walkable`) fetches the z14 OpenFreeMap tiles within 250 m of the spot (1–4 tiles), reads their roads and paths with a small tile reader of its own, and posts up to 8 points, nearest first, one per way. They are the same tiles from the same server the map draws, so no new service learns anything. MapLibre only keeps the tiles in view, which is why it fetches them itself.
-  - Walkable means roads and paths, but not motorways, trunk roads, busways, tunnels or underpasses, indoor or upper-floor ways, platforms, driveways, car parks or private ways (a `foot` tag decides over `access`).
-  - The app (`stand` in `src/placement.ts`, the `walk` state in `App.tsx`) keeps the first point still inside the ring, so home and office never go to the page. If none fits, the friend tries up to 3 random spots in turn (`TRIES`). Until the page answers, they stand on their first random spot.
-  - The answers live in memory only: the same place, hour and tiles give the same spot. Nobita isn't moved.
 - **Ids are still the character ids** (`nobita`, `doraemon`, …), so met ids, the AR hand-off (`friend=<character>`, `ar-done?friend=<id>`) and the talk server keep working. Meeting Nobita is now saved like the others, so his "?" shows only until you meet him once.
 - **Card text:** `place` is now a phrase shown as it is: "a few steps from you", "around your home" or "around your office" (the map card and the camera chip). Hints no longer name landmarks.
 - **Talk:** `web/talk/prompts.mjs` no longer puts a friend at a landmark.
@@ -396,21 +382,8 @@ This replaces the test friend above. The user asked for friends anywhere in the 
   - `node --test "web/talk/*.test.mjs"`: 55/55.
   - The running Metro builds the Android bundle.
   - Not tried on the phone yet.
-- **Checks for "Somewhere to walk" (18 Oct, about 20:45):**
-  - tsc is clean.
-  - `node --test src/placement.test.mjs`: 12/12. The three new tests: the first point in the ring wins; the page is asked about each first spot, then the next tries; whatever it answers, the rings hold, Nobita stays put and the same answers give the same spots. 8 of 9 broken copies of `stand` fail them; the ninth made no difference, so that code was removed.
-  - `walk-test.mjs` (section 6), all passed:
-    - The tile reader matches MapLibre on 3 tiles (1–3 ms each).
-    - 90/90 friends (5 made-up places × 3 hours) stand in their ring on a way MapLibre draws as walkable; 89 on the first try.
-    - They moved a median 28 m from their random spot; 90% moved under 580 m, at most 1.3 km (at the coast).
-    - The page answers 6 spots in 0.1–1.7 s with no tiles cached, 0.2 s cached.
-  - Not tried on the phone yet.
 - **Known limits:**
-  - A friend stands on the nearest path or road to their random spot. On a road that's its centre line (arriving counts from 20 m, so you meet them from the pavement). It can be at the water's edge (a seawall promenade, a jetty or bridge path) or under a station or arcade outline: 4 and 3 of 90 in the check. Roads in gated colonies or campuses that OpenStreetMap doesn't mark private still count as public.
-  - If none of a friend's 3 random spots has a path or road inside their ring in the tiles round it (open sea, a big lake), or the tiles can't load (no internet, the raster fallback), they stand on their first random spot as before.
-  - For a second or two after the app opens, and on the hour, friends show at their random spots, then step onto the path.
-  - Each hour OpenFreeMap, which already serves the map, also gets the 1–4 tiles (about 2 km across) round each friend's spot, even when you're far from them. The WebView caches tiles, whose URLs only change with OpenFreeMap's weekly update.
-    - The user accepted this on 18 Oct for the hackathon ("for two days only"), so don't raise it again.
+  - Plain random spots can land in water, on private ground or inside a building. A cheap fix would be to snap each spot to the nearest path with OpenStreetMap's Overpass API (one query per place per hour), or to shrink the rings. It isn't built: it needs a network call and well over 30 lines.
   - A friend you're walking to moves on the hour, and the route follows them.
   - Clearing the office while you navigate to an office friend switches the target to the nearest friend.
   - Nobita doesn't follow you. Walk far and he stays where he first appeared until the next run.
@@ -558,8 +531,7 @@ Then:
 ```
 H=~/.cache/saath-recovery/harness; R=~/Documents/Hackathons/bolt-builders-week/saath-prototype
 cd $R && npx tsc --noEmit -p .
-node --test src/placement.test.mjs                          # where friends stand: rings, hours, the near friend, walkable spots
-node --no-warnings $H/mapcheck/walk-test.mjs $R 9333        # friends round made-up places end on walkable ground (own tab)
+node --test src/placement.test.mjs                          # where friends stand: rings, hours, the near friend
 node --no-warnings $H/mapcheck/placement-test.mjs $R 9333   # part B's 3 long-press checks fail: the long-press is gone (18 Oct)
 node --no-warnings $H/mapcheck/tap-test.mjs $R 9333
 cd $H/mapcheck && node --no-warnings shot.mjs $R 9333 out.png --view 73.855534,18.520155,17.64,70,160 --js "$(cat scene-wada.js)" --wait 6000
@@ -567,7 +539,6 @@ cd $H/mapcheck && node --no-warnings shot.mjs $R 9333 out.png --view 73.855534,1
 - `shot.mjs` options: `--view lng,lat,zoom,pitch,bearing`, `--js '<expr or promise>'` (the result is printed as `js →`), `--wait ms`, `--frames n --every ms`, `--dpr n`. It prints page logs and problems.
 - `scene-wada.js` sets up the public test scene: Doraemon at Shaniwar Wada as the target, Jerry unmet nearby, and a route.
 - `roof-test.mjs` is retired with the long-press (18 Oct): every check in it was a roof long-press, so it can only fail now.
-- `walk-test.mjs [hours] [--placement p.ts] [--shots dir]` opens and closes a tab of its own. A: the page's tile reader reads every line of 3 public tiles as MapLibre does. B: for public landmarks standing in for a home and an office (Pune, Mumbai, Venice, Amsterdam, Tromsø; 3 hours by default), every ring friend must end in their ring, on a spot the page found, where MapLibre itself draws a way you can walk on. Water or a building outline at that pixel is reported, not failed. It fetches real tiles, so it needs the internet.
 
 ## 7. Running on the phone (only with the user's go-ahead)
 

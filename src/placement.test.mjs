@@ -1,6 +1,5 @@
 // Where friends stand (src/placement.ts): rings round a place, the 5 km bound, the same spots all hour, new spots the
-// next hour, the near friend 5 to 10 m from you, and ring friends on somewhere walkable the map found, still in their
-// ring. Made-up points only, never anyone's real places.
+// next hour, and the near friend 5 to 10 m from you. Made-up points only, never anyone's real places.
 // Run: node --test src/placement.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +8,7 @@ import { angleDiff, bearingDeg, distanceM } from './geo.ts';
 
 // The app's files import each other without extensions, as Metro allows; node needs the .ts.
 registerHooks({ resolve: (spec, ctx, next) => next(/^\.\.?\//.test(spec) && !/\.\w+$/.test(spec) ? spec + '.ts' : spec, ctx) });
-const { NEAR_M, RINGS, TRIES, destination, hourIndex, nearSpot, placeFriends, spotIn } = await import('./placement.ts');
+const { NEAR_M, RINGS, destination, hourIndex, nearSpot, placeFriends, spotIn } = await import('./placement.ts');
 const { HOME_CAST, OFFICE_CAST } = await import('./friends.ts');
 
 const POINTS = {
@@ -135,76 +134,4 @@ test('in the same hour, a friend stands at a different offset round a different 
     return [Math.round(distanceM(home, f)), Math.round(bearingDeg(home, f))];
   };
   assert.notDeepEqual(offset(a), offset(b));
-});
-
-const key = (s) => `${s.lat},${s.lng}`;
-const spotOf = (f) => ({ lat: f.lat, lng: f.lng });
-// Which of these places and rings a spot belongs to (the places are 30 km apart, the rings only touch).
-const ringOf = (s, places) => {
-  for (const at of places) {
-    const d = distanceM(at, s), ring = RINGS.find(([a, b]) => d >= a && d <= b);
-    if (ring) return { at, ring, d, b: bearingDeg(at, s) };
-  }
-};
-
-test('a ring friend stands on the first point the map found near their spot that is still in their ring', () => {
-  for (const [name, home] of Object.entries(POINTS)) {
-    const office = destination(home, 30_000, 200), expected = new Map();
-    // Round each spot: a point past the ring's outer edge and one inside its inner edge, both nearer, then two in it.
-    const walkable = (s) => {
-      const { at, ring: [inner, outer], b } = ringOf(s, [home, office]);
-      const fit = destination(at, (inner + outer) / 2, b + 10);
-      expected.set(key(s), fit);
-      return [destination(at, outer + 20, b), destination(at, inner - 5, b), fit, destination(at, (inner + outer) / 2 + 1, b)];
-    };
-    for (const f of placeFriends({ home, office }, null, HOUR, walkable)) {
-      const k = HOME_CAST.findIndex((c) => c.id === f.id);
-      const [at, ring] = k > 0 ? [home, RINGS[k - 1]] : [office, RINGS[OFFICE_CAST.findIndex((c) => c.id === f.id)]];
-      const first = spotIn(at, ring, `${f.id}@${HOUR}@${at.lat},${at.lng}`);
-      assert.deepEqual(spotOf(f), expected.get(key(first)), `${name}: ${f.id}`);
-    }
-  }
-});
-
-test('until the map has looked a friend stands on their first spot; with nowhere to walk there they try other spots', () => {
-  const home = POINTS.mid, raw = placeFriends({ home }, null, HOUR);
-  const asked = [];
-  assert.deepEqual(placeFriends({ home }, null, HOUR, (s) => void asked.push(s)), raw, 'not looked yet');
-  assert.deepEqual(asked, raw.map(spotOf), 'the map is asked about each first spot');
-  const tried = [];
-  assert.deepEqual(placeFriends({ home }, null, HOUR, (s) => (tried.push(s), [])), raw, 'nowhere near any spot');
-  assert.equal(new Set(tried.map(key)).size, raw.length * TRIES, 'each friend tries TRIES different spots');
-  for (const s of tried) assert.ok(ringOf(s, [home]), 'every spot tried is in a ring');
-  // Somewhere to walk only at each friend's last try: they stand there.
-  const last = tried.filter((_, i) => i % TRIES === TRIES - 1);
-  const placed = placeFriends({ home }, null, HOUR, (s) => (last.some((l) => key(l) === key(s)) ? [s] : []));
-  assert.deepEqual(placed.map(spotOf), last);
-  // The map hasn't looked at the second spot yet: the first spot until it has.
-  const second = [];
-  assert.deepEqual(placeFriends({ home }, null, HOUR, (s) => (asked.some((a) => key(a) === key(s)) ? [] : void second.push(s))), raw);
-  assert.deepEqual(second, tried.filter((_, i) => i % TRIES === 1));
-});
-
-test('whatever the map finds, ring friends stay in their rings, the near friend stays put, and the same answers give the same spots', () => {
-  for (const [name, home] of Object.entries(POINTS)) {
-    const office = destination(home, 30_000, 20), near = nearSpot(home);
-    for (let h = HOUR; h < HOUR + 50; h++) {
-      // Points up to 800 m from each spot, any way: some in the ring, some not, some lists empty.
-      const walkable = (s) => {
-        expect(s, near);
-        return Array.from({ length: Math.floor(unit(key(s)) * 4) }, (_, i) => destination(s, unit(key(s) + i) * 800, unit(i + key(s)) * 360));
-      };
-      const now = placeFriends({ home, office }, near, h, walkable);
-      assert.deepEqual(placeFriends({ home, office }, near, h, walkable), now, `${name}: the same answers, the same spots`);
-      for (const f of now) {
-        if (f.id === HOME_CAST[0].id) { assert.deepEqual(spotOf(f), near, `${name}: the near friend stays put`); continue; }
-        const k = HOME_CAST.findIndex((c) => c.id === f.id);
-        const [at, ring] = k > 0 ? [home, RINGS[k - 1]] : [office, RINGS[OFFICE_CAST.findIndex((c) => c.id === f.id)]];
-        const d = distanceM(at, f);
-        assert.ok(d >= ring[0] && d <= ring[1] && d <= 5000, `${name}: ${f.id} at ${d} m, ring ${ring}`);
-      }
-    }
-  }
-  function expect(s, near) { assert.notDeepEqual(s, near, 'the map is never asked about the near friend'); }
-  function unit(s) { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 1_000_003; return h / 1_000_003; }
 });

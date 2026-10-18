@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as IntentLauncher from 'expo-intent-launcher';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { FriendRig, type RigAt } from './FriendRig';
@@ -28,8 +27,7 @@ const VFOV_DEG = 72.7;
 const PHONE_HEIGHT_M = 1.4;
 /** The AR camera page (web/ar), opened in Chrome at a friend's spot. shortcut: served from the laptop
  * (node web/serve.mjs + adb reverse tcp:8099 tcp:8099); host web/ on HTTPS to use it without the laptop. */
-// EXPO_PUBLIC_AR_ORIGIN (eas.json) points a release build at the hosted copy; without it, the laptop's server.
-const AR_PAGE = `${process.env.EXPO_PUBLIC_AR_ORIGIN ?? 'http://localhost:8099'}/ar/`;
+const AR_PAGE = 'http://localhost:8099/ar/';
 /** Closer than this, GPS can't tell exactly where around you a friend stands, so they stop growing. */
 const NEAREST_DRAW_M = 4;
 /** Far-away friends are drawn at least this tall (px) so you can spot them. */
@@ -102,11 +100,8 @@ export function CameraScreen({ target, level, fix, onBack }: Props) {
   const openAr = async () => {
     if (!target || launching.current) return;   // a second tap while Chrome opens would be refused, then open Brave
     launching.current = true;
-    // Expo Go opened the project from an exp:// link, and the way back is that link's /--/ path; a release build has its
-    // own scheme (app.json), which Chrome's intent link opens.
-    const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-    const app = inExpoGo ? `${((await Linking.getInitialURL()) ?? 'exp://127.0.0.1:8081').split('/--/')[0]}/--/ar-done` : 'saath://ar-done';
-    const back = `${app}?friend=${encodeURIComponent(target.id)}`;
+    const app = ((await Linking.getInitialURL()) ?? 'exp://127.0.0.1:8081').split('/--/')[0];
+    const back = `${app}/--/ar-done?friend=${encodeURIComponent(target.id)}`;
     const url = `${AR_PAGE}?friend=${target.character}&name=${encodeURIComponent(target.name)}&tall=${target.height}&return=${encodeURIComponent(back)}`;
     try {
       // expo-intent-launcher only uses packageName together with className (Chrome's link handler). In a new task the

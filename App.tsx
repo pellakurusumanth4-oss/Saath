@@ -23,7 +23,7 @@ const MET_KEY = 'saath.met.v1';
 const saveMet = (ids: ReadonlySet<string>) => AsyncStorage.setItem(MET_KEY, JSON.stringify([...ids])).catch(() => {});
 /** The home and office you set, as { home?, office? }: on this phone only, never sent anywhere. */
 const PLACES_KEY = 'saath.places.v1';
-/** A point, if it is one (the store and the map page can hold anything): just its lat and lng. */
+/** A saved place, if it is one (the store can hold anything): just its lat and lng. */
 const spot = (p: any): LatLng | undefined =>
   Number.isFinite(p?.lat) && Number.isFinite(p?.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180 ? { lat: p.lat, lng: p.lng } : undefined;
 
@@ -45,9 +45,6 @@ export default function App() {
   const [near, setNear] = useState<LatLng | null>(null);
   const [places, setPlaces] = useState<Places>({});
   const [hour, setHour] = useState(hourIndex);
-  // Paths and roads the map found near friends' random spots (src/mapWalk.ts), by spot. Only in memory: the same
-  // spots always give the same answers, so a restart just asks again.
-  const [walk, setWalk] = useState<ReadonlyMap<string, LatLng[]>>(() => new Map());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [screen, setScreen] = useState<'map' | 'camera'>('map');
   const [navigating, setNavigating] = useState(false);
@@ -93,17 +90,8 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Where everyone stands this hour, and the random spots the map still has to look round for somewhere to walk. In
-  // between, only your own position changes their distance and direction.
-  const [placed, look] = useMemo(() => {
-    const look: LatLng[] = [];
-    const placed = placeFriends(places, near, hour, (s) => {
-      const found = walk.get(`${s.lat},${s.lng}`);
-      if (!found) look.push(s);
-      return found;
-    });
-    return [placed, look] as const;
-  }, [places, near, hour, walk]);
+  // Where everyone stands this hour; in between, only your own position changes their distance and direction.
+  const placed = useMemo(() => placeFriends(places, near, hour), [places, near, hour]);
   const friends = useMemo<LiveFriend[]>(
     () =>
       placed.map((f) => ({
@@ -169,18 +157,6 @@ export default function App() {
       return next;
     });
   }, []);
-  // What the map found round each spot ([{spot, near}]), kept as plain points: the page can post anything.
-  const onWalkable = useCallback((found: unknown) => {
-    if (!Array.isArray(found)) return;
-    setWalk((w) => {
-      const next = new Map(w);
-      for (const f of found) {
-        const at = spot(f?.spot);
-        if (at && Array.isArray(f.near)) next.set(`${at.lat},${at.lng}`, f.near.map(spot).filter((p: LatLng | undefined): p is LatLng => !!p));
-      }
-      return next;
-    });
-  }, []);
   const onMet = useCallback((id: string) => {
     setMetIds((ids) => {
       if (ids.has(id)) return ids;
@@ -192,7 +168,7 @@ export default function App() {
   // Back from the AR camera page in Chrome (web/ar): <app>/--/ar-done?friend=<id>, plus &met=1 once you met them.
   useEffect(() => {
     const done = (url: string | null) => {
-      const id = url && /(\/--\/|:\/\/)ar-done(\?|$)/.test(url) ? url.match(/[?&]friend=([^&#]+)/)?.[1] : undefined;   // exp://…/--/ar-done (Expo Go) or saath://ar-done
+      const id = url?.includes('/--/ar-done') ? url.match(/[?&]friend=([^&#]+)/)?.[1] : undefined;
       if (id && /[?&]met=1(&|#|$)/.test(url!)) try { onMet(decodeURIComponent(id)); } catch {}   // a malformed hand-made link
     };
     Linking.getInitialURL().then(done);   // the app was closed while you were in Chrome
@@ -227,8 +203,6 @@ export default function App() {
         onOpenCamera={openCamera}
         places={places}
         onSetPlace={setPlace}
-        look={look}
-        onWalkable={onWalkable}
       />
       {screen === 'camera' ? (
         <View style={StyleSheet.absoluteFill}>
