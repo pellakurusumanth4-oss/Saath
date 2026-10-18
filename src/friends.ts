@@ -1,7 +1,7 @@
 import type { LatLng } from './geo';
 
 /** The friends with an approved 2D anime rig (src/rigs.ts) and portrait (src/faces.ts). */
-export type Character = 'doraemon' | 'nobita' | 'shinchan' | 'goku';
+export type Character = 'doraemon' | 'nobita' | 'shinchan' | 'goku' | 'michael' | 'dwight' | 'holt';
 
 /** A friend stands still at one exact real spot (lat/lng) and never moves from it. */
 export type Friend = LatLng & {
@@ -75,15 +75,22 @@ export const FRIENDS: Friend[] = [
   },
 ];
 
-const CHARACTERS: readonly string[] = FRIENDS.map((f) => f.character);
+// Friends with an approved rig but no public place yet: only test friends (long-press the map) can be them.
+const UNPLACED: Omit<Friend, 'lat' | 'lng' | 'place' | 'hint'>[] = [
+  { id: 'michael', name: 'Michael', character: 'michael', color: '#3F3A63', height: 1.75 },
+  { id: 'dwight', name: 'Dwight', character: 'dwight', color: '#C8962E', height: 1.87 },
+  { id: 'holt', name: 'Captain Holt', character: 'holt', color: '#262A3E', height: 1.83 },
+];
+const TESTABLE = [...UNPLACED, ...FRIENDS];   // the unplaced ones first: test friends are their only way in
+const CHARACTERS: readonly string[] = TESTABLE.map((f) => f.character);
 
 /** A friend you hide yourself by long-pressing the map, so you can test without crossing the city. */
 export function makeTestFriend(at: LatLng, count: number): Friend {
-  return asTestFriend(FRIENDS[count % FRIENDS.length].character, `test-${Date.now()}`, at);
+  return asTestFriend(TESTABLE[count % TESTABLE.length].character, `test-${Date.now()}`, at);
 }
 
 function asTestFriend(character: Character, id: string, at: LatLng): Friend {
-  const like = FRIENDS.find((f) => f.character === character) ?? FRIENDS[0];
+  const like = TESTABLE.find((f) => f.character === character) ?? FRIENDS[0];
   return { ...like, id, place: 'Your test spot', hint: 'The friend you hid for testing', lat: at.lat, lng: at.lng, test: true };
 }
 
@@ -92,7 +99,7 @@ const OLD_LOOKS: Record<string, Character> = { round: 'doraemon', kidRed: 'shinc
 
 /** A saved test friend, brought up to date, or null if it isn't one. */
 export function savedTestFriend(f: any): Friend | null {
-  if (!f || typeof f.id !== 'string' || !Number.isFinite(f.lat) || !Number.isFinite(f.lng)) return null;
+  if (!f || typeof f.id !== 'string' || !f.id.startsWith('test-') || !Number.isFinite(f.lat) || !Number.isFinite(f.lng)) return null;
   const character: Character = CHARACTERS.includes(f.character) ? f.character : (OLD_LOOKS[f.look] ?? 'doraemon');
   return asTestFriend(character, f.id, f);
 }

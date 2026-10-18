@@ -24,6 +24,16 @@ const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
 svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
 Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
 document.body.appendChild(svg);
+// Rigs that draw their lines with CSS (Goku: classes in this page's <style>, widths in --lw from ink()) keep both
+// inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
+// page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
+if (typeof ink === 'function') {
+  const probe = document.createElementNS(NS, 'svg'), own = document.createElementNS(NS, 'style');
+  ink(probe, 400 / A.tall);
+  svg.setAttribute('data-ink', '');
+  own.textContent = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n') + '\nsvg[data-ink]{' + probe.style.cssText + '}';
+  svg.prepend(own);
+}
 const q = document.createElement('div'); q.textContent = '?';
 Object.assign(q.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -50%)', color: '#F9BC4D',
   fontFamily: 'system-ui, Roboto, sans-serif', fontWeight: '900', textShadow: '0 0 0.12em rgba(249,188,77,.95), 0 0 0.3em rgba(249,188,77,.6)' });
@@ -38,6 +48,8 @@ const idx = (name) => { const i = CLIPS.findIndex((c) => c[0] === name); if (i <
 const R = { idle: idx(A.roles.idle), hi: idx(A.roles.hi), arrive: idx(A.roles.arrive), extras: A.roles.extras.map(idx) };
 const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.idle ? 'idle' : 'extra');
 let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
+// Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
+let faceOn = {}, afterTalk = null;
 
 // The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
 // S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.
@@ -214,6 +226,25 @@ const floorFrame = (t) => {
 
 window.saath = {
   play: (roles) => { queue = roles.map((r) => R[r]).filter((i) => typeof i === 'number'); begin(queue.length ? queue.shift() : R.idle, clock); shown = ''; },
+  // Talking: a face laid over whatever clip plays, from his next drawing. f = {mouth: 'closed'|'half'|'open', mood}
+  // in the shared names, which SAATH_AR.mouths and .moods turn into this rig's own parts (a mood's `closed` replaces
+  // his usual closed mouth). Unknown names are ignored, as a wrong part name blanks every mouth or eye. null ends it
+  // and starts any clip held for later; false (he was cut off, or the reply failed) ends it and drops that clip.
+  face: (f) => {
+    const { closed, ...mood } = f && Object.hasOwn(A.moods, f.mood) ? A.moods[f.mood] : {};
+    const mouth = f && (f.mouth === 'closed' && closed ? closed : Object.hasOwn(A.mouths, f.mouth) ? A.mouths[f.mouth] : null);
+    faceOn = f ? { ...mood, ...(mouth ? { mouth } : {}) } : {};
+    if (f === false) afterTalk = null;
+    else if (!f && afterTalk !== null) { queue = []; begin(afterTalk, clock); afterTalk = null; shown = ''; }
+  },
+  // A gesture from the reply, by its word (SAATH_AR.actions). One that hides or shuts his face (SAATH_AR.later)
+  // waits until he stops talking.
+  act: (word) => {
+    if (!Object.hasOwn(A.actions, word)) return;
+    if (A.later.includes(word) && faceOn.mouth) { afterTalk = idx(A.actions[word]); return; }
+    queue = []; begin(idx(A.actions[word]), clock); shown = '';
+  },
+  now: () => ({ clip: CLIPS[cur][0], face: faceOn }),   // for tests
   // Not met yet: a dark silhouette with a glowing "?", still breathing.
   mystery: (on) => { mystery = !!on; svg.style.filter = on ? 'brightness(0)' : ''; svg.style.opacity = on ? '0.86' : ''; q.style.display = mystery && !quiet && at ? 'block' : 'none'; shown = ''; },
   quiet: (on) => { quiet = !!on; q.style.display = mystery && !quiet && at ? 'block' : 'none'; },
@@ -254,12 +285,12 @@ const draw = (t) => {
   if (cur !== R.idle && t - since >= len) {
     if (fl.on && fl.state === 'greet' && cur === R.hi) { fl.state = 'stay'; begin(R.idle, t); }   // said hi: he stays
     else begin(queue.length ? queue.shift() : R.idle, t);
-  } else if (cur === R.idle && !mystery && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
+  } else if (cur === R.idle && !mystery && !faceOn.mouth && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
   const loop = cur === R.idle;
   const lt = loop ? (t - since) % CLIPS[cur][3] : t - since, s = step(lt), key = cur + ':' + s;
   if (key === shown) return;   // a new drawing only every 1/12 s
   shown = key;
-  apply(svg, CLIPS[cur][2](s));
+  apply(svg, Object.assign(CLIPS[cur][2](s), faceOn));   // the clip poses him; a talking face wins
   if (mystery && !quiet && at) mark();
 };
 addEventListener('resize', layout);

@@ -16,15 +16,70 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 // Roles are clip names from the rig's CLIPS: arrive plays when you find him, then hi, then idle with
 // an extra now and then.
 // face: the round portrait's size and centre, relative to his head's box.
+// talk: what saath.face and saath.act use while he talks (web/talk). mouths and moods map the shared names
+// to this rig's own existing parts (no new drawings; a mood's `closed` replaces his usual closed mouth, so he
+// doesn't smile while sad); actions map the gesture words in Claude's replies
+// (web/talk/reply.mjs lists the same words) to his clips; later = gestures that hide or shut his face, so
+// they wait until he stops talking.
 const RIGS = {
   doraemon: { file: 'doraemon.html', ground: [200, 512], tall: 484,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Yay!', extras: ['Gadget!', 'Yay!'] }, face: { zoom: 1.1, dy: 0 } },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Yay!', extras: ['Gadget!', 'Yay!', 'Nezumi!', 'Anywhere Door', 'Ufufu', 'Janken'] }, face: { zoom: 1.1, dy: 0 },
+    talk: { mouths: { closed: 'smile', half: 'a', open: 'open' },
+      moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy' }, surprised: { look: [0, -7] }, curious: { look: [6, 0] },
+        sad: { eyes: 'half', look: [0, 9], closed: 'o' }, worried: { eyes: 'half', look: [-6, 0], closed: 'o' }, sleepy: { eyes: 'half' }, thinking: { look: [6, -7] } },
+      actions: { wave: 'Hi!', gadget: 'Gadget!', fly: 'Take-copter', cheer: 'Yay!', mouse: 'Nezumi!', door: 'Anywhere Door', ufufu: 'Ufufu', janken: 'Janken' },
+      later: ['fly', 'mouse', 'door'] } },
   nobita: { file: 'nobita/nobita.html', ground: [200, 512], tall: 483,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Nap', extras: ['Bang!', 'Yatta!', 'Doraemon~!'] }, face: { zoom: 1.1, dy: 0 } },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Nap', extras: ['Bang!', 'Yatta!', 'Doraemon~!', 'Bappa, please!', 'Splat!', 'Lazy lawn', 'Dog!'] }, face: { zoom: 1.1, dy: 0 },
+    talk: { mouths: { closed: 'smile', half: 'talk', open: 'open' },
+      moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy' }, surprised: { eyes: 'small' }, curious: { look: [5, 0] },
+        sad: { eyes: 'cry', brows: 'worried', closed: 'wavy' }, worried: { brows: 'worried', sweat: 1, closed: 'wavy' }, sleepy: { eyes: 'half' }, thinking: { look: [5, -3] } },
+      actions: { wave: 'Hi!', late: 'Late!', call: 'Doraemon~!', nap: 'Nap', aim: 'Bang!', cheer: 'Yatta!', pray: 'Bappa, please!', splat: 'Splat!', lazy: 'Lazy lawn', dog: 'Dog!' },
+      later: ['nap', 'late', 'pray', 'splat', 'lazy', 'dog'] } },
   shinchan: { file: 'shinchan/shinchan.html', ground: [200, 512], tall: 484,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Buri-buri', extras: ['Action Kamen', 'Yay!', 'Buri-buri'] }, face: { zoom: 1.32, dy: -0.02 } },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Buri-buri', extras: ['Action Kamen', 'Yay!', 'Buri-buri', 'Chocobi', 'Toss & catch', 'Which cake?'] }, face: { zoom: 1.32, dy: -0.02 },
+    talk: { mouths: { closed: 'closed', half: 'a', open: 'laugh' },
+      moods: { neutral: {}, happy: { eyes: 'happy', blush: 0.8 }, excited: { eyes: 'happy', blush: 0.8 }, surprised: { brows: [-10, -3, -10, 3] },
+        curious: { look: [6, 0] }, sad: { brows: [-4, -14, -4, 14], closed: 'wavy' }, worried: { brows: [-4, -14, -4, 14], closed: 'wavy' }, sleepy: { eyes: 'half' },
+        thinking: { look: [5, -2] } },
+      actions: { wave: 'Hi!', dance: 'Buri-buri', pose: 'Action Kamen', cheer: 'Yay!', chocobi: 'Chocobi', toss: 'Toss & catch', hmm: 'Which cake?' },
+      later: ['dance'] } },
   goku: { file: 'goku/goku.html', ground: [0, 0], tall: 1750,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Instant Transmission', extras: ['Kamehameha!', 'Yosha!'] }, face: { zoom: 0.72, dy: 0.2 } },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Instant Transmission', extras: ['Kamehameha!', 'Yosha!', 'Starving!', 'Huh?', 'Whaaaa?!'] }, face: { zoom: 0.72, dy: 0.2 },
+    talk: { mouths: { closed: 'closed', half: 'o', open: 'a' },
+      moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy' }, surprised: { brows: 'up' }, curious: { look: [8, 1] },
+        sad: { eyes: 'half', brows: 'up' }, worried: { brows: 'up' }, sleepy: { eyes: 'half' }, thinking: { look: [0, -6] } },
+      actions: { wave: 'Hi!', blast: 'Kamehameha!', teleport: 'Instant Transmission', cheer: 'Yosha!', eat: 'Starving!', huh: 'Huh?', shock: 'Whaaaa?!' },
+      later: ['teleport', 'eat'] } },
+  // The live-action friends draw their faces from measured landmarks: moods are pose fields (expr = a measured
+  // expression, ew = its weight); talking adds the jaw on top, so no mood needs its own closed mouth.
+  michael: { file: 'michael/michael.html', ground: [0, 0], tall: 1750,
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Welcome!', extras: ['Look to camera', 'Finger guns', 'No, God, no!', 'I declare bankruptcy!', 'Pout', "World's Best Boss"] },
+    face: { zoom: 1.09, dy: -0.07 },
+    talk: { mouths: { closed: 'closed', half: 'half', open: 'open', round: 'round' },
+      moods: { neutral: {}, happy: { expr: 'grin', ew: 0.7 }, excited: { expr: 'shout', ew: 0.5 }, surprised: { expr: 'wide', ew: 0.9 }, curious: { look: [5, 0] },
+        sad: { expr: 'pout', ew: 0.8 }, worried: { expr: 'scream', ew: 0.35 }, sleepy: { blink: 0.55 }, thinking: { look: [5, -3] } },
+      actions: { wave: 'Hi!', cheer: 'Welcome!', stare: 'Look to camera', panic: 'No, God, no!', shout: 'I declare bankruptcy!', pout: 'Pout', mug: "World's Best Boss", guns: 'Finger guns' },
+      later: [] } },
+  dwight: { file: 'dwight/dwight.html', ground: [0, 0], tall: 1870,
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Karate!', extras: ['Question.', 'False.', 'Evil grin', 'Glasses', 'Panic!'] },
+    face: { zoom: 1.09, dy: -0.07 },
+    talk: { mouths: { closed: 'closed', half: 'half', open: 'open', round: 'round' },
+      moods: { neutral: {}, happy: { expr: 'grin', ew: 0.6 }, excited: { expr: 'bark', ew: 0.5 }, surprised: { expr: 'panic', ew: 0.8 }, curious: { look: [5, 0] },
+        sad: { expr: 'stern', ew: 0.7 }, worried: { expr: 'panic', ew: 0.4 }, sleepy: { blink: 0.55 }, thinking: { look: [5, -3] } },
+      actions: { wave: 'Hi!', karate: 'Karate!', question: 'Question.', false: 'False.', grin: 'Evil grin', glasses: 'Glasses', panic: 'Panic!' },
+      later: [] } },
+  // Holt's deadpan is the joke: happy is only a softer look, never a grin.
+  holt: { file: 'holt/holt.html', ground: [0, 0], tall: 1830,
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Salute', extras: ['BONE?!', 'Side-eye', 'Hot damn!', 'Dance', 'Vindication!'] },
+    face: { zoom: 1.09, dy: -0.07 },
+    talk: { mouths: { closed: 'closed', half: 'half', open: 'open', round: 'round' },
+      moods: { neutral: {}, happy: { blink: 0.25 }, excited: { expr: 'bone2', ew: 0.4 }, surprised: { expr: 'bone', ew: 0.7 }, curious: { expr: 'side', ew: 0.6 },
+        sad: { expr: 'concerned', ew: 0.8 }, worried: { expr: 'concerned', ew: 0.6 }, sleepy: { blink: 0.55 }, thinking: { look: [5, -3] } },
+      // Talk words that never prime him to say the clip's name: Claude would say "Hot damn!" (a swear the filter drops)
+      // or a baffling "BONE?!" for words named after them.
+      actions: { wave: 'Hi!', salute: 'Salute', outburst: 'BONE?!', sideeye: 'Side-eye', celebrate: 'Hot damn!', dance: 'Dance', vindication: 'Vindication!' },
+      later: [] } },
 };
 // The camera mode (scripts/rig-ar.js), pasted in front of the rig's own modes.
 const AR = "if (mode === 'ar') {\n" + fs.readFileSync(path.join(ROOT, 'scripts/rig-ar.js'), 'utf8') + "\n} else ";
@@ -40,7 +95,7 @@ function arPage(id) {
   let html = fs.readFileSync(path.join(ANIME, r.file), 'utf8');
   html = once(html, 'const P = new URLSearchParams(location.hash.slice(1));', "const P = new URLSearchParams('mode=ar&capture=1');", id);
   html = once(html, 'let render, loopLen = 1e9;\n', 'let render, loopLen = 1e9;\n' + AR, id);
-  const config = { ground: r.ground, tall: r.tall, roles: r.roles };
+  const config = { ground: r.ground, tall: r.tall, roles: r.roles, ...r.talk };
   html = html.replace('<script>', `<script>window.SAATH_AR = ${JSON.stringify(config)};</script>\n<script>`);
   return html;
 }
@@ -62,7 +117,8 @@ const fi = process.argv.indexOf('--faces');
 if (fi > 0) {
   const port = process.argv[fi + 1];
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'saath-faces-'));
-  const target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page');
+  // A tab of its own in that Chrome, closed at the end: other sessions' tests use the same browser.
+  const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r) => ws.addEventListener('open', r, { once: true }));
   let n = 0;
@@ -99,6 +155,7 @@ if (fi > 0) {
     fs.writeFileSync(path.join(tmp, id + '.png'), Buffer.from(met.split(',')[1], 'base64'));
   }
   ws.close();
+  await fetch(`http://127.0.0.1:${port}/json/close/${target.id}`);
   if (problems.length) throw new Error('page errors: ' + problems.join(' | '));
   fs.writeFileSync(path.join(ROOT, 'src/faces.ts'),
     header + "import type { Character } from './friends';\n\n" +

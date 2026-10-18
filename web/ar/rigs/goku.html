@@ -32,7 +32,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#F4EEE3;font-family:sy
 <div class="sheet" id="sheet"></div>
 <div id="street"><img id="photo"><svg class="char" id="streetChar"></svg><div id="bubble"></div><div id="hint">Move your phone slowly to find the ground</div><canvas class="grain" id="grain"></canvas></div>
 <div id="trace"><img id="traceImg"><svg id="traceChar"></svg></div>
-<script>window.SAATH_AR = {"ground":[0,0],"tall":1750,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Instant Transmission","extras":["Kamehameha!","Yosha!"]}};</script>
+<script>window.SAATH_AR = {"ground":[0,0],"tall":1750,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Instant Transmission","extras":["Kamehameha!","Yosha!","Starving!","Huh?","Whaaaa?!"]},"mouths":{"closed":"closed","half":"o","open":"a"},"moods":{"neutral":{},"happy":{"eyes":"happy"},"excited":{"eyes":"happy"},"surprised":{"brows":"up"},"curious":{"look":[8,1]},"sad":{"eyes":"half","brows":"up"},"worried":{"brows":"up"},"sleepy":{"eyes":"half"},"thinking":{"look":[0,-6]}},"actions":{"wave":"Hi!","blast":"Kamehameha!","teleport":"Instant Transmission","cheer":"Yosha!","eat":"Starving!","huh":"Huh?","shock":"Whaaaa?!"},"later":["teleport","eat"]};</script>
 <script>
 // ---------------------------------------------------------------------------------------------
 // Son Goku (adult, orange gi) as a cut-out rig, drawn the way Toei's current Dragon Ball anime draws
@@ -165,6 +165,8 @@ function headFront() {
       `<path d="M${-90 * s} -1668 L${-30 * s} -1656 L${-31 * s} -1650 L${-84 * s} -1660 Z" fill="${C.ink}"/>`,
     closed: (s) => `<path d="M${-86 * s} -1660 Q${-58 * s} -1650 ${-33 * s} -1650" class="ln"/><path d="M${-84 * s} -1660 L${-33 * s} -1651 L${-35 * s} -1655 Z" fill="${C.ink}" ${LINE}/>`,
     happy: (s) => `<path d="M${-84 * s} -1644 Q${-60 * s} -1690 ${-32 * s} -1648 Q${-60 * s} -1678 ${-84 * s} -1644 Z" fill="${C.ink}" ${LINE}/>`,
+    // shock (DAIMA, Netflix j5dwAVn4eJM 41.17 s): round white eyes with a dot for a pupil
+    shock: (s) => `<ellipse cx="${-60 * s}" cy="-1666" rx="36" ry="39" fill="${C.white}" ${LINE}/><circle cx="${-58 * s}" cy="-1664" r="7.5" fill="${C.ink}"/>`,
   };
   const BROWS = {
     normal: (s) => `<path d="M${-98 * s} -1694 L${-27 * s} -1672 L${-24 * s} -1684 L${-90 * s} -1708 Z" fill="${C.ink}"/>`,
@@ -190,6 +192,7 @@ function headFront() {
     <path d="M-8 -1654 L-14 -1608 L-2 -1599 Z" fill="${C.skinSh}"/><path d="M-8 -1654 L-14 -1608 L4 -1598 M13 -1603 L18 -1607" class="fine"/>
     <path d="M-78 -1630 L-54 -1622 M-76 -1621 L-58 -1615 M78 -1630 L54 -1622 M76 -1621 L58 -1615" class="fine"/>
     ${group('eyes', EYES, 1)}${group('brows', BROWS, 1)}${group('mouth', MOUTHS)}
+    <g class="sweat"><path d="M122 -1728 C134 -1706 144 -1688 142 -1676 C140 -1662 130 -1658 122 -1658 C114 -1658 104 -1664 103 -1676 C102 -1690 112 -1706 122 -1728 Z" fill="#BFE6FA" ${LINE}/><path d="M112 -1684 Q112 -1672 118 -1668" class="ln" style="stroke:#FFFFFF"/></g>
     <path d="M-108 -1740 L-94 -1688 L-72 -1730 L-50 -1676 L-28 -1730 L-2 -1662 L18 -1730 L46 -1678 L68 -1728 L102 -1686 L112 -1740 Z" fill="${C.skinSh}"/>
     <path d="${spiky(BANGS_F, 0.05)}" fill="${C.hair}"/><path d="${spiky(BANGS_F, 0.05, 0, 3)}" class="ln"/>
   </g>`;
@@ -208,6 +211,8 @@ function head3q() {
       `<path d="M22 -1690 L78 -1668 L77 -1656 L24 -1666 Z M96 -1668 L146 -1685 L145 -1668 L97 -1658 Z" fill="${C.skinSh}"/><path d="M18 -1672 L80 -1659 L78 -1652 L24 -1663 Z M94 -1660 L150 -1672 L150 -1665 L96 -1653 Z" fill="${C.ink}"/>`,
     closed: () => `<path d="M20 -1662 Q50 -1650 77 -1652 M96 -1652 Q122 -1656 146 -1662" class="ln"/><path d="M22 -1662 L77 -1653 L75 -1657 Z M96 -1652 L146 -1663 L144 -1659 Z" fill="${C.ink}" ${LINE}/>`,
     happy: () => `<path d="M24 -1646 Q50 -1692 76 -1650 Q50 -1680 24 -1646 Z M98 -1648 Q122 -1686 146 -1654 Q122 -1676 98 -1648 Z" fill="${C.ink}" ${LINE}/>`,
+    shock: () => `<ellipse cx="50" cy="-1666" rx="36" ry="38" fill="${C.white}" ${LINE}/><circle cx="54" cy="-1664" r="7.5" fill="${C.ink}"/>` +
+      `<ellipse cx="124" cy="-1668" rx="27" ry="35" fill="${C.white}" ${LINE}/><circle cx="128" cy="-1666" r="6.5" fill="${C.ink}"/>`,
   };
   const BROWS = {
     normal: `<path d="M8 -1702 L82 -1676 L85 -1689 L16 -1716 Z M94 -1679 L154 -1701 L154 -1713 L96 -1691 Z" fill="${C.ink}"/>`,
@@ -233,7 +238,10 @@ function head3q() {
     <path d="M-16 -1690 C-46 -1712 -62 -1670 -56 -1636 C-52 -1612 -38 -1598 -20 -1604 Z" fill="${C.skin}" ${LINE}/><path d="M-26 -1676 Q-46 -1650 -32 -1622" class="fine"/><path d="M-30 -1664 Q-40 -1650 -34 -1632 L-26 -1632 Z" fill="${C.skinSh}"/>
     <path d="M86 -1658 L122 -1602 L108 -1596 Z" fill="${C.skinSh}"/><path d="M86 -1658 L124 -1600 L110 -1592" class="fine"/>
     <path d="M18 -1630 L42 -1623 M20 -1621 L38 -1616" class="fine"/>
+    <!-- chewing (IGN IWQOPWPj7ec 12.5 s): the near cheek bulges out of the face line, ink only on its outer edge -->
+    <g class="cheek"><ellipse cx="2" cy="-1566" rx="60" ry="54" fill="${C.skin}"/><path d="M32 -1519.2 A60 54 0 0 1 -50 -1539 Q-8 -1526 32 -1519.2 Z" fill="${C.skinSh}"/><path d="M-12.5 -1618.4 A60 54 0 1 0 47.3 -1530.6" fill="none" ${LINE}/><path d="M-12.5 -1618.4 Q0 -1622 14 -1614" class="fine"/><path d="M-40 -1590 Q-28 -1606 -10 -1608" class="ln" style="stroke:#FFF6EC;stroke-width:calc(var(--lw) * 2.4)"/></g>
     ${group('eyes', EYES)}${group('brows', BROWS)}${group('mouth', MOUTHS)}
+    <g class="sweat"><path d="M156 -1734 C168 -1712 178 -1694 176 -1682 C174 -1668 164 -1664 156 -1664 C148 -1664 138 -1670 137 -1682 C136 -1696 146 -1712 156 -1734 Z" fill="#BFE6FA" ${LINE}/><path d="M146 -1690 Q146 -1678 152 -1674" class="ln" style="stroke:#FFFFFF"/></g>
     <path d="M-28 -1742 L-6 -1690 L20 -1732 L48 -1678 L72 -1732 L100 -1666 L118 -1730 L144 -1682 L158 -1742 Z" fill="${C.skinSh}"/>
     <path d="${spiky(BANGS_3Q, 0.05)}" fill="${C.hair}"/><path d="${spiky(BANGS_3Q, 0.05, 0, 3)}" class="ln"/>
   </g>`;
@@ -307,6 +315,37 @@ function effects() {
     <g class="itLines"><path d="M-160 -2000 L-160 -200 M-60 -2150 L-60 -400 M70 -2100 L70 -150 M180 -1900 L180 -500 M10 -1800 L10 0" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" opacity="0.9"/>
       <path d="M-160 -2000 L-160 -200 M-60 -2150 L-60 -400 M70 -2100 L70 -150 M180 -1900 L180 -500 M10 -1800 L10 0" stroke="#9EE9FF" stroke-width="5" stroke-linecap="round"/></g>`;
 }
+// ---- The bottomless bowl (DBS dub clip, IGN IWQOPWPj7ec 5.5, 12.5, 33.75 and 34.25 s) -------------------------------
+// A giant white rice bowl with a dark red band under the rim and a foot ring, about as wide as his chest and arms. Rim centre
+// at 0,0, +y down. 'full': heaped with fried rice (cream, with brown and green bits); 'empty': the inside of the rim shows;
+// 'bottom': tipped up to drain it, seen from below (the white base and its foot ring). Rice grains fly off on every drawing.
+const BOWL = { white: '#FFFFFF', sh: '#D6D9E2', band: '#9E2B2B', rice: '#F4DEA0', riceSh: '#D8B565', bit: '#6A3A22', green: '#5F9E3A' };
+const RICE_TOP = [[-330, 6], [-318, -60], [-290, -96], [-300, -150], [-246, -168], [-236, -226], [-176, -238], [-150, -292], [-90, -286], [-60, -330],
+  [0, -318], [44, -338], [96, -300], [150, -306], [176, -250], [236, -236], [252, -176], [300, -160], [296, -100], [322, -64], [332, 6]];
+function bowlSVG(state, k, m = 1) {   // m: how much rice is left (the heap's height, 0-1)
+  if (state === 'bottom') return `<circle r="360" fill="${BOWL.white}" ${LINE}/><path d="M250 -258 A360 360 0 0 1 120 340 A320 320 0 0 0 250 -258 Z" fill="${BOWL.sh}"/>` +
+    `<circle r="118" fill="${BOWL.white}" ${LINE}/><circle r="92" fill="${BOWL.sh}"/><circle r="92" fill="none" class="ln"/><circle r="60" fill="${BOWL.white}"/>` +
+    riceSpray(k, -380, 300);
+  const body = `<path d="M-360 0 C-356 160 -250 300 -110 312 L110 312 C250 300 356 160 360 0 Z" fill="${BOWL.white}" ${LINE}/>` +
+    `<path d="M360 0 C356 160 250 300 110 312 L84 312 C210 290 300 160 302 34 Z" fill="${BOWL.sh}"/>` +
+    `<path d="M-356 34 Q0 72 356 34 L350 58 Q0 96 -350 58 Z" fill="${BOWL.band}" ${LINE}/>` +
+    `<path d="M-110 312 L-100 344 L100 344 L110 312 Z" fill="${BOWL.white}" ${LINE}/><path d="M60 312 L64 344 L100 344 L110 312 Z" fill="${BOWL.sh}"/>`;
+  if (state === 'empty') return `<ellipse cx="0" cy="0" rx="360" ry="64" fill="${BOWL.sh}" ${LINE}/><ellipse cx="0" cy="8" rx="320" ry="48" fill="${BOWL.white}"/>` + body;
+  const mound = 'M' + RICE_TOP.map(([x, y]) => `${x} ${y}`).join(' L');
+  const bits = [[-210, -80, 0], [-120, -170, 1], [-40, -90, 0], [40, -230, 1], [120, -120, 0], [200, -200, 1], [-170, -220, 0], [70, -40, 1], [230, -60, 0], [-60, -250, 0]]
+    .map(([x, y, g]) => g ? `<path d="M${x} ${y} l18 -10 l4 8 l-18 10 Z" fill="${BOWL.green}"/>` : `<ellipse cx="${x}" cy="${y}" rx="12" ry="8" fill="${BOWL.bit}"/>`).join('');
+  return `<g transform="scale(1 ${f1(m)})"><path d="${spiky(RICE_TOP, 0.12)}" fill="${BOWL.rice}" ${LINE}/><path d="M180 -290 Q300 -180 330 6 L250 6 Q260 -150 160 -250 Z" fill="${BOWL.riceSh}"/>${bits}</g>` + body + riceSpray(k, -40 - 300 * m, 200);
+}
+// Grains flung up off the top, new ones every drawing (a few cream ovals and dashes), between y0 and y0 - h.
+function riceSpray(k, y0, h) {
+  let s = 7 + (k % 97) * 13, out = '';
+  const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 9; i++) { const x = (r() - 0.5) * 640, y = y0 - r() * h, a = (r() - 0.5) * 120;
+    out += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="13" ry="8" transform="rotate(${f1(a)} ${f1(x)} ${f1(y)})" fill="${BOWL.rice}" class="ink" style="stroke-width:calc(var(--lw) * 0.7)"/>`; }
+  return out;
+}
+// Chopsticks held in his right hand: two thin pale sticks from between thumb and fingers (hand frame: wrist 0,0, fingers +y).
+const STICKS = `<path d="M-16.3 55.3 L202.4 226.8 L197.6 233.2 L-23.7 64.7 Z M3.6 39.2 L216.4 202.8 L211.6 209.2 L-3.6 48.8 Z" fill="#E3C99A" ${LINE}/>`;
 function drawing() {
   return `
   <g class="root">
@@ -318,6 +357,7 @@ function drawing() {
     </g>
     <g class="armsMid"></g>
     <g class="head">${headFront()}${head3q()}</g>
+    <g class="bowlG"></g>
     <g class="armsFront"></g>
     <g class="fx">${effects()}</g>
   </g>`;
@@ -338,11 +378,12 @@ const rotPt = (p, a, c) => { const r = a * Math.PI / 180, cs = Math.cos(r), sn =
 // An arm hanging from the shoulder at a (degrees from straight down, + towards screen right) with
 // the forearm bent a further e: the wrist, relative to the shoulder.
 const armFK = (a, e) => { const r = Math.PI / 180; return [Math.sin(-a * r) * -UA + Math.sin(-(a + e) * r) * -FA, Math.cos(a * r) * UA + Math.cos((a + e) * r) * FA]; };
-function armMarkup(S, v, mirror, light) {
+function armMarkup(S, v, mirror, light, sticks) {
   const [wx, wy, bend, hand = 'relax', wdeg = 0, reach = 1] = v, [E, W] = ik(S, [S[0] + wx, S[1] + wy], UA * reach, FA * reach, bend);
   const up = [S, E, 80, 52, 88, 80, 0.4], fore = [E, W, 54, 34, 70, 62, 0.26];
   const fd = [W[0] - E[0], W[1] - E[1]], fl = Math.hypot(fd[0], fd[1]) || 1, B0 = [W[0] - fd[0] / fl * 94, W[1] - fd[1] / fl * 94];
-  return handMarkup(W, deg(E, W) - 90 + wdeg, hand, mirror) + union([seg(...up), seg(...fore)], C.skin) +
+  return (sticks ? `<g transform="translate(${P2(W)}) rotate(${f1(deg(E, W) - 90 + wdeg)}) scale(${mirror * 1.15} 1.15)">${STICKS}</g>` : '') +
+    handMarkup(W, deg(E, W) - 90 + wdeg, hand, mirror) + union([seg(...up), seg(...fore)], C.skin) +
     `<path d="${segShade(...up.slice(0, 6), light, 0.4, 0.4)}" fill="${C.skinSh}"/><path d="${segShade(...fore.slice(0, 6), light, 0.4, 0.26)}" fill="${C.skinSh}"/>` +
     `<path d="${seg(B0, W, 47, 45, 48)}" fill="${C.blue}" ${LINE}/><path d="${segShade(B0, W, 47, 45, 48, 48, light, 0.1)}" fill="${C.blueSh}"/>`;
 }
@@ -368,7 +409,7 @@ const REST = { view: 'front', dir: 1, x: 0, y: 0, rot: 0, chest: 0, head: 0, hea
   armL: [-96, 552, 1, 'fist', 0], armR: [96, 552, -1, 'fist', 0], layerL: 'back', layerR: 'back',
   legL: [-190, 0, -4], legR: [190, 0, 4], kneeL: 1, kneeR: -1,
   eyes: 'open', brows: 'normal', mouth: 'closed', look: [0, 0],
-  ball: 0, ballAt: [0, 0], beam: 0, it: 0, show: 1, shadow: 1, spin: 0 };
+  ball: 0, ballAt: [0, 0], beam: 0, it: 0, show: 1, shadow: 1, spin: 0, cheek: 0, sweat: 0, bowl: null, sticks: 0 };
 const show = (els, on) => els.forEach((g) => { g.style.display = on ? '' : 'none'; });
 function apply(svg, p) {
   const q = (s) => svg.querySelector(s), all = (s) => svg.querySelectorAll(s), V = VIEW[p.view], hv = p.headView || p.view;
@@ -387,13 +428,17 @@ function apply(svg, p) {
   all('.brows').forEach((g) => { g.style.display = g.classList.contains('brows-' + p.brows) ? '' : 'none'; });
   all('.mouth').forEach((g) => { g.style.display = g.classList.contains('mouth-' + p.mouth) ? '' : 'none'; });
   all('.pupil').forEach((e) => e.setAttribute('transform', `translate(${p.look[0]} ${p.look[1]})`));
+  show(all('.cheek'), p.cheek); show(all('.sweat'), p.sweat);
+  // The bowl: [x, y, turn, scale, 'full' | 'empty' | 'bottom', rice left 0-1] for its rim centre, in his own units.
+  const bw = q('.bowlG'); bw.style.display = p.bowl ? '' : 'none';
+  if (p.bowl) { const [bx, by, br = 0, bs = 1, st = 'full', m = 1] = p.bowl; bw.setAttribute('transform', `translate(${f1(bx)} ${f1(by)}) rotate(${f1(br)}) scale(${bs * p.dir} ${bs})`); bw.innerHTML = bowlSVG(st, p.spin, m); }
   // The badge and the sash knot are on his left: far side facing right, near side facing left.
   show(all('.badgeFar, .knotFar'), p.dir > 0); show(all('.badgeNear, .knotNear'), p.dir < 0);
   all('.badgeAt').forEach((g) => { const [x, y] = g.dataset.at.split(' ').map(Number), sx = +(g.dataset.sx || 1), s = +(g.dataset.s || 1);
     g.setAttribute('transform', `translate(${x} ${y}) scale(${sx * s * p.dir} ${s})`); });
   // Limbs, each into its layer: behind the body, over the body but under the head, or in front.
   const S = V.sh.map(T), H = V.hip.map(T), arms = { back: '', mid: '', front: '' };
-  arms[p.layerL] += armMarkup(S[0], p.armL, 1, light);
+  arms[p.layerL] += armMarkup(S[0], p.armL, 1, light, p.sticks);   // chopsticks in his right hand
   arms[p.layerR] = armMarkup(S[1], p.armR, -1, light) + arms[p.layerR];
   q('.armsBack').innerHTML = arms.back; q('.armsMid').innerHTML = arms.mid; q('.armsFront').innerHTML = arms.front;
   // Three-quarter on, the far leg (R) goes behind the near one; the boots are seen from the side.
@@ -523,6 +568,69 @@ function yosh(t, p = idle(t)) {
     p.eyes = 'happy'; p.mouth = 'grin'; p.head = -4; p.legL = [-150, 0, 0]; p.legR = [150, 0, 0]; p.y = j ? 20 : 30; }
   return p;
 }
+// ---- Funny clips for the Parvati Hill steps (18 Oct): about a hundred stone steps up to the hilltop temple. Timing from
+// official footage frame by frame (funny/goku/report.md); positions on 2s like everything else.
+const SQUAT = { y: 560, legL: [-330, 0, -10], legR: [330, 0, 10] };   // a deep squat, knees out: the bench he eats on in the show
+const GRIP = { armL: [-90, 80, 1, 'open', -60], armR: [90, 80, -1, 'open', 60], layerL: 'front', layerR: 'front' };
+const CHOP = [270, -95, 1, 'fist', 130];   // his right hand at his chin, chopsticks pointing at the bowl
+// Starving! (DBS dub clip, IGN IWQOPWPj7ec 4.25-17.25 s and 33.75-37.75 s): a hundred steps make anyone hungry. He clutches his
+// stomach, plops down, and a bowl bigger than his chest pops up: he empties it in a spray of rice, face hidden behind the heap;
+// chews with one cheek puffed like a chipmunk, eyes sliding to you; tips the bowl up to drain it, laughs, sets it down, stands,
+// wipes his mouth on his forearm, then the sheepish head-scratch with a sweat drop.
+function starving(t, p = idle(t)) {
+  const k = spinAt(t); p.spin = k;
+  if (t < 0.33) return Object.assign(p, { armL: [70, 360, 1, 'open', 20], armR: [-70, 360, -1, 'open', -20], layerL: 'front', layerR: 'front', eyes: 'half', brows: 'up', mouth: 'o', head: 6, headY: 10, y: 20 });
+  if (t < 0.5) return Object.assign(p, SQUAT, { y: t < 0.42 ? 300 : 600, eyes: 'closed', mouth: 'o', armL: [-160, 300, 1, 'open', 0], armR: [160, 300, -1, 'open', 0] });   // plop
+  if (t < 0.67) return Object.assign(p, SQUAT, GRIP, { bowl: [0, -905 + 560 - 560, 0, t < 0.58 ? 0.5 : 1.08, 'full', 1], eyes: 'happy', mouth: 'a' });   // the bowl pops up
+  if (t < 2.67) { const u = (t - 0.67) / 2, j = k % 2;   // shovelling it in: the heap goes down, rice flies, the bowl jitters
+    return Object.assign(p, SQUAT, GRIP, { bowl: [j ? 8 : -6, -905 + (j ? -14 : 0), j ? 1.5 : -1, 1, 'full', 1 - 0.65 * u], y: SQUAT.y + (j ? -12 : 0) }); }
+  if (t < 4.17) { const c = k % 6;   // the chipmunk chew, one chomp every 0.5 s: mouth open on the food for 2 drawings, then a smug closed smile
+    return Object.assign(p, SQUAT, { headView: '3q', cheek: 1, sticks: 1, armL: CHOP, layerL: 'front', armR: [60, 300, -1, 'palm', 60], layerR: 'front',
+      bowl: [80, -300, 0, 0.8, 'full', 0.35], mouth: c < 2 ? 'grit' : 'smile', look: t < 3.3 ? [12, 0] : [-6, 2], head: c < 2 ? 3 : 0, headY: c < 2 ? 6 : 0, eyes: 'open' }); }
+  if (t < 4.33) return Object.assign(p, SQUAT, { bowl: [0, -1300 + 560 - 560 + 560, 0, 0.95, 'bottom'], armL: [-60, -420, 1, 'palm', 180], armR: [60, -420, -1, 'palm', 180], layerL: 'front', layerR: 'front' });   // drains it
+  if (t < 4.42) return Object.assign(p, SQUAT, { bowl: [0, -1100 + 560, 0, 1, 'empty'], armL: [-110, -120, 1, 'open', -40], armR: [110, -120, -1, 'open', 40], layerL: 'front', layerR: 'front', eyes: 'happy', mouth: 'a' });
+  if (t < 5.25) return Object.assign(p, SQUAT, { bowl: [0, -400, 0, 1, 'empty'], sticks: 1, armL: [-60, 360, 1, 'fist', 0], armR: [70, 380, -1, 'palm', 40], layerL: 'front', layerR: 'front',
+    eyes: 'happy', mouth: k % 2 ? 'a' : 'grin', brows: 'up', head: k % 2 ? -3 : 0 });   // laughing, mouth flapping on 2s
+  if (t < 5.67) return Object.assign(p, SQUAT, { bowl: [0, -400, 0, 1, 'empty'], sticks: 1, armL: [-60, 360, 1, 'fist', 0], armR: [70, 380, -1, 'palm', 40], layerL: 'front', layerR: 'front',
+    mouth: TALK[k % TALK.length], head: 4 });   // "That was great!"
+  if (t < 6.42) return Object.assign(p, SQUAT, { y: 580, bowl: [0, -344, 0, 1, 'empty'], armL: [-40, 560, 1, 'open', 0], armR: [40, 560, -1, 'open', 0], layerL: 'front', layerR: 'front',
+    head: 10, headY: 40, eyes: 'closed', mouth: 'smile' });   // sets it down between his feet
+  const BOWL_DOWN = [0, -344, 0, 1, 'empty'];
+  if (t < 6.83) { const u = ease((t - 6.42) / 0.41);
+    return Object.assign(p, { bowl: BOWL_DOWN, y: lerp(560, 0, u), legL: [lerp(-330, -230, u), 0, -6], legR: [lerp(330, 230, u), 0, 6], head: 6, eyes: 'open', mouth: 'smile' }); }
+  const WIPE0 = [260, -150, 1, 'fist', -70], WIPE1 = [470, -170, 1, 'fist', -90];
+  if (t < 7.67) { const u = ease((t - 6.83) / 0.84);   // the forearm wipe: his right wrist sweeps across his mouth, head turned into it
+    return Object.assign(p, { bowl: BOWL_DOWN, legL: [-230, 0, -6], legR: [230, 0, 6], armL: mixArm(WIPE0, WIPE1, u), layerL: 'front', head: -6, eyes: 'closed', mouth: 'closed' }); }
+  if (t < 8.0) return Object.assign(p, { bowl: BOWL_DOWN, legL: [-230, 0, -6], legR: [230, 0, 6], mouth: 'smile', eyes: 'open' });
+  const gone = t < 8.17 ? [0, -344, 0, 0.5, 'empty'] : null;   // the bowl pops away
+  const j = k % 2;
+  return Object.assign(p, { bowl: gone, armL: [SCRATCH[0] + (j ? 10 : -6), SCRATCH[1] + (j ? -12 : 6), -1, 'relax', SCRATCH[4]], layerL: 'mid', head: -8, rot: -2,
+    mouth: j ? 'grin' : 'a', eyes: 'happy', brows: 'up', sweat: 1 });   // "Hehe, climbing makes you hungry!"
+}
+// Huh? (DAIMA clip, Netflix Anime j5dwAVn4eJM 22.5-25.0 s): "Only a hundred steps?" He rubs the back of his head, wincing, his
+// eyes pop open on a little "o", a blink, then a puzzled frown while he talks.
+function huh(t, p = idle(t)) {
+  const k = spinAt(t), j = k % 2;
+  const RUB = [SCRATCH[0] + (j ? 12 : -8), SCRATCH[1] + (j ? -14 : 8), -1, 'relax', SCRATCH[4]];
+  if (t < 0.25) return Object.assign(p, { armL: RUB, layerL: 'mid', eyes: 'closed', brows: 'angry', mouth: 'grit', head: -6 });
+  if (t < 1.0) return Object.assign(p, { armL: SCRATCH, layerL: 'mid', eyes: 'open', brows: 'up', mouth: k % 4 < 2 ? 'o' : 'closed', headView: '3q', look: [-4, 0], head: 3 });
+  if (t < 1.08) return Object.assign(p, { armL: SCRATCH, layerL: 'mid', eyes: 'closed', brows: 'up', mouth: 'closed', head: 0 });
+  if (t < 2.5) { const u = ease((t - 1.6) / 0.33), down = [lerp(SCRATCH[0], REST.armL[0], u), lerp(SCRATCH[1], REST.armL[1], u), u < 1 ? -1 : 1, u < 0.5 ? 'relax' : 'fist', lerp(SCRATCH[4], 0, u)];
+    return Object.assign(p, { armL: down, layerL: u < 0.5 ? 'mid' : 'back', brows: 'angry', eyes: 'open',
+      mouth: t < 1.33 ? 'closed' : ['a', 'closed', 'o', 'a', 'closed', 'closed'][k % 6], head: -2 }); }
+  return Object.assign(p, { brows: 'normal', mouth: 'closed' });
+}
+// Whaaaa?! (DAIMA clip, Netflix Anime j5dwAVn4eJM 40.5-43.0 s): he glances back down the hundred steps... white eyes with dot
+// pupils, teeth clenched, shivering; a squash; then the huge scream, arms flung out, trembling.
+function whaaa(t, p = idle(t)) {
+  const k = spinAt(t), j = k % 2;
+  if (t < 0.5) return Object.assign(p, { headView: '3q', look: [0, 10], head: 8, eyes: 'open', mouth: 'closed' });   // looks down the steps
+  if (t < 0.92) return Object.assign(p, { eyes: 'shock', brows: 'up', mouth: 'grit', sweat: 1, x: j ? 4 : -4, head: j ? 1 : -1 });
+  if (t < 1.0) return Object.assign(p, { eyes: 'closed', brows: 'angry', mouth: 'grit', sweat: 1, y: 50, chest: -10, armL: [-40, 480, 1, 'fist', 0], armR: [40, 480, -1, 'fist', 0] });
+  if (t < 2.75) return Object.assign(p, { eyes: 'shock', brows: 'up', mouth: 'shout', sweat: 1, y: t < 1.17 ? -40 : 0, x: j ? 6 : -6, head: j ? 2 : -2,
+    armL: [-230 + (j ? 10 : 0), 320, 1, 'open', 30], armR: [230 - (j ? 10 : 0), 320, -1, 'open', -30] });   // the scream, trembling on 2s
+  return Object.assign(p, { eyes: 'open', brows: 'up', mouth: 'o', sweat: 1 });
+}
 const CLIPS = [
   ['Idle', 'breathes, blinks, glances', idle, 4],
   ['Walk', 'three-quarter on, 2 steps a second', walk, 4],
@@ -530,12 +638,15 @@ const CLIPS = [
   ['Kamehameha!', 'charges the ball, fires the beam', kamehameha, 4.6],
   ['Instant Transmission', 'two fingers, gone, back', instant, 3.4],
   ['Yosha!', 'jumps, fist to the sky', yosh, 2.2],
+  ['Starving!', 'a bowl bigger than him, gone', starving, 9.0],
+  ['Huh?', 'rubs his head, eyes pop, frowns', huh, 3.0],
+  ['Whaaaa?!', 'white-eyed shock, then the scream', whaaa, 3.2],
 ];
 
 // ---- Pages ------------------------------------------------------------------------------------
 const P = new URLSearchParams('mode=ar&capture=1');
 const mode = P.get('mode') || 'sheet';
-const VB = [-700, -2150, 1400, 2300];
+const VB = [-700, -2440, 2940, 2590];   // the AR card: room for the whole Kamehameha beam, Yosha!'s jump and the Instant Transmission step (framecheck, 18 Oct)
 const make = (holder) => { holder.setAttribute('viewBox', VB.join(' ')); holder.innerHTML = drawing(); return holder; };
 // Line weight in drawing units for a given on-screen scale (px per unit), so ink stays ~1.4 px.
 const ink = (svg, pxPerUnit, px = 1.4) => { const w = px / pxPerUnit; svg.style.setProperty('--lw', w.toFixed(2)); svg.style.setProperty('--lw2', (2 * w).toFixed(2)); svg.style.setProperty('--lwf', (0.7 * w).toFixed(2)); };
@@ -567,6 +678,16 @@ const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
 svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
 Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
 document.body.appendChild(svg);
+// Rigs that draw their lines with CSS (Goku: classes in this page's <style>, widths in --lw from ink()) keep both
+// inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
+// page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
+if (typeof ink === 'function') {
+  const probe = document.createElementNS(NS, 'svg'), own = document.createElementNS(NS, 'style');
+  ink(probe, 400 / A.tall);
+  svg.setAttribute('data-ink', '');
+  own.textContent = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n') + '\nsvg[data-ink]{' + probe.style.cssText + '}';
+  svg.prepend(own);
+}
 const q = document.createElement('div'); q.textContent = '?';
 Object.assign(q.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -50%)', color: '#F9BC4D',
   fontFamily: 'system-ui, Roboto, sans-serif', fontWeight: '900', textShadow: '0 0 0.12em rgba(249,188,77,.95), 0 0 0.3em rgba(249,188,77,.6)' });
@@ -581,6 +702,8 @@ const idx = (name) => { const i = CLIPS.findIndex((c) => c[0] === name); if (i <
 const R = { idle: idx(A.roles.idle), hi: idx(A.roles.hi), arrive: idx(A.roles.arrive), extras: A.roles.extras.map(idx) };
 const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.idle ? 'idle' : 'extra');
 let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
+// Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
+let faceOn = {}, afterTalk = null;
 
 // The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
 // S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.
@@ -757,6 +880,25 @@ const floorFrame = (t) => {
 
 window.saath = {
   play: (roles) => { queue = roles.map((r) => R[r]).filter((i) => typeof i === 'number'); begin(queue.length ? queue.shift() : R.idle, clock); shown = ''; },
+  // Talking: a face laid over whatever clip plays, from his next drawing. f = {mouth: 'closed'|'half'|'open', mood}
+  // in the shared names, which SAATH_AR.mouths and .moods turn into this rig's own parts (a mood's `closed` replaces
+  // his usual closed mouth). Unknown names are ignored, as a wrong part name blanks every mouth or eye. null ends it
+  // and starts any clip held for later; false (he was cut off, or the reply failed) ends it and drops that clip.
+  face: (f) => {
+    const { closed, ...mood } = f && Object.hasOwn(A.moods, f.mood) ? A.moods[f.mood] : {};
+    const mouth = f && (f.mouth === 'closed' && closed ? closed : Object.hasOwn(A.mouths, f.mouth) ? A.mouths[f.mouth] : null);
+    faceOn = f ? { ...mood, ...(mouth ? { mouth } : {}) } : {};
+    if (f === false) afterTalk = null;
+    else if (!f && afterTalk !== null) { queue = []; begin(afterTalk, clock); afterTalk = null; shown = ''; }
+  },
+  // A gesture from the reply, by its word (SAATH_AR.actions). One that hides or shuts his face (SAATH_AR.later)
+  // waits until he stops talking.
+  act: (word) => {
+    if (!Object.hasOwn(A.actions, word)) return;
+    if (A.later.includes(word) && faceOn.mouth) { afterTalk = idx(A.actions[word]); return; }
+    queue = []; begin(idx(A.actions[word]), clock); shown = '';
+  },
+  now: () => ({ clip: CLIPS[cur][0], face: faceOn }),   // for tests
   // Not met yet: a dark silhouette with a glowing "?", still breathing.
   mystery: (on) => { mystery = !!on; svg.style.filter = on ? 'brightness(0)' : ''; svg.style.opacity = on ? '0.86' : ''; q.style.display = mystery && !quiet && at ? 'block' : 'none'; shown = ''; },
   quiet: (on) => { quiet = !!on; q.style.display = mystery && !quiet && at ? 'block' : 'none'; },
@@ -797,12 +939,12 @@ const draw = (t) => {
   if (cur !== R.idle && t - since >= len) {
     if (fl.on && fl.state === 'greet' && cur === R.hi) { fl.state = 'stay'; begin(R.idle, t); }   // said hi: he stays
     else begin(queue.length ? queue.shift() : R.idle, t);
-  } else if (cur === R.idle && !mystery && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
+  } else if (cur === R.idle && !mystery && !faceOn.mouth && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
   const loop = cur === R.idle;
   const lt = loop ? (t - since) % CLIPS[cur][3] : t - since, s = step(lt), key = cur + ':' + s;
   if (key === shown) return;   // a new drawing only every 1/12 s
   shown = key;
-  apply(svg, CLIPS[cur][2](s));
+  apply(svg, Object.assign(CLIPS[cur][2](s), faceOn));   // the clip poses him; a talking face wins
   if (mystery && !quiet && at) mark();
 };
 addEventListener('resize', layout);

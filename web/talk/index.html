@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saath talk test</title>
+<!--
+  Talk to a friend without AR (a dark room, a laptop): the same talking engine (talk.js) and rig as the AR page, with
+  the friend standing on screen. Clean on purpose (the user, 18 Oct: "my input doesn't need to appear", "speech like a
+  thinking cloud on his top", "less elements"): only him, a cloud over his head with what he is saying, and the mic.
+  ?friend=doraemon|nobita|shinchan|goku, ?lip= as in the AR page, ?debug adds friend links and timings. Serve web/
+  (node web/serve.mjs); on the phone, after adb reverse tcp:8099 tcp:8099, open http://localhost:8099/talk/?friend=nobita.
+-->
+<style>
+  /* The approved Golden Hour look: a warm sky, a gold mic that turns blue while it listens, no ink outlines. */
+  html, body { margin: 0; height: 100%; overflow: hidden; color: #1D2433; font-family: system-ui, Roboto, sans-serif;
+               background: linear-gradient(#86B4E0 0%, #CFE0EE 38%, #F3D2AC 62%, #E6DAC2 100%); }
+  #rig { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  #cloud { position: fixed; pointer-events: none; }
+  #friends { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  #friends a { padding: 6px 12px; border-radius: 99px; background: rgba(255, 251, 245, .74); color: #1D2433; font-weight: 700; font-size: 13px; text-decoration: none; }
+  #friends a[aria-current] { color: #2F8DF6; }
+  #times { position: fixed; top: 48px; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 600; color: #5A6375; }
+  body:not(.debug) #friends, body:not(.debug) #times { display: none; }
+  #talk { position: fixed; left: 16px; right: 16px; bottom: 22px; display: flex; flex-direction: column; align-items: center; }
+  #mic { width: 84px; height: 84px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; color: #3B2606;
+         background: linear-gradient(#FFC860, #F0A22E); box-shadow: 0 10px 24px rgba(240, 162, 46, .4), inset 0 1px 0 rgba(255, 255, 255, .55);
+         touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  #mic.on { color: #fff; background: linear-gradient(#4DA3FF, #2F8DF6); animation: listen 1.2s ease-out infinite; }
+  @keyframes listen { from { box-shadow: 0 0 0 0 rgba(47, 141, 246, .4), 0 10px 24px rgba(47, 141, 246, .35); }
+                      to { box-shadow: 0 0 0 26px rgba(47, 141, 246, 0), 0 10px 24px rgba(47, 141, 246, .35); } }
+  #hint { margin-top: 10px; font-size: 13px; font-weight: 700; color: #5A6375; text-align: center; }
+  #hint.err { color: #1D2433; }
+  #credit { margin-top: 6px; font-size: 10.5px; font-weight: 600; color: #8A93A6; }
+</style>
+</head>
+<body>
+<iframe id="rig" title="Your friend" aria-hidden="true"></iframe>
+<canvas id="cloud" role="img" hidden></canvas>
+<nav id="friends" aria-label="Friends"></nav>
+<div id="times" aria-hidden="true"></div>
+<div id="talk">
+  <button id="mic" type="button" aria-label="Hold to talk"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.2"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+  <div id="hint" role="status">Hold to talk</div>
+  <div id="credit">AI friend · Voices: ElevenLabs</div>
+</div>
+<script type="module">
+import { createTalk } from './talk.js';
+import { drawCloud } from './cloud.js';
+
+const NAMES = { doraemon: 'Doraemon', nobita: 'Nobita', shinchan: 'Shin-chan', goku: 'Goku', michael: 'Michael', dwight: 'Dwight', holt: 'Captain Holt' };
+const Q = new URLSearchParams(location.search), FRIEND = Q.get('friend') ?? 'nobita';
+// An id not in NAMES is a bug (a friend missed from this list), so say so rather than quietly showing Nobita.
+if (!Object.hasOwn(NAMES, FRIEND)) { document.body.textContent = `Unknown friend: ${FRIEND}`; throw new Error(`unknown friend ${FRIEND}`); }
+document.body.classList.toggle('debug', Q.has('debug'));
+document.getElementById('friends').innerHTML = Object.entries(NAMES)
+  .map(([id, name]) => `<a href="?friend=${id}&debug"${id === FRIEND ? ' aria-current="page"' : ''}>${name}</a>`).join('');
+document.title = `Talk to ${NAMES[FRIEND]} · Saath`;
+// The mic prompt comes as the page opens, so the first hold of the button isn't cut short by it.
+navigator.permissions?.query({ name: 'microphone' }).then((p) => {
+  if (p.state === 'prompt') navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()), () => {});
+}, () => {});
+
+// His built rig page (the same one the AR page uses): feet 76% down and 49% of the height tall, so the cloud fits
+// over his head and the mic under his feet.
+const frame = document.getElementById('rig');
+await new Promise((r) => { frame.onload = r; frame.src = `../ar/rigs/${FRIEND}.html`; });
+const rig = frame.contentWindow;
+// The cloud is drawn at the screen's own pixels; the end of its trail of bubbles touches the top of his head.
+const cloudEl = document.getElementById('cloud');
+let cloudKey = '', cloudNow = null;
+const place = () => {
+  rig.saath.place(innerWidth / 2, innerHeight * 0.76, innerHeight * 0.49, 0);
+  const [x, y, w] = rig.saath.head(), cw = Math.min(innerWidth - 24, 340), ch = cw * 0.625;
+  Object.assign(cloudEl.style, { width: cw + 'px', height: ch + 'px', top: Math.max(8, y + 10 - ch) + 'px',
+    left: Math.max(8, Math.min(innerWidth - cw - 8, x + w / 2 - cw / 2)) + 'px' });
+  Object.assign(cloudEl, { width: Math.round(cw * devicePixelRatio), height: Math.round(ch * devicePixelRatio) });
+  cloudKey = '';   // draw it again at the new size
+};
+place(); addEventListener('resize', place);
+rig.saath.play(['hi']);
+
+// Your words aren't shown: the hint under the mic says what to do, or what went wrong.
+const mic = document.getElementById('mic'), hintEl = document.getElementById('hint'), timesEl = document.getElementById('times');
+const HOLD = 'Hold to talk', LISTENING = 'Listening… let go to send', times = {};
+let heard = '', error = '', listening = false;
+const hint = () => { hintEl.textContent = listening ? LISTENING : error || HOLD; hintEl.classList.toggle('err', !listening && !!error); };
+const talk = createTalk({ friend: FRIEND, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
+  if (type === 'state') { listening = data === 'listening'; if (listening || data === 'thinking') error = ''; mic.classList.toggle('on', listening); hint(); }
+  else if (type === 'heard') heard = data;
+  else if (type === 'error') { error = data; hint(); }
+  else if (type === 'cue') rig.saath.act(data.action);
+  else if (type === 'timing') {
+    if (data.name === 'heard') for (const k in times) delete times[k];
+    times[data.name] = data.ms;
+    timesEl.textContent = Object.entries(times).map(([k, ms]) => `${k} ${ms}`).join(' · ') + ' ms';
+  }
+} });
+// Each frame: his face while talking, given to the rig only when it changes (it shows from his next drawing), and the
+// cloud: his hello as the page opens, three dots while he thinks, then each sentence as he says it.
+const HELLO = `Hi! I'm ${NAMES[FRIEND]}!`, helloUntil = performance.now() + 3600;
+let shown = '';
+(function frameLoop(now) {
+  const f = talk.face(), k = f ? f.mood + f.mouth : '';
+  if (k !== shown) { shown = k; rig.saath.face(f); }
+  const c = talk.cloud() ?? (talk.state === 'idle' && now < helloUntil ? { text: HELLO } : null);
+  const key = !c ? '-' : c.thinking ? 'dots' + Math.floor(now / 83) : c.text;   // the dots hop 12 times a second
+  if (key !== cloudKey) {
+    cloudKey = key; cloudNow = c; cloudEl.hidden = !c;
+    if (c) { drawCloud(cloudEl, { ...c, phase: now / 1000 }); cloudEl.setAttribute('aria-label', c.text ?? `${NAMES[FRIEND]} is thinking`); }
+  }
+  requestAnimationFrame(frameLoop);
+})(performance.now());
+mic.addEventListener('pointerdown', (e) => { e.preventDefault(); mic.setPointerCapture?.(e.pointerId); talk.listen(); });
+for (const type of ['pointerup', 'pointercancel']) mic.addEventListener(type, () => talk.send());
+mic.addEventListener('contextmenu', (e) => e.preventDefault());
+window.state = () => ({ talk: talk.state, heard, hint: hintEl.textContent, cloud: cloudNow });   // for tests
+window.talkReady = true;
+</script>
+</body>
+</html>

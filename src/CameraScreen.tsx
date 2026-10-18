@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Linking,
@@ -96,20 +96,27 @@ export function CameraScreen({ target, level, fix, onBack }: Props) {
   const distance = target?.distance ?? Infinity;
   // At their spot: Chrome's AR page (ARCore) puts them on your real floor. Chrome rather than the default
   // browser, since only Chrome has WebXR's AR mode; the page links back to <app>/--/ar-done (App.tsx).
+  const launching = useRef(false);
   const openAr = async () => {
-    if (!target) return;
+    if (!target || launching.current) return;   // a second tap while Chrome opens would be refused, then open Brave
+    launching.current = true;
     const app = ((await Linking.getInitialURL()) ?? 'exp://127.0.0.1:8081').split('/--/')[0];
     const back = `${app}/--/ar-done?friend=${encodeURIComponent(target.id)}`;
     const url = `${AR_PAGE}?friend=${target.character}&name=${encodeURIComponent(target.name)}&tall=${target.height}&return=${encodeURIComponent(back)}`;
     try {
-      // expo-intent-launcher only uses packageName together with className (Chrome's link handler).
+      // expo-intent-launcher only uses packageName together with className (Chrome's link handler). In a new task the
+      // result comes back at once, so the launcher isn't left waiting (it refuses a second launch while it waits).
       await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: url,
         packageName: 'com.android.chrome',
         className: 'com.google.android.apps.chrome.IntentDispatcher',
+        flags: 0x10000000, // Intent.FLAG_ACTIVITY_NEW_TASK
       });
-    } catch {
-      Linking.openURL(url); // no Chrome: the default browser, where AR may not work
+    } catch (e: any) {
+      // No Chrome: the default browser, where AR may not work. Not when the launcher was merely busy (Chrome is opening).
+      if (e?.code !== 'E_ACTIVITY_ALREADY_STARTED') Linking.openURL(url);
+    } finally {
+      launching.current = false;
     }
   };
 

@@ -194,6 +194,145 @@ Read this first. It covers where everything lives, what the user wants, what is 
     - In one session he still came out on the floor behind the bed, because ARCore's floor outline itself reached there. Every placement now needs a seen floor point within 0.5 m (regression test "floor outline reaches behind the bed, but that floor was never seen").
     - All 17 fake-ARCore checks pass. That fix isn't re-tried on the phone yet.
   - Test scripts are in the session scratchpad `combined/`: `web-preview-test.mjs`, `web-ar-mock-test.mjs`.
+  - **Overnight fixes, 18 Oct (parent session), from two bug-hunt agents.** Not tried on the phone yet.
+    - **AR page (`web/ar/index.html`):**
+      - Only the nearest hit-test result counts as seen. ARCore returns every plane along the ray, so the floor *behind* a bed was counting as seen.
+      - The floor height comes from the 3rd-lowest seen height and from planes of at least 0.5 m², so one stray low reading can't stop him coming out.
+      - A frame gap of more than 0.25 s restarts the 1 s hold.
+      - He doesn't come out while you look more than 7° up.
+      - Start shows an error if the camera or AR is refused or there are no hit tests.
+      - Instead of a bare "Loading…", there's a message if his rig or three.js fails to load.
+      - "Back to Saath" shows from the start (`met=1` is added only once he's out).
+      - The too-close tip sits mid-screen.
+      - The fake-ARCore test (`~/.cache/saath-recovery/harness/ar/web-ar-mock-test.mjs`) now gives one nearest hit a frame and ticks every 50 ms: 18/18 pass.
+    - **Morning phone test (18 Oct, about 10:20).** The user said the floor wasn't found, then "Nobita suddenly too big" and "too close to the screen", and the phone stuttered and got hot. Fixes (placement agent, then the parent):
+      - **The floor is set first, by your feet.** The first tip is "Point your phone at the floor by your feet". The floor height is the 3rd-lowest floor-like hit within 1.3 m of where you stand, so a bed or table top a few steps away can never pass for the floor, and the old bed-only failures now pass. Planes below that floor (reflections) are ignored.
+      - Then "Slowly look around the floor a few steps ahead". He stands on seen floor 1.5–4 m away, preferring 2.5 m.
+      - Anchor corrections glide at up to 1 m/s, so one bad frame can't throw him at you. If the camera jumps too (ARCore re-fixed its map), he moves with it at once.
+      - The floor ring hides while tracking is lost, so a tap can't use a stale spot.
+      - A guessed-floor placement steps onto the real floor once the floor by your feet is seen.
+      - He comes out with the phone up to 11° above level. Past that, the tip says "Tilt your phone down a little".
+      - His size already follows the camera's own focal length (WebXR's projection), checked within 0.3% for all 7 friends.
+      - Tests: `bughunt-ar/t-place.mjs` 12/12, `place/tests/t-size.mjs` 13/13, `t-floor.mjs`, and `~/.cache/saath-recovery/harness/ar/web-ar-mock-test.mjs` 18/18 on a fresh Chrome profile. The fakes now point at the floor by the feet first.
+    - **App:**
+      - "Meet in AR" ignores a second tap while Chrome opens, and launches Chrome in a new task (`FLAG_ACTIVITY_NEW_TASK`), so the launcher isn't left waiting. A busy launcher no longer falls back to Brave.
+      - "Met" is saved in AsyncStorage (`saath.met.v1`).
+      - A malformed `ar-done` link can't crash the app.
+      - Test friends start with Michael, Dwight and Holt, and saved test friends must have a `test-` id.
+      - Not fixed:
+        - If the app's own camera permission is denied, "Meet in AR" can't be reached.
+        - The map WebView doesn't recover if Android kills its renderer during a long AR session (`onRenderProcessGone`).
+    - The bug-hunt tests are in the parent's scratchpad: `bughunt-ar/` (`run-all.sh`, which needs Chrome on 9391) and `bughunt-app/app-logic.test.mjs`.
+    - **Funny place clips** (all four anime friends, approved by the parent overnight) are in `~/.cache/saath-recovery/design/characters/anime/funny/`:
+      - `PROPOSAL.md`;
+      - previews per friend;
+      - `framecheck.mjs`, which flags any drawing outside the AR card, plus SVG filters. Run it after any rig change.
+      - `*-approved-18oct.sha256` checksums.
+    - **Frames that grew to fit the new clips:**
+      - Doraemon: `-440 -380 920 920`
+      - Nobita: `-360 -200 860 740`
+      - Shin-chan: `-90 -130 580 670`
+      - Goku: `-700 -2440 2940 2590`, so his Kamehameha beam, Instant Transmission and Yosha! jump no longer get cut off.
+
+### Talking friends (17-18 Oct; the core feature)
+- **Where the decisions are:**
+  - Research: `notes/talking-characters.md`.
+  - Design, approved by the user: `notes/talking-design.md`.
+  - Plan, 13 tasks: `notes/talking-plan.md`.
+  - Voices: `notes/talking-voices.md`.
+
+  Language is English with the odd Hindi word. The tone is friendly everyday chat ("normal conversations"). It's built in the laptop AR page first; Bolt later.
+- **How it works:**
+  1. In the AR page, hold the mic (voice only since 18 Oct). Chrome's speech recognition listens in `en-IN`. It stops at each pause (on Android always), so while the mic is held it listens again and the words add up.
+     - Browsers that can't hear record instead. Brave has the API but no speech service, and fails at once; Firefox has none. While you hold, `POST /api/hear` gets the recording (webm/Opus, 32 kbps), and ElevenLabs Scribe v2 writes it down. That adds 0.6-0.8 s, and the voice goes to ElevenLabs, not Google. The user chose this on 18 Oct, after "when I try to hold it is exiting fast" in Brave on the laptop.
+  2. The page posts to `POST /api/talk` on `web/serve.mjs`.
+  3. Claude `claude-haiku-5-5` streams a reply that starts with an `[emotion|action]` tag. Settings: thinking off, `low` effort, persona prompt cached for 1 h.
+  4. ElevenLabs Flash v2.5 speaks it one sentence at a time, as PCM plus character timings.
+  5. The page plays the audio without gaps and flaps an anime 3-shape mouth (closed, half, open, 12 a second). It sets the face for the feeling and plays the gesture clip. Each sentence shows in a thought cloud over his head as he says it.
+- **The mouth (changed 18 Oct, after the first phone test: "the lip sync need to be accurate"):**
+  - Every frame, the page takes the loudness of the next 83 ms of the voice, 50 ms ahead. Loud opens the mouth, medium half-opens it, and quiet or a dip between syllables closes it. The m, b and p from the timings close it too.
+  - Before this, the mouth came from the letters alone, which matched the voice's loudness in only 50-71% of drawings, on a grid out of step with the rig's.
+- **The talking screen, kept clean (18 Oct).** The user said: "my input don't need to appear", "character speech appear like a cloud on his top, normally thinking cloud", "clean with less elements". The mockup (`~/.cache/saath-recovery/shots/talk/talk-ui-clean.png`) was sent to the user, then built.
+  - Only him, a white thought cloud over his head (`web/talk/cloud.js`) and the approved Golden Hour mic. The mic is gold, and turns blue and pulses while it listens.
+  - The cloud says "Hi! I'm NAME!" as he comes out, shows three hopping dots while he thinks, then each sentence as he says it. Long sentences get smaller letters. It goes when he's done.
+  - Your words are never shown. The hint under the mic says "Hold to talk" or "Listening… let go to send", or what went wrong.
+  - In AR, the cloud replaced the old "Hi! I'm NAME!" bubble. It's a 1.2 x 0.75 m card above his head, redrawn only when it changes. The "is here! Walk around him." tip now goes with his hello; "too close" still shows.
+  - `talk.js` gained `cloud()`. Each audio line now carries `text`, the sentence as written, because the voice's timings spell numbers out.
+- **The TV friends (18 Oct, night; the parent session asked while the user slept):** `michael`, `dwight` and `holt` now talk on the server side. Details are in `notes/talking-personas.md` and `notes/talking-voices.md`.
+  - Personas faithful to the shows and friendly, with clean humour.
+  - Stand-in stock voices: Chris, Adam and Brian.
+  - Actions: wave and cheer.
+  - No place yet: the user names public places.
+  - **Michael** has a rig: sitcom-friends' `michael/michael.html`, built with `--faces` at about 04:30.
+    - He's a test-only friend in `src/friends.ts` (UNPLACED, off the map), and in the AR and talk lists.
+    - Talk words: wave, cheer, mug, guns (finger guns and a wink, only for cheering on), stare, pout, shout, panic. He has no `later` clips.
+    - Tests pass: the rig hooks, the AR preview at 1.75 m, the talk page, and the id test.
+  - **Dwight and Holt** have rigs too: built with `--faces` at about 05:00, test-only friends (UNPLACED) in the AR and talk lists.
+    - Dwight's talk words: wave, question, false, glasses, grin, karate (only to celebrate discipline, never for fighting), panic (pretend alarms only).
+    - Holt's: wave, salute, sideeye, vindication, celebrate, dance, outburst.
+      - In his build entry, `celebrate` and `outburst` play the "Hot damn!" and "BONE?!" clips.
+      - Words named after those clips primed Claude to say them.
+    - Rig and AR tests pass. Dwight's hello cloud moves beside his head at 1.87 m.
+    - Rebuilt with `--faces` at about 05:10 from sitcom-friends' final files: Dwight's clean side-parted hair and retimed clips, and Holt's even grey cap. dwight.html md5 a59b65e3, holt.html b033c754.
+- **Goku's outlines in AR, fixed (18 Oct, night; the parent approved).**
+  - The cause: his rig draws lines with CSS classes, with widths in `--lw`. The AR page pictures a copy of his `<svg>` alone, without the page's styles or its inline style, so the lines vanished.
+  - The fix: `scripts/rig-ar.js` copies them into the `<svg>`, with widths for him at 400 px tall. On a page where he is laid out, his own widths win.
+  - `rig-hook-test.mjs` checks it.
+  - That night, `doraemon.html` was being edited by funny-animations, and didn't match the approved hash. So the build ran from the approved backups, after `sha256sum -c` passed: `HOME=<dir linking anime -> funny/backup-approved> node scripts/build-rigs.mjs`. The outputs changed only by the injected block.
+  - At 04:06, funny-animations finished the new Doraemon (Nezumi!, Anywhere Door, Ufufu, Janken) and wired his build entry, so from 04:15 the normal build is used again.
+  - His talk words `mouse`, `door`, `ufufu` and `janken` are now in `reply.mjs` and his persona. `ufufu` is a cheeky giggle, never about ghosts.
+  - funny-animations' next clips, wired the same way (about 06:45):
+    - **Shin-chan:** chocobi, toss and hmm. `toss` (a Chocobi caught in his mouth) is only for showing off: never tell a child to try it, as small snacks can make children choke.
+    - **Nobita:** pray, splat, lazy and dog. `pray` is a respectful bow to Bappa for exam luck; never for a scared child.
+    - **Goku:** eat, huh and shock. `shock` is never for a scared child.
+    - Real Claude replies handled every bait: "can I throw a candy in my mouth like you?" got a no, with the reason.
+- **Bug-hunt fixes (18 Oct night, the parent's list), each with a test:**
+  - **Server:** one bad request can't stop it any more. `/%` and `http://[/` get 400; a client that leaves mid-upload only loses its own connection.
+  - **History:** a long reply can't break it. Each reply is kept to 400 characters, a question to 300, and history the server turns down (400) is forgotten.
+  - **Deadline:** `talk()` gives up after 20 s (`TALK_DEADLINE_MS` in tests).
+  - **Late sentences:** a sentence whose voice comes late leaves a pause, not an idle face and an empty cloud. He goes idle only once the whole reply has come and its voice has ended.
+  - **Cut-offs:** `face()` is `false` (not `null`) when he's cut off or the reply fails, and `saath.face(false)` drops a held-back gesture.
+  - **Late errors:** a reply that fails after his voice has started (the voice fails on a later sentence, or the deadline) lets him finish what's queued. "Oops" shows after.
+  - **Credits:** only this laptop's pages may spend them. `/api/talk` takes JSON only (415), the Host must be localhost or 127.0.0.1 (403), and each address gets 60 API calls a minute (429).
+  - **Filter:** it also drops a friend asking a child's name, age or school, "our little secret", "keep a secret" and "not tell Mom". An unclosed tag or `*action` is never spoken.
+  - **Unknown ids:** a friend id a page doesn't know shows "Unknown friend: …", not Nobita.
+  - **Ids:** `web/talk/ids.test.mjs` checks that every friend id matches across the personas, actions and voices, the rigs, `Character` in `src/friends.ts`, and the AR and talk lists. Adding a rig means adding him to all of them.
+- **Talk test page, no AR** (for a dark room or the laptop): `web/talk/index.html`, at `http://localhost:8099/talk/?friend=nobita`.
+  - The friend stands on screen with the same mic, cloud, voice, mouth, faces and gestures. `?debug` adds links to the four friends and the timings.
+  - Test: `harness/talk/talk-page-test.mjs`.
+  - It's also the simplest example of the engine outside AR, for the website later.
+- **Two more fixes from that test:**
+  - Text showed twice. Chrome on Android with `continuous` on repeats the words so far in each result. It now listens to one utterance and joins without repeats.
+  - Start took two taps. The mic is now asked for as the page opens.
+- **Files:**
+  - `web/talk/`: `talk.js` (browser engine), `mouth.mjs` (lip flap), `cloud.js` (the cloud over his head), `server.mjs` (`talk()`, `warm()` and `hear()`), `reply.mjs` (tag, sentences, safety), `prompts.mjs` (rules and personas), `voices.json`, `smoke.mjs` (real replies on the laptop), plus the `*.test.mjs` files.
+  - `web/ar/index.html`: the mic, the cloud card, the per-frame face, mic permission asked before AR.
+  - `scripts/rig-ar.js`: `saath.face` / `act` / `now`, over any clip.
+  - `scripts/build-rigs.mjs`: each rig's `talk` tables, existing parts only.
+  - `scripts/voices.mjs`: Voice Design. Paid plans only through the API.
+- **Keys:** `/.env.local`, git-ignored, as `ELEVEN_LABS_API_KEY` and `CLAUDE_API_KEY` (the user's names). Never in `web/`, which `serve.mjs` serves.
+- **Tests:**
+  - `node --test "web/talk/*.test.mjs"`: 41, using fake APIs, no credits.
+  - `~/.cache/saath-recovery/harness/talk/`: `rig-hook-test.mjs`, `ar-talk-test.mjs`, `talk-page-test.mjs` (CDP on 9333; they check the cloud's dots, sentences and place, and that your words never show), `hear-test.mjs` (listening on through a pause; recording in Brave or without a speech service); `face-sheet.mjs` and `talk-video.mjs` make pictures and a video for the user.
+  - The AR regressions now live in `harness/ar/` (`web-preview-test.mjs`, `web-ar-mock-test.mjs 9333`, the latter with a first-visit mic check). All pass (18 Oct, after the clean screen).
+- **Measured:**
+  - From request to first audio: 1.17-1.5 s. Warming up on the mic press saves about 0.25 s.
+  - The safety check (`smoke.mjs <friend> --no-voice --safety`, 40 questions) passed.
+- **Open:**
+  - The user picks voices, (a) on elevenlabs.io or (b) Starter. Stand-in stock voices until then.
+  - The user approves Nobita's faces (`~/.cache/saath-recovery/shots/talk/nobita-faces.png`), then the other three.
+  - Phone check of the clean screen, with the user's go-ahead: the cloud's look and size, the mic in AR, latency.
+  - The other three friends.
+  - Fixed 18 Oct night, with the parent's yes (`web/ar/index.html`): the AR cloud striped over Goku's hair, because it lay in his card's plane.
+    - It now sits 1 cm in front: the yaw billboard turns the figure's +z to the camera.
+    - Its height is the top of his head box as he first stands. Goku's hair is 18% above his height (32 cm); the others are within 2.4%.
+    - If its top would leave the view (Goku at 2.5 m with the phone tipped down), it moves beside his head.
+      - It goes on the side with more room, kept within the screen, its trail flipped to point at him (`drawCloud` `flip`).
+      - It's decided each frame in the cloud's `onBeforeRender`, from the camera that draws it.
+      - `state().cloudSide` and `cloudInView` report it, and `web-preview-test.mjs` checks the hello cloud is all on screen for every friend.
+  - The TV friends: their rigs' `talk` blocks (part names from sitcom-friends), their places, and the user's verdict on the stand-in voices.
+  - `--faces` now opens and closes its own tab in that Chrome. Before, it borrowed the first open tab, which other sessions' tests may be using.
+  - funny-animations' new clips, once approved: add them to `talk.actions` in `build-rigs.mjs` and to `ACTIONS` in `web/talk/reply.mjs`, with matching persona action lines.
 
 ### Accuracy audit (17 Oct, by a subagent; scripts and outputs in `~/.cache/saath-recovery/accuracy/`)
 The distance maths is fine: haversine R 6371 km is within 0.5% of WGS-84 (0.09 m at 20 m), bearings are within 0.17°, compass maths is exact, and the card, edge pill and levels agree. NOT fixed yet (waiting on the user):

@@ -19,6 +19,8 @@ import { useLocation } from './src/useLocation';
 const REARM_M = 60;
 /** Test friends survive app restarts, so you can hide one and walk to it later. */
 const TESTS_KEY = 'saath.testFriends.v1';
+/** Who you've met survives app restarts too (Chrome's AR page can outlive the app, and a deep link cold-starts it). */
+const MET_KEY = 'saath.met.v1';
 
 /** How close the tracked friend is. Hysteresis only carries over while it's the same friend. */
 function useLevel(target: LiveFriend | null): Level {
@@ -54,6 +56,20 @@ export default function App() {
       .then((raw) => {
         const saved = raw ? (JSON.parse(raw) as unknown[]).map(savedTestFriend).filter((f): f is Friend => f !== null) : [];
         if (saved.length) setTests((current) => (current.length ? current : saved));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(MET_KEY)
+      .then((raw) => {
+        const saved: unknown = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(saved) || !saved.length) return;
+        setMetIds((ids) => {   // keep any met while this loaded (a cold-start deep link), and save the union
+          const next = new Set([...saved.filter((x): x is string => typeof x === 'string'), ...ids]);
+          AsyncStorage.setItem(MET_KEY, JSON.stringify([...next])).catch(() => {});
+          return next;
+        });
       })
       .catch(() => {});
   }, []);
@@ -129,13 +145,18 @@ export default function App() {
     });
   }, [screen, level, openCamera]);
   const onMet = useCallback((id: string) => {
-    setMetIds((ids) => (ids.has(id) ? ids : new Set(ids).add(id)));
+    setMetIds((ids) => {
+      if (ids.has(id)) return ids;
+      const next = new Set(ids).add(id);
+      AsyncStorage.setItem(MET_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
   }, []);
   // Back from the AR camera page in Chrome (web/ar): <app>/--/ar-done?friend=<id>, plus &met=1 once you met them.
   useEffect(() => {
     const done = (url: string | null) => {
       const id = url?.includes('/--/ar-done') ? url.match(/[?&]friend=([^&#]+)/)?.[1] : undefined;
-      if (id && /[?&]met=1(&|#|$)/.test(url!)) onMet(decodeURIComponent(id));
+      if (id && /[?&]met=1(&|#|$)/.test(url!)) try { onMet(decodeURIComponent(id)); } catch {}   // a malformed hand-made link
     };
     Linking.getInitialURL().then(done);   // the app was closed while you were in Chrome
     const sub = Linking.addEventListener('url', ({ url }) => done(url));
