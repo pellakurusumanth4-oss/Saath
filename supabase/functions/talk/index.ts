@@ -4,8 +4,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const RATE_LIMIT_PER_MINUTE = 30;
-const RATE_LIMIT_PER_DAY = 1000; // owner pays for the hackathon demo; key is removed after judging
+const RATE_LIMIT_PER_MINUTE = 10;
+const RATE_LIMIT_PER_DAY = 60;
 const RATE_LIMIT_MESSAGE = "Too many messages, try again in a minute";
 
 const FRIENDS = {
