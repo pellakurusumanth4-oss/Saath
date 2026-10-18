@@ -21,16 +21,19 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 // doesn't smile while sad); actions map the gesture words in Claude's replies
 // (web/talk/reply.mjs lists the same words) to his clips; later = gestures that hide or shut his face, so
 // they wait until he stops talking.
+// roles.extras play by themselves while a friend stands idle, so they keep only clips where his feet stay within about 15 cm of
+// his spot and he never vanishes (funny/footcheck.mjs, 18 Oct). Clips that leave the spot (laps, dives, lying down, the Anywhere
+// Door) are talk actions only: they play when he says he's doing them.
 const RIGS = {
   doraemon: { file: 'doraemon.html', ground: [200, 512], tall: 484,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Yay!', extras: ['Gadget!', 'Yay!', 'Nezumi!', 'Anywhere Door', 'Ufufu', 'Janken'] }, face: { zoom: 1.1, dy: 0 },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Yay!', extras: ['Gadget!', 'Yay!', 'Ufufu', 'Janken'] }, face: { zoom: 1.1, dy: 0 },
     talk: { mouths: { closed: 'smile', half: 'a', open: 'open' },
       moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy' }, surprised: { look: [0, -7] }, curious: { look: [6, 0] },
         sad: { eyes: 'half', look: [0, 9], closed: 'o' }, worried: { eyes: 'half', look: [-6, 0], closed: 'o' }, sleepy: { eyes: 'half' }, thinking: { look: [6, -7] } },
       actions: { wave: 'Hi!', gadget: 'Gadget!', fly: 'Take-copter', cheer: 'Yay!', mouse: 'Nezumi!', door: 'Anywhere Door', ufufu: 'Ufufu', janken: 'Janken' },
       later: ['fly', 'mouse', 'door'] } },
   nobita: { file: 'nobita/nobita.html', ground: [200, 512], tall: 483,
-    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Nap', extras: ['Bang!', 'Yatta!', 'Doraemon~!', 'Bappa, please!', 'Splat!', 'Lazy lawn', 'Dog!'] }, face: { zoom: 1.1, dy: 0 },
+    roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Nap', extras: ['Bang!', 'Yatta!', 'Doraemon~!'] }, face: { zoom: 1.1, dy: 0 },
     talk: { mouths: { closed: 'smile', half: 'talk', open: 'open' },
       moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy' }, surprised: { eyes: 'small' }, curious: { look: [5, 0] },
         sad: { eyes: 'cry', brows: 'worried', closed: 'wavy' }, worried: { brows: 'worried', sweat: 1, closed: 'wavy' }, sleepy: { eyes: 'half' }, thinking: { look: [5, -3] } },

@@ -318,8 +318,8 @@ Read this first. It covers where everything lives, what the user wants, what is 
 - **Measured:**
   - From request to first audio: 1.17-1.5 s. Warming up on the mic press saves about 0.25 s.
   - The safety check (`smoke.mjs <friend> --no-voice --safety`, 40 questions) passed.
+- **Voices (18 Oct):** each friend has their own designed voice, not an actor's, on the ElevenLabs Starter plan. See `notes/talking-voices.md`, "Saath's own voices".
 - **Open:**
-  - The user picks voices, (a) on elevenlabs.io or (b) Starter. Stand-in stock voices until then.
   - The user approves Nobita's faces (`~/.cache/saath-recovery/shots/talk/nobita-faces.png`), then the other three.
   - Phone check of the clean screen, with the user's go-ahead: the cloud's look and size, the mic in AR, latency.
   - The other three friends.

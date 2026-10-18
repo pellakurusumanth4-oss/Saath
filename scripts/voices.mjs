@@ -11,17 +11,25 @@ import path from 'node:path';
 
 const VOICES = path.join(path.dirname(new URL(import.meta.url).pathname), '../web/talk/voices.json');
 const OUT = path.join(os.homedir(), '.cache/saath-recovery/voices');
+// Each character's kind of voice and way of speaking as children know them (the user, 18 Oct: "at least 50-55%"),
+// never an actor's voice: rhythm, energy, laughs and tics, so it feels like the character without copying anyone.
 const LOOK = {
-  doraemon: 'Native English with a light Indian English accent. Male-sounding cartoon character, ageless, like a cheerful young adult. Perfect audio quality. A friendly robot cat: warm, round, slightly nasal, bright voice with a soft husky edge; kind big-brother energy, chuckles often; medium-fast, bouncy, sing-song delivery. Natural human voice, no robotic effects.',
-  nobita: 'Native English with a light Indian English accent. Boy, about 10 years old. Perfect audio quality. Gentle, soft, slightly high voice of a sweet but lazy schoolboy; relaxed sleepy drawl, unhurried pace; turns whiny and pleading, with stretched-out vowels, when upset.',
-  shinchan: 'Native English with a light Indian English accent. Little boy, about 5 years old. Perfect audio quality. Cheeky, mischievous kid with a raspy, husky voice, slightly low for his age; lazy teasing drawl, smug and playful, giggles; exaggerated sing-song cartoon intonation.',
-  goku: 'Native English with a light Indian English accent. Adult man, early 30s. Perfect audio quality. Upbeat, energetic martial artist: bright, slightly raspy, open and friendly voice, a little naive and boyish; fast excited delivery, loud enthusiastic bursts, easy laughter.',
+  doraemon: 'Native English with a light Indian English accent. A woman performing a cartoon robot cat, as in a cartoon dub. Perfect audio quality. A husky, slightly hoarse, warm and round voice, mid-low for a woman and a little nasal. Speaks in a bouncy sing-song, rising to an excited "Ooh!" and a thoughtful "Hmm!", with a quick throaty chuckle; kind big-brother warmth, a little fussy and dramatic when flustered.',
+  nobita: 'Native English with a light Indian English accent. A woman performing a 10-year-old boy, as in a cartoon dub. Perfect audio quality. A soft, slightly nasal, boyish voice, a bit high. Sleepy and sheepish, with a relaxed drawl, little "umm"s and shy "ehehe" laughs; turns whiny and pleading, stretching his vowels, when upset, then cheers up quickly.',
+  shinchan: 'Native English with a light Indian English accent. A woman performing a cheeky 5-year-old boy, as in a cartoon dub. Perfect audio quality. A low, gravelly, croaky voice, surprisingly deep for a small child. A lazy, teasing, sing-song drawl that stretches his vowels, smug and playful, with sudden squeaky highs and naughty giggles.',
+  goku: 'Native English with a light Indian English accent. A young man in his twenties performing a cartoon martial-arts hero. Perfect audio quality. A bright, slightly raspy, open and friendly voice, boyish and a little naive. Fast, excited delivery with loud enthusiastic bursts, a cheerful "Hey!" and easy laughter.',
+  michael: 'Native American English. A man in his mid 40s. Perfect audio quality. A mid-range, slightly nasal, very expressive voice. Eager and chatty like a game-show host, with big dramatic emphasis and awkward little pauses; his voice rises and cracks when he gets excited or embarrassed.',
+  dwight: 'Native American English. A man in his late 30s. Perfect audio quality. A firm, flat, slightly nasal mid-range voice. Very serious, intense and proud; a clipped, matter-of-fact delivery like a sergeant briefing a recruit, with sudden sharp emphasis on key words.',
+  holt: 'Native American English. A man in his late 50s. Perfect audio quality. A deep, resonant, even voice. Very slow, precise, formal delivery, every word fully pronounced, with almost no change in pitch or feeling: perfectly deadpan.',
 };
-const LINE = {
+const LINE = {   // 100-1000 characters, as Voice Design needs
   doraemon: 'Hello, my friend! Let me check my pocket, I am sure I have just the gadget for this. Oh! Did you hear a squeak? Please tell me that was not a mouse!',
   nobita: 'Huh? Oh, hi! You woke me up from the best nap ever. Do you want to sit under this big shady tree with me? Shh, please do not ask me about my homework!',
   shinchan: 'Hey hey! Look at my super cool hero pose! These cinnamon rolls smell so yummy, my tummy is dancing. Do you want to see my wiggle dance? Hehe!',
   goku: 'Hey! Did you come to train with me? Yosha! Let us walk up these steps together, nice and slow. Whew, all this training makes me so hungry!',
+  michael: "Okay! Welcome, welcome! I am so happy you're here. This is going to be the best day ever, and I have a little trophy with your name on it!",
+  dwight: 'Question. Are you prepared? Fact: I am always prepared. I have a spare beet in my pocket, and a safety plan for this sandwich.',
+  holt: 'Hello. I am experiencing joy. That is very rare, so please enjoy it. Now, would you like to hear a riddle? I have prepared seven.',
 };
 const [cmd, friend, id] = process.argv.slice(2);
 if (!LOOK[friend] || !['design', 'keep', 'try'].includes(cmd) || (cmd !== 'design' && !id)) throw new Error('usage: design|keep|try <friend> [id]');

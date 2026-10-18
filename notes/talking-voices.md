@@ -44,3 +44,25 @@ If the user wants them designed instead, describe the personality, never the act
 - **Dwight:** an intense, very serious man in his late 30s; a firm, clipped, matter-of-fact delivery.
 - **Holt:** a calm, formal man in his 50s with a deep, even voice, and a slow, precise, deadpan delivery.
 
+## Saath's own voices, in the app since 18 Oct
+
+The user asked for voices "accurate to the original characters". Cloning the real voice actors isn't possible: it copies real people without their permission, and Indian courts have stopped AI voice clones (Arijit Singh, 2024; Asha Bhosle, 2025). ElevenLabs forbids it too. The user then asked for at least 50-55% likeness. So each voice matches the character's kind of voice as children know it, never one actor's voice. For example, Shin-chan is a woman voicing a low, gravelly little boy, as in the dubs.
+
+How they were made:
+1. **Designed:** the open-source Qwen3-TTS VoiceDesign (Apache-2.0), run on the laptop's RTX 4050, made two takes per friend from a description.
+   - Descriptions and lines: `~/.cache/saath-recovery/voices/qwen/design_samples.py`. Takes: `…/qwen/<friend>-<n>.wav`.
+   - Players to compare: `voice-samples.html`, and `voices-in-app.html` (designed vs in-app), in the shared notes folder.
+   - Checked: ElevenLabs Scribe wrote down all 14 correctly, and the pitch readings fit the voice types (Holt 88-94 Hz).
+2. **Not run live on the GPU:** Qwen3-TTS spoke only at about real time on the laptop (the 0.6B model too: RTF 1.05-1.5), too slow for live replies, and its package can't stream. It was then removed; its 12.7 GB is in the Trash.
+3. **Loaded into ElevenLabs:** on the Starter plan, the user upgraded on 18 Oct; Instant Voice Cloning of synthetic voices.
+   - Takes used: Doraemon 2, Nobita 1, Shin-chan 2, Goku 2, Michael 1, Dwight 2, Holt 1. The ids are in `web/talk/voices.json`.
+   - Same speed as the stock voices: about 150 ms to first audio when warm, 300-600 ms cold. A brand-new voice's very first request took 2-3 s.
+
+To swap a friend's voice: clone another take (or a new Voice Design preview, now allowed on Starter), put its id in `voices.json`, and restart `web/serve.mjs`.
+
+**18 Oct, later:** the user also heard three ElevenLabs Voice Design alternatives for Doraemon, Goku, Michael, Dwight and Holt.
+- Voice Design refuses child voices, so there were none for Nobita and Shin-chan.
+- The user said "now voices are good" and kept the current voices in `web/talk/voices.json`.
+- The previews are in `~/.cache/saath-recovery/voices/<friend>/<n>.mp3`, with their ids in `voices/previews.json`. They take no voice slot unless kept.
+- `voice-demo.mp3`, in the shared notes folder, plays every option with spoken labels.
+

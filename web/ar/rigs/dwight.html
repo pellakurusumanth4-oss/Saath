@@ -329,6 +329,75 @@ const DRAW = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = DRAW;
 
+// Shared body parts for the live-action rigs. The hand set is designed with Paper.js (open-source vector library) in
+// live/hands-design.mjs, which writes hands.json; make_rig.mjs pastes it in below. Units mm, wrist at the origin, fingers
+// along +y, thumb on the +x side (mirrored for the other hand).
+const HANDS = {"open":{"body":"M-28,0c8.03567,-6.06132 46.07867,-7.32764 56,0c3.43744,2.53881 4.94157,6.77733 5.82998,11.49254c0.16259,0.1877 0.3199,0.38011 0.47168,0.57699l22.51782,26.06858l20.0085,18.04447l16.88454,12.54074c2.40257,1.61602 3.98325,4.36002 3.98325,7.47321c0,4.97056 -4.02944,9 -9,9c-1.87137,0 -3.60934,-0.57115 -5.0491,-1.54865l-17.97237,-10.96928c-0.5884,-0.32104 -1.14099,-0.69947 -1.65023,-1.12777l-21.45051,-16.73161c-0.53039,-0.38312 -1.02527,-0.81238 -1.47874,-1.28187l-1.14408,-1.06018c0.02046,0.50652 0.03694,1.01412 0.04926,1.52283c0.24933,10.29649 -0.24235,23.09436 -3,32c-0.64754,2.0912 -1.35594,4.19121 -2.15693,6.20682c0.95089,1.28523 1.5934,2.81242 1.81821,4.47227l5.60341,35.10475c0.01793,0.09743 0.03432,0.1954 0.04914,0.29388l3.81013,20.661c0.05003,0.22868 0.09095,0.46077 0.12234,0.69587l2.54164,13.19917c0.1554,0.61408 0.23796,1.25718 0.23796,1.91955c0,4.30782 -3.49218,7.8 -7.8,7.8c-3.66821,0 -6.74501,-2.53216 -7.57781,-5.94388l-3.94597,-12.82619c-0.15327,-0.4103 -0.27604,-0.83547 -0.36553,-1.27277l-4.91619,-20.39682c-0.08534,-0.30692 -0.1551,-0.62033 -0.20839,-0.93932l-5.07814,-26.29386l0.65624,32.95972c0.00365,0.10397 0.0056,0.20836 0.00585,0.31316l0.64379,23.52008c0.00817,0.15539 0.0123,0.31186 0.0123,0.46929c0,0.08913 -0.00132,0.17794 -0.00396,0.26643l0.30044,15.12994c0.01301,0.18653 0.01962,0.37482 0.01962,0.56466c0,4.41828 -3.58172,8 -8,8c-4.23282,0 -7.69784,-3.28735 -7.98127,-7.44825l-1.80502,-14.9984c-0.06026,-0.34743 -0.10015,-0.70185 -0.11838,-1.06197l-1.81608,-23.43048c-0.02305,-0.22041 -0.03848,-0.4431 -0.04602,-0.66778l-1.6554,-33.14308l-3.43232,28.5328c-0.02312,0.23236 -0.05514,0.46211 -0.09573,0.68888l-3.26649,22.03522c-0.04136,0.35102 -0.10448,0.69539 -0.18795,1.03171l-2.70019,14.07162c-0.50708,3.70528 -3.68488,6.55992 -7.52942,6.55992c-4.19736,0 -7.6,-3.40264 -7.6,-7.6c0,-0.36542 0.02579,-0.72482 0.07565,-1.07648l1.28615,-14.30507c0.00944,-0.24358 0.0293,-0.48449 0.05915,-0.72228l2.16496,-22.20803c0.00812,-0.1165 0.01847,-0.23238 0.03101,-0.3476l3.1051,-34.51555c-0.47944,-0.22516 -0.95428,-0.45661 -1.42328,-0.69458l-5.9539,20.81674c-0.07095,0.27758 -0.15688,0.54916 -0.25687,0.81384l-5.47028,16.25281c-0.11013,0.3716 -0.2492,0.73076 -0.4146,1.07487l-4.13674,10.13609c-0.88312,2.60503 -3.34866,4.47981 -6.25208,4.47981c-3.64508,0 -6.6,-2.95492 -6.6,-6.6c0,-0.76337 0.1296,-1.49647 0.36799,-2.17849l2.98123,-10.5364c0.0462,-0.21132 0.10161,-0.4192 0.16577,-0.62319l4.55559,-16.54112c0.02365,-0.09976 0.04922,-0.19877 0.07668,-0.29699l7.00605,-28.01911c-1.15667,-1.56396 -2.14756,-3.32507 -2.90147,-5.38321c-3.40067,-9.28365 -1.02104,-27.66302 0,-40c0.89032,-10.75757 3.17944,-21.92408 5,-30c1.25966,-5.5878 -0.09743,-10.9093 4,-14z","over":[],"lines":["M-26 72 Q-2 84 24 62","M28 30 Q18 50 16 76"]},"relax":{"body":"M-24,0c8.0288,-6.52852 39.50399,-6.96507 48,0c6.78287,5.56062 4.66649,19.79268 6,30c1.36514,10.44939 2.19534,21.51322 2,32c-0.16626,8.92568 2.59254,20.9727 -1.07007,27.57892c0.1873,0.6925 0.29619,1.4172 0.31657,2.16402l1.27696,26.04877l2.12151,15.07364c0.00289,0.01606 0.00573,0.03213 0.00853,0.04822l2.30429,9.22313c0.23946,0.728 0.369,1.50589 0.369,2.31403c0,4.08691 -3.31309,7.4 -7.4,7.4c-3.29844,0 -6.09284,-2.15805 -7.04829,-5.13923l-3.55455,-8.80998c-0.3374,-0.68663 -0.58091,-1.42774 -0.71378,-2.20658l-1.96517,-9.2544l1.32809,14.70196l2.10768,10.52185c0.17255,0.63586 0.26463,1.30483 0.26463,1.99531c0,4.19736 -3.40264,7.6 -7.6,7.6c-3.5268,0 -6.49252,-2.40229 -7.3501,-5.6598l-3.43596,-10.16705c-0.28956,-0.6958 -0.48781,-1.43913 -0.57979,-2.21505l-1.40412,-9.03019l0.11855,3.13322l1.47952,10.09558c0.10525,0.48988 0.16065,0.99826 0.16065,1.51959c0,3.97645 -3.22355,7.2 -7.2,7.2c-3.47071,0 -6.36786,-2.45573 -7.04865,-5.72441l-2.75485,-9.82532c-0.23687,-0.66661 -0.38699,-1.37432 -0.43677,-2.10956l-0.59274,-5.80197c-0.89913,2.44703 -3.25029,4.19271 -6.00917,4.19271c-3.19822,0 -5.84851,-2.34591 -6.32403,-5.41086l-1.75465,-7.48572c-0.20091,-0.63437 -0.31438,-1.30763 -0.32627,-2.00563l-0.678,-12.52392c-0.02093,-0.22865 -0.03163,-0.46026 -0.03163,-0.69437c0,-0.22769 0.01012,-0.45303 0.02993,-0.67557l1.26403,-19.33509c-4.84928,-6.49315 -1.79053,-18.95597 -1.87135,-28.73627c-0.09462,-11.44928 1.43899,-25.25496 3,-36c1.28595,-8.85165 -0.73784,-19.33435 5,-24z","over":["M14.67715,21.98391c-0.43859,-1.24657 -0.67715,-2.58738 -0.67715,-3.98391c0,-6.62742 5.37258,-12 12,-12c6.00516,0 10.98006,4.41107 11.86132,10.16983l6.5414,32.22718c0.0203,0.07993 0.03969,0.16022 0.05814,0.24086l6.20041,22.18635c0.01688,0.05094 0.03335,0.10207 0.04939,0.15338l6.00456,15.79036c0.48043,1.0651 0.7478,2.24696 0.7478,3.49127c0,4.69442 -3.80558,8.5 -8.5,8.5c-3.47614,0 -6.46491,-2.08666 -7.78207,-5.07572l-7.72439,-15.04306c-0.35888,-0.60749 -0.65206,-1.25841 -0.86975,-1.94297l-8.02189,-21.58642c-0.22347,-0.52318 -0.40568,-1.0682 -0.54255,-1.63097z"],"lines":["M14 102 L15 140","M0 104 L0 146","M-15 100 L-16 134"]},"fist":{"body":"M-38,0c11.76252,-9.64296 64.23748,-9.64296 76,0c7.46299,6.11819 5.20452,19.22883 6,30c0.91014,12.32381 6.29144,32.11277 -2,40c-0.5641,0.5366 -1.23409,1.048 -2,1.53419v0.46581c0,2.24448 -0.52818,4.36559 -1.46701,6.24583c0.93527,1.70838 1.46701,3.66918 1.46701,5.75417c0,6.62742 -5.37258,12 -12,12c-2.57929,0 -4.96852,-0.81376 -6.92495,-2.19854c-2.09031,3.98222 -6.26546,6.69854 -11.07505,6.69854c-3.80191,0 -7.20739,-1.69735 -9.5,-4.3756c-2.29261,2.67826 -5.69809,4.3756 -9.5,4.3756c-5.03028,0 -9.36657,-2.97133 -11.34949,-7.2546c-2.07683,1.72049 -4.7429,2.7546 -7.65051,2.7546c-6.62742,0 -12,-5.37258 -12,-12c0,-2.08499 0.53174,-4.04578 1.46701,-5.75417c-0.93884,-1.88024 -1.46701,-4.00136 -1.46701,-6.24583v-0.46581c-0.76591,-0.48619 -1.4359,-0.99758 -2,-1.53419c-8.29144,-7.88723 -2.91014,-27.67619 -2,-40c0.79548,-10.77117 -1.46299,-23.88181 6,-30z","over":["M33.30921,26.85172c1.9546,-1.17561 4.24374,-1.85172 6.69079,-1.85172c7.1797,0 13,5.8203 13,13c0,5.5469 -3.47402,10.28239 -8.36498,12.1494l-20.89022,9.13281c-1.20601,0.59689 -2.52675,0.99701 -3.92024,1.15841l-20.58017,3.40608c-0.75246,0.16263 -1.53358,0.24827 -2.3347,0.24827c-0.15276,0 -0.3048,-0.00311 -0.45605,-0.00928l-16.79511,0.24043c-0.23289,0.01622 -0.46798,0.02447 -0.705,0.02447c-5.52285,0 -10,-4.47715 -10,-10c0,-5.29077 4.10878,-9.62187 9.30955,-9.97654l16.52412,-2.08157l19.20938,-5.00459z"],"lines":["M-18 98 L-18 76","M0 100 L0 78","M19 98 L19 76"]},"point":{"body":"M-27,0c7.84227,-5.91544 44.33033,-7.14177 54,0c6.86314,5.06894 6.16966,16.92798 8,26c1.92692,9.55074 2.81058,19.83085 3,30c0.19534,10.48678 0.69937,23.76841 -2,32c-0.43621,1.33018 -0.91239,2.61652 -1.43737,3.84573c1.36288,1.67274 2.18186,3.80622 2.18734,6.13082l0.6657,35.67504c0.00379,0.10836 0.00571,0.2172 0.00571,0.32649c0,0.05935 -0.00056,0.11857 -0.00169,0.17766l0.16526,21.10602c0.00349,0.10062 0.00526,0.20169 0.00526,0.30316c0,0.2138 -0.00782,0.42577 -0.02319,0.63565l-0.25898,13.48168c0.00314,0.09091 0.00472,0.18222 0.00472,0.2739c0,4.30782 -3.49218,7.8 -7.8,7.8c-4.21726,0 -7.65281,-3.34689 -7.79539,-7.52942l-1.19761,-13.41763c-0.04518,-0.311 -0.07367,-0.62741 -0.08454,-0.94829l-1.30622,-21.04674c-0.01562,-0.17276 -0.02645,-0.3469 -0.03235,-0.5223l-1.21836,-23.7962c-2.00153,2.73109 -5.23281,4.50443 -8.87829,4.50443c-4.44749,0 -8.27851,-2.63945 -10.01206,-6.43737c-2.00487,2.11689 -4.84219,3.43737 -7.98794,3.43737c-5.85652,0 -10.64407,-4.57681 -10.98104,-10.34881c-1.47514,0.85765 -3.18969,1.34881 -5.01896,1.34881c-5.52285,0 -10,-4.47715 -10,-10c0,-2.31531 0.78686,-4.44685 2.10774,-6.14177c-0.82619,-1.47392 -1.53815,-3.08083 -2.10774,-4.85823c-2.96132,-9.2407 -0.78947,-26.10562 0,-38c0.70456,-10.6151 2.31889,-21.93188 4,-30c1.16602,-5.59606 -0.0722,-10.92833 4,-14z","over":["M15.0059,24.8169c-0.64689,-1.47436 -1.0059,-3.10371 -1.0059,-4.8169c0,-6.62742 5.37258,-12 12,-12c5.74372,0 10.54493,4.03535 11.7232,9.4256l8.13627,29.70815c0.06508,0.19674 0.1245,0.39606 0.17807,0.59776l6.96909,21.95068c0.09489,0.25578 0.17909,0.51675 0.25204,0.78238l5.44983,15.99033c0.40704,0.99336 0.63144,2.08089 0.63144,3.22083c0,4.69442 -3.80558,8.5 -8.5,8.5c-3.58201,0 -6.64651,-2.2157 -7.89773,-5.35131l-7.1916,-15.29691c-0.23418,-0.4295 -0.43617,-0.87907 -0.60273,-1.34548l-8.77172,-21.29662c-0.19058,-0.40654 -0.35587,-0.82729 -0.49383,-1.26024z"],"lines":["M0 92 L0 104","M-17 90 L-17 100"]},"gun":{"body":"M-27,0c7.84227,-5.91544 44.33033,-7.14177 54,0c2.90699,2.14703 4.45826,5.51226 5.41984,9.3679l23.26667,-2.91352c0.60298,-0.10765 1.22379,-0.16383 1.85772,-0.16383c0.17206,0 0.34316,0.00414 0.51319,0.01232l23.13797,0.15586c0.11093,-0.00384 0.22235,-0.00577 0.33422,-0.00577c0.71042,0 1.40263,0.07798 2.06854,0.22585l16.70962,2.70033c4.28249,0.43883 7.62323,4.05694 7.62323,8.45533c0,4.69442 -3.80558,8.5 -8.5,8.5c-0.30429,0 -0.60484,-0.01599 -0.90087,-0.04717l-16.81978,-0.82856l-22.61572,1.7346l-22.96509,5.24385c1.1544,7.65698 1.72294,15.64353 1.87045,23.5628c0.19534,10.48678 0.69937,23.76841 -2,32c-0.43621,1.33018 -0.91239,2.61652 -1.43737,3.84573c1.36288,1.67274 2.18186,3.80622 2.18734,6.13082l0.6657,35.67504c0.00379,0.10836 0.00571,0.2172 0.00571,0.32649c0,0.05935 -0.00056,0.11857 -0.00169,0.17766l0.16526,21.10602c0.00349,0.10062 0.00526,0.20169 0.00526,0.30316c0,0.2138 -0.00782,0.42577 -0.02319,0.63565l-0.25898,13.48168c0.00314,0.09091 0.00472,0.18222 0.00472,0.2739c0,4.30782 -3.49218,7.8 -7.8,7.8c-4.21726,0 -7.65281,-3.34689 -7.79539,-7.52942l-1.19761,-13.41763c-0.04518,-0.311 -0.07367,-0.62741 -0.08454,-0.94829l-1.30622,-21.04674c-0.01562,-0.17276 -0.02645,-0.3469 -0.03235,-0.5223l-1.21836,-23.7962c-2.00153,2.73109 -5.23281,4.50443 -8.87829,4.50443c-4.44749,0 -8.27851,-2.63945 -10.01206,-6.43737c-2.00487,2.11689 -4.84219,3.43737 -7.98794,3.43737c-5.85652,0 -10.64407,-4.57681 -10.98104,-10.34881c-1.47514,0.85765 -3.18969,1.34881 -5.01896,1.34881c-5.52285,0 -10,-4.47715 -10,-10c0,-2.31531 0.78686,-4.44685 2.10774,-6.14177c-0.82619,-1.47392 -1.53815,-3.08083 -2.10774,-4.85823c-2.96132,-9.2407 -0.78947,-26.10562 0,-38c0.70456,-10.6151 2.31889,-21.93188 4,-30c1.16602,-5.59606 -0.0722,-10.92833 4,-14z","over":[],"lines":["M0 92 L0 104","M-17 90 L-17 100"]},"fired":{"body":"M-27,0c7.84227,-5.91544 44.33033,-7.14177 54,0c6.86314,5.06894 6.16966,16.92798 8,26c1.92692,9.55074 2.81058,19.83085 3,30c0.19534,10.48678 0.69937,23.76841 -2,32c-0.43621,1.33018 -0.91239,2.61652 -1.43737,3.84573c1.36288,1.67274 2.18186,3.80622 2.18734,6.13082l0.6657,35.67504c0.00379,0.10836 0.00571,0.2172 0.00571,0.32649c0,0.05935 -0.00056,0.11857 -0.00169,0.17766l0.16526,21.10602c0.00349,0.10062 0.00526,0.20169 0.00526,0.30316c0,0.2138 -0.00782,0.42577 -0.02319,0.63565l-0.25898,13.48168c0.00314,0.09091 0.00472,0.18222 0.00472,0.2739c0,4.30782 -3.49218,7.8 -7.8,7.8c-4.21726,0 -7.65281,-3.34689 -7.79539,-7.52942l-1.19761,-13.41763c-0.04518,-0.311 -0.07367,-0.62741 -0.08454,-0.94829l-1.30622,-21.04674c-0.01562,-0.17276 -0.02645,-0.3469 -0.03235,-0.5223l-1.21836,-23.7962c-2.00153,2.73109 -5.23281,4.50443 -8.87829,4.50443c-4.44749,0 -8.27851,-2.63945 -10.01206,-6.43737c-2.00487,2.11689 -4.84219,3.43737 -7.98794,3.43737c-5.85652,0 -10.64407,-4.57681 -10.98104,-10.34881c-1.47514,0.85765 -3.18969,1.34881 -5.01896,1.34881c-5.52285,0 -10,-4.47715 -10,-10c0,-2.31531 0.78686,-4.44685 2.10774,-6.14177c-0.82619,-1.47392 -1.53815,-3.08083 -2.10774,-4.85823c-2.96132,-9.2407 -0.78947,-26.10562 0,-38c0.70456,-10.6151 2.31889,-21.93188 4,-30c1.16602,-5.59606 -0.0722,-10.92833 4,-14z","over":["M14.42574,23.17948c-0.27754,-1.01263 -0.42574,-2.07875 -0.42574,-3.17948c0,-6.62742 5.37258,-12 12,-12c6.28393,0 11.43973,4.83011 11.95728,10.98023l4.28216,32.6412c0.02978,0.16641 0.05564,0.33417 0.07748,0.5032l4.27695,24.76759c0.04846,0.22345 0.08907,0.44983 0.1215,0.67884l3.6728,18.65562c0.16979,0.67001 0.26001,1.37174 0.26001,2.09454c0,4.69442 -3.80558,8.5 -8.5,8.5c-3.99834,0 -7.35189,-2.76068 -8.2585,-6.47989l-5.50825,-18.17264c-0.15584,-0.42757 -0.28185,-0.86949 -0.37549,-1.32324l-6.15811,-24.33196c-0.12174,-0.40459 -0.21973,-0.81947 -0.29235,-1.24301z"],"lines":["M0 92 L0 104","M-17 90 L-17 100"]},"flat":{"body":"M-28,0c8.03567,-6.06132 46.07867,-7.32764 56,0c6.91486,5.10714 6.00625,17.09245 8,26c2.03299,9.08287 3.76611,18.3409 4,28c0.24933,10.29649 -0.24235,23.09436 -3,32c-0.64754,2.0912 -1.35594,4.19121 -2.15693,6.20682c1.16304,1.57197 1.86474,3.50592 1.90509,5.60183l1.28787,35.64849c0.00867,0.16341 0.01306,0.32795 0.01306,0.49352c0,0.00548 0,0.01097 -0.00001,0.01645l0.53351,21.09705c0.00794,0.1513 0.01196,0.30363 0.01196,0.4569c0,0.16226 -0.0045,0.32347 -0.01339,0.48351l-0.02365,13.48497c0.00709,0.13636 0.01068,0.27366 0.01068,0.41179c0,4.30782 -3.49218,7.8 -7.8,7.8c-4.17206,0 -7.57907,-3.27553 -7.78968,-7.39522l-1.43105,-13.38957c-0.05113,-0.31258 -0.08536,-0.63084 -0.10174,-0.95382l-1.6725,-21.01021c-0.01922,-0.1768 -0.03341,-0.3551 -0.04243,-0.53477l-0.67648,-9.84455l0.04235,17.2547c0.00096,0.05522 0.00144,0.11056 0.00144,0.16601c0,0.10362 -0.00168,0.20685 -0.005,0.30966l-0.17747,23.53201c0.00089,0.05145 0.00133,0.10301 0.00133,0.15468c0,0.24735 -0.01021,0.49232 -0.03022,0.73451l-0.49175,15.12294c0.0008,0.04661 0.0012,0.09332 0.0012,0.14011c0,4.41828 -3.58172,8 -8,8c-4.37181,0 -7.92456,-3.50677 -7.99881,-7.86087l-1.01874,-15.08928c-0.03488,-0.2941 -0.05526,-0.59265 -0.06039,-0.8949l-0.99816,-23.50083c-0.01095,-0.16087 -0.01786,-0.32286 -0.02062,-0.48585l-0.59827,-18.42885l-0.43569,13.42104c-0.00262,0.15484 -0.00918,0.30873 -0.01959,0.46156l-0.94826,22.32579c-0.00488,0.28714 -0.02424,0.57076 -0.05737,0.85016l-0.9678,14.33481c-0.07054,4.13639 -3.44566,7.46783 -7.59887,7.46783c-4.19736,0 -7.6,-3.40264 -7.6,-7.6c0,-0.04446 0.00038,-0.08883 0.00114,-0.13311l-0.46716,-14.36679c-0.01901,-0.23008 -0.02871,-0.4628 -0.02871,-0.69779c0,-0.04908 0.00042,-0.09806 0.00127,-0.14694l-0.1686,-22.35541c-0.00316,-0.09767 -0.00475,-0.19574 -0.00475,-0.29418c0,-0.05268 0.00046,-0.10525 0.00136,-0.15771l0.08502,-34.63911l-1.29201,18.6577c-0.00786,0.15649 -0.02036,0.31177 -0.03737,0.46568l-1.38353,17.18845c-0.0143,0.28189 -0.04468,0.55953 -0.09024,0.83203l-1.1866,10.92049c-0.17825,3.48585 -3.06109,6.2574 -6.59126,6.2574c-3.64508,0 -6.6,-2.95492 -6.6,-6.6c0,-0.11685 0.00304,-0.23299 0.00903,-0.34834l-0.03866,-11.00055c-0.0085,-0.14389 -0.01281,-0.28891 -0.01281,-0.43494c0,-0.12962 0.0034,-0.25845 0.01011,-0.3864l0.42129,-17.26172c-0.00003,-0.00921 -0.00005,-0.01841 -0.00005,-0.02763c0,-0.13998 0.00371,-0.27909 0.01103,-0.41724l1.03928,-29.19575c0.00907,-0.49734 0.06215,-0.98392 0.15551,-1.45602c-1.159,-1.56579 -2.15181,-3.32919 -2.9069,-5.39055c-3.40067,-9.28365 -1.02104,-27.66302 0,-40c0.89032,-10.75757 3.17944,-21.92408 5,-30c1.25966,-5.5878 -0.09743,-10.9093 4,-14z","over":["M14.52823,21.53202c-0.3434,-1.11665 -0.52823,-2.30275 -0.52823,-3.53202c0,-6.62742 5.37258,-12 12,-12c6.12591,0 11.1797,4.59024 11.90949,10.51881l5.83753,34.46216c0.11141,0.51458 0.18511,1.04322 0.21804,1.58287l2.54274,25.04415c0.06295,0.44171 0.09552,0.8932 0.09552,1.3523c0,0.09621 -0.00143,0.1921 -0.00427,0.28762l0.37856,19.06371c0.01382,0.19819 0.02084,0.39825 0.02084,0.59995c0,4.69442 -3.80558,8.5 -8.5,8.5c-4.49737,0 -8.17895,-3.49281 -8.4801,-7.91377l-2.27489,-18.90268c-0.01959,-0.11292 -0.03718,-0.22652 -0.05274,-0.34077l-4.45094,-24.73086c-0.01294,-0.05764 -0.02541,-0.11547 -0.0374,-0.17346z"],"lines":[]},"mug":{"body":"M-38,0c11.76252,-9.64296 64.23748,-9.64296 76,0c7.46299,6.11819 5.20452,19.22883 6,30c0.91014,12.32381 6.29144,32.11277 -2,40c-0.5641,0.5366 -1.23409,1.048 -2,1.53419v0.46581c0,2.24448 -0.52818,4.36559 -1.46701,6.24583c0.93527,1.70838 1.46701,3.66918 1.46701,5.75417c0,6.62742 -5.37258,12 -12,12c-2.57929,0 -4.96852,-0.81376 -6.92495,-2.19854c-2.09031,3.98222 -6.26546,6.69854 -11.07505,6.69854c-3.80191,0 -7.20739,-1.69735 -9.5,-4.3756c-2.29261,2.67826 -5.69809,4.3756 -9.5,4.3756c-5.03028,0 -9.36657,-2.97133 -11.34949,-7.2546c-2.07683,1.72049 -4.7429,2.7546 -7.65051,2.7546c-6.62742,0 -12,-5.37258 -12,-12c0,-2.08499 0.53174,-4.04578 1.46701,-5.75417c-0.93884,-1.88024 -1.46701,-4.00136 -1.46701,-6.24583v-0.46581c-0.76591,-0.48619 -1.4359,-0.99758 -2,-1.53419c-8.29144,-7.88723 -2.91014,-27.67619 -2,-40c0.79548,-10.77117 -1.46299,-23.88181 6,-30z","over":["M38.20525,8.13331c0.58548,-0.0878 1.1848,-0.13331 1.79475,-0.13331c6.62742,0 12,5.37258 12,12c0,6.62742 -5.37258,12 -12,12c-0.02837,0 -0.05671,-0.0001 -0.08503,-0.00029l-25.07251,0.7868c-0.25737,0.01801 -0.51718,0.02717 -0.77913,0.02717c-0.47612,0 -0.94518,-0.03025 -1.40535,-0.08893l-20.92775,-1.68475c-0.74883,-0.0255 -1.47677,-0.13333 -2.17506,-0.31473l-16.53693,-3.26835c-4.38687,-0.60135 -7.76634,-4.36409 -7.76634,-8.91615c0,-4.97056 4.02944,-9 9,-9c0.43199,0 0.85687,0.03044 1.27261,0.08928l16.83705,1.41982c0.02226,0.00062 0.04451,0.00132 0.06673,0.00209l20.94907,-0.22032z"],"lines":["M-18 98 L-18 76","M0 100 L0 78","M19 98 L19 76"]}};
+// A hand at wrist W turned by ang degrees: one clean outline, the parts that lie over it (a thumb across a fist), inner lines.
+// s scales the 190 mm hand to the man (0.108 of his height).
+function handPart(W, ang, kind, mirror, skin, ink, lw, s = 1) {
+  const h = HANDS[kind] || HANDS.relax, st = `stroke="${ink}" stroke-width="${(lw / s).toFixed(1)}" stroke-linejoin="round" stroke-linecap="round"`;
+  return `<g transform="translate(${W[0].toFixed(1)} ${W[1].toFixed(1)}) rotate(${ang.toFixed(1)}) scale(${(mirror * s).toFixed(3)} ${s.toFixed(3)})">` +
+    `<path d="${h.body}" fill="${skin}" ${st}/>` + h.over.map((o) => `<path d="${o}" fill="${skin}" ${st}/>`).join('') +
+    `<path d="${h.lines.join('')}" fill="none" stroke="${ink}" stroke-width="${(lw * 0.55 / s).toFixed(1)}" stroke-linecap="round"/></g>`;
+}
+// The dress shoe (designed with the hands, shoe.json), at the sole point under the ankle, toes turned out 12 degrees.
+const SHOE = {"upper":"M-50,-66c-6.92755,5.72226 -4.00771,17.47044 -5,26c-0.94516,8.12439 -2.70916,16.78903 -1,24c1.58245,6.67638 5.01743,13.40308 10,18c5.39778,4.98 14.33511,7.8333 22,10c7.66816,2.16763 16,3 24,3c8,0 16.33184,-0.83237 24,-3c7.66489,-2.1667 16.60222,-5.02 22,-10c4.98257,-4.59692 8.41755,-11.32362 10,-18c1.70916,-7.21097 -0.05484,-15.87561 -1,-24c-0.99229,-8.52956 1.92755,-20.27774 -5,-26c-13.46326,-11.12086 -86.53674,-11.12086 -100,0z","sole":"M-58,-6c-0.18548,0.12718 5.06508,11.81381 10,16c5.79301,4.91409 15.85011,7.83568 24,10c7.86057,2.08749 16,3 24,3c8,0 16.13943,-0.91251 24,-3c8.14989,-2.16432 18.20699,-5.08591 24,-10c4.93492,-4.18619 10.18548,-15.87282 10,-16c-0.13503,-0.09259 -2.74727,5.60258 -6,8c-5.60869,4.13387 -18.91038,7.83632 -28,10c-8.19826,1.9515 -16,3 -24,3c-8,0 -15.80174,-1.0485 -24,-3c-9.08962,-2.16368 -22.39131,-5.86613 -28,-10c-3.25273,-2.39742 -5.86497,-8.09259 -6,-8z","lines":["M-30 -40 Q0 -30 30 -40","M-12 -56 L12 -50 M-12 -46 L12 -40"],"hi":"M-30 -10 Q-12 -2 6 -6"};
+function shoePart(sole, side, c, ink, lw, s = 1) {
+  return `<g transform="translate(${sole[0].toFixed(1)} ${sole[1].toFixed(1)}) rotate(${12 * side}) scale(${s})">` +
+    `<path d="${SHOE.sole}" fill="${c.sole}" stroke="${ink}" stroke-width="${(lw * 0.8).toFixed(1)}" stroke-linejoin="round"/>` +
+    `<path d="${SHOE.upper}" fill="${c.shoe}" stroke="${ink}" stroke-width="${(lw * 0.8).toFixed(1)}" stroke-linejoin="round"/>` +
+    `<path d="${SHOE.lines.join('')}" fill="none" stroke="${c.shoeLine}" stroke-width="3"/><path d="${SHOE.hi}" fill="none" stroke="${c.shoeHi}" stroke-width="7" stroke-linecap="round"/></g>`;
+}
+// A trouser leg from anatomy: one smooth outline from the hip H (a round top, hidden under the jacket or the seat) through the
+// knee K (rounded outside, a fold inside when bent) to a flat hem that rests on the shoe with a slight break; widths w =
+// [hip, knee, hem]. o = { cloth, shade, ink, lw }.
+function trouserLeg(H, K, Hem, w, o) {
+  const nrm = (P, Q) => { const dx = Q[0] - P[0], dy = Q[1] - P[1], L = Math.hypot(dx, dy) || 1; return [-dy / L, dx / L]; };
+  const n1 = nrm(H, K), n2 = nrm(K, Hem), m = [n1[0] + n2[0], n1[1] + n2[1]], ml = Math.hypot(m[0], m[1]) || 1, ch = Math.max(0.6, ml / 2);
+  const mK = [m[0] / ml / ch, m[1] / ml / ch], at = (P, n, ww, sgn) => [P[0] + n[0] * ww / 2 * sgn, P[1] + n[1] * ww / 2 * sgn];
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d2 = [Hem[0] - K[0], Hem[1] - K[1]], L2 = Math.hypot(d2[0], d2[1]) || 1, u2 = [d2[0] / L2, d2[1] / L2];
+  const side = (sgn) => [at(H, n1, w[0], sgn), at(mid(H, K), n1, (w[0] + w[1]) / 2, sgn), at(K, mK, w[1], sgn), at(mid(K, Hem), n2, (w[1] + w[2]) / 2, sgn), at(Hem, n2, w[2], sgn)];
+  const Lf = side(1), Rt = side(-1), top = [];
+  for (let i = 1; i < 6; i++) { const a = Math.atan2(-n1[1], -n1[0]) - Math.PI * i / 6; top.push([H[0] + Math.cos(a) * w[0] / 2, H[1] + Math.sin(a) * w[0] / 2]); }
+  // the hem: straight across, dipping 10 mm in the middle where the break rests on the shoe's instep
+  const dip = [Hem[0] + u2[0] * 10, Hem[1] + u2[1] * 10];
+  const outline = DRAW.path([...Lf, dip, ...Rt.reverse(), ...top], true, 0.7);
+  const bend = Math.acos(Math.max(-1, Math.min(1, n1[0] * n2[0] + n1[1] * n2[1]))) * 180 / Math.PI, cross = n1[0] * n2[1] - n1[1] * n2[0], inner = cross > 0 ? -1 : 1;
+  const fold = bend > 12 ? `M${at(K, n1, w[1] * 0.5, inner).map((v) => v.toFixed(1)).join(' ')} Q${at(K, mK, w[1] * 0.1, inner).map((v) => v.toFixed(1)).join(' ')} ${at(K, n2, w[1] * 0.55, inner).map((v) => v.toFixed(1)).join(' ')}` : '';
+  const brk = `M${at(Hem, n2, w[2] * 0.7, -1).map((v) => v.toFixed(1)).join(' ')} Q${[Hem[0] - u2[0] * 22, Hem[1] - u2[1] * 22].map((v) => v.toFixed(1)).join(' ')} ${at(Hem, n2, w[2] * 0.7, 1).map((v) => v.toFixed(1)).join(' ')}`;
+  return `<path d="${outline}" fill="${o.cloth}" stroke="${o.ink}" stroke-width="${o.lw.toFixed(1)}" stroke-linejoin="round"/>` +
+    `<path d="${fold}${brk}" fill="none" stroke="${o.shade}" stroke-width="4" stroke-linecap="round"/>`;
+}
+// Elbows, the way animation rigs do it. A pose's own elbow points away from the body: of the two IK solutions, the one on the
+// far side of the shoulder-to-wrist line from the body (v[2] === 'in' asks for the other, for a hand coming up in front).
+// Between poses (mixArm keeps the two ends on the result as .ends), the upper arm's ANGLE blends, and the rig takes the IK
+// solution nearest that, so an elbow never jumps sides half way through a move.
+function poseElbowAngle(S, v, L1, L2) {
+  const W = [S[0] + v[0], S[1] + v[1]], out = Math.sign(S[0]) || 1, d = [W[0] - S[0], W[1] - S[1]];
+  const side = (E) => Math.sign(d[0] * (E[1] - S[1]) - d[1] * (E[0] - S[0])), body = Math.sign(d[0] * 0 - d[1] * -out) || 1;
+  const a = ik(S, W, L1, L2, 1)[0], b = ik(S, W, L1, L2, -1)[0], away = side(a) !== body ? a : b, E = v[2] === 'in' ? (away === a ? b : a) : away;
+  return Math.atan2(E[1] - S[1], E[0] - S[0]);
+}
+function elbowAngle(S, v, UA, FA) {
+  if (!v.ends) return poseElbowAngle(S, v, UA * (v[5] || 1), FA * (v[6] || 1));
+  const [a, b, k] = v.ends, ta = elbowAngle(S, a, UA, FA); let d = elbowAngle(S, b, UA, FA) - ta;
+  if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+  return ta + d * k;
+}
+// The bend (1 or -1) for ik(): the solution whose elbow is nearest the expected one.
+function elbowBend(S, v, W, UA, FA) {
+  const L1 = UA * (v[5] || 1), L2 = FA * (v[6] || 1), t = elbowAngle(S, v, UA, FA), want = [S[0] + Math.cos(t) * L1, S[1] + Math.sin(t) * L1];
+  const a = ik(S, W, L1, L2, 1)[0], b = ik(S, W, L1, L2, -1)[0];
+  return Math.hypot(a[0] - want[0], a[1] - want[1]) <= Math.hypot(b[0] - want[0], b[1] - want[1]) ? 1 : -1;
+}
+// An arm moved through waypoints (each a pose's arm): k 0..1 over the whole path, so a move takes the body's natural route
+// (to the side first, or past the hip) instead of a straight line that folds the elbow the wrong way half way.
+function along(ps, k) {
+  const n = ps.length - 1, i = Math.min(n - 1, Math.floor(Math.max(0, k) * n));
+  return mixArm(ps[i], ps[i + 1], Math.max(0, Math.min(1, k * n - i)));
+}
+
 // One drawing's face, in the measurement shape live/draw.js draws: f = { expr, ew (0-1, default 1), mouth ('closed' | 'half' | 'open'),
 // blink (0-1), look ([x, y] mm) }. Landmarks and outlines blend between the base and the expression (same points);
 // brows, creases, folds and nostrils switch to the expression's past half way; the talking jaw adds on top of a closed expression.
@@ -428,7 +497,7 @@ function ik(S, W, L1, L2, bend) {
 }
 
 // ---- Body, measured (mm) -------------------------------------------------------------------------
-const SH = [[-160, -1558], [160, -1558]], HIP = [[-92, -960], [92, -960]];
+const SH = [[-160, -1558], [160, -1558]], HIP = [[-94, -960], [94, -960]];
 const UA = 322, FA = 286, TH = 450, SN = 440;   // hip to sole 888 + shoe: legs stand straight
 // The shirt, tucked in: shoulders +-178 at -1590 sloping from the collar, sides +-150 to the belt (-1035..-1005).
 const SHIRT = [[-62, -1618], [-118, -1592], [-168, -1570], [-170, -1498], [-160, -1380], [-150, -1200], [-148, -1035], [148, -1035], [150, -1200], [160, -1380], [170, -1498], [168, -1570], [118, -1592], [62, -1618]];
@@ -459,45 +528,43 @@ function torsoMarkup(id) {
     <rect x="-140" y="-1020" width="50" height="18" rx="4" fill="#2C2C30"/>`;
 }
 // The shirt's shoulders again, over the sleeves, so each short sleeve starts at the shoulder seam.
-function shouldersMarkup() {
-  return [-1, 1].map((sx) => { const m = (pts) => pts.map(([x, y]) => [x * sx, y]);
-    return `<path d="${pathOf(m([[-110, -1594], [-168, -1570], [-172, -1510], [-142, -1490], [-114, -1520]]))}" fill="${C.shirt}"/>` +
-      `<path d="${pathOf(m([[-110, -1594], [-168, -1570], [-172, -1510]]), false)}" fill="none" ${INK()}/>`; }).join('');
-}
+function shouldersMarkup() { return ''; }
 function collarMarkup() {   // over the neck: the shirt's collar points and the tie's knot
   return `<path d="${pathOf(TIE_KNOT)}" fill="${C.tie}" ${INK(LW * 0.55)}/><path d="${pathOf(COLLAR_L)}" fill="${C.shirt}" ${INK(LW * 0.55)}/><path d="${pathOf(COLLAR_R)}" fill="${C.shirt}" ${INK(LW * 0.55)}/>`;
 }
 
-// Hands, drawn with the wrist at the origin and the fingers along +y, thumb towards +x (screen-left hand; the
-// other is mirrored). Fingers are capsules over a palm, so the ink underlay leaves lines between them.
-function handShapes(kind) {
-  const cap = (x0, y0, x1, y1, w0, w1) => capsule([x0, y0], [x1, y1], w0, w1, 6);
-  if (kind === 'open') return [pathOf([[-38, 0], [38, 0], [42, 60], [36, 96], [-36, 96], [-42, 60]]), cap(-27, 88, -33, 168, 20, 17), cap(-9, 92, -10, 182, 21, 18), cap(9, 92, 12, 174, 20, 17), cap(26, 86, 34, 148, 18, 15), cap(34, 34, 74, 86, 24, 19)];
-  if (kind === 'flat') return [pathOf([[-38, 0], [38, 0], [40, 70], [34, 100], [-34, 100], [-40, 70]]), capsule([-2, 90], [-4, 190], 72, 60, 8), cap(34, 34, 30, 96, 22, 18)];
-  if (kind === 'point') return [pathOf([[-38, 0], [36, 0], [40, 62], [30, 92], [-30, 92], [-40, 62]]), cap(-22, 70, -24, 178, 21, 18), cap(30, 30, 18, 82, 23, 20)];
-  if (kind === 'fist') return [pathOf([[-38, 0], [36, 0], [42, 58], [34, 96], [-34, 98], [-42, 58]]), cap(30, 34, 6, 70, 24, 22)];
-  return [pathOf([[-36, 0], [34, 0], [40, 70], [30, 150], [14, 178], [-10, 182], [-28, 160], [-38, 100]]), cap(32, 36, 40, 106, 24, 18)];   // relax
-}
+// Hands: the designed set (live/body.js); 'tuck' hides the hand (arms crossed).
 function handMarkup(W, ang, kind, mirror) {
-  // in his trouser pocket: just the pocket's dark mouth round the wrist
-  if (kind === 'pocket') return `<g transform="translate(${P2(W)}) rotate(${f1(ang)}) scale(${mirror} 1)"><path d="M-52 -6 Q0 22 52 -6 L46 16 Q0 34 -46 16 Z" fill="#1A191E" ${INK(LW * 0.5)}/></g>`;
-  const t = `translate(${P2(W)}) rotate(${f1(ang)}) scale(${mirror} 1)`, ds = handShapes(kind);
-  const lines = kind === 'relax' ? `<path d="M-10 150 L-12 176 M8 152 L6 176 M30 96 Q18 80 16 54" fill="none" ${INK(2.4)}/>` :
-    kind === 'fist' ? `<path d="M-30 74 Q-20 90 -10 74 Q0 90 10 74 Q20 90 28 72" fill="none" ${INK(2.4)}/>` : '';
-  return `<g transform="${t}">${union(ds, C.skin, LW * 0.75)}<path d="${pathOf([[10, 4], [36, 4], [40, 60], [32, 92], [16, 92]])}" fill="${C.skinSh}" opacity="0.7"/>${lines}</g>`;
+  if (kind === 'tuck') return '';
+  return handPart(W, ang, kind, mirror, C.skin, C.ink, LW * 0.75, 1.063);   // 0.108 of his height
+}
+// The shoulder joint: inside a zone round the pivot, where the sleeve lies over the torso, its outline is masked out, so the
+// torso's shoulder and the sleeve read as one piece at any angle (same cloth); elsewhere (arms across the chest) it shows.
+let JOINT = null;   // { id, torso (path), tf (the torso's transform) }, set by apply()
+function jointMask(S, side) {
+  const id = `${JOINT.id}j${side}`, R = 112;
+  return [id, `<clipPath id="${id}z"><circle cx="${f1(S[0])}" cy="${f1(S[1])}" r="${R}"/></clipPath>` +
+    `<mask id="${id}" maskUnits="userSpaceOnUse" x="-3000" y="-3000" width="6000" height="6000"><rect x="-3000" y="-3000" width="6000" height="6000" fill="#fff"/>` +
+    `<g clip-path="url(#${id}z)"><path d="${JOINT.torso}" transform="${JOINT.tf}" fill="#000"/></g></mask>`];
+}
+// The short sleeve: a round top centred on the shoulder pivot (the ball joint), straight to a hem half way down the upper arm.
+function sleevePath(S, E, frac, w0, w1) {
+  const d = [E[0] - S[0], E[1] - S[1]], L = Math.hypot(d[0], d[1]) || 1, u = [d[0] / L, d[1] / L], n = [-u[1], u[0]], H = [S[0] + d[0] * frac, S[1] + d[1] * frac];
+  const top = []; for (let i = 0; i <= 10; i++) { const a = Math.atan2(n[1], n[0]) + Math.PI * i / 10; top.push([S[0] + Math.cos(a) * w0 / 2, S[1] + Math.sin(a) * w0 / 2]); }
+  return pathOf([...top, [H[0] - n[0] * w1 / 2, H[1] - n[1] * w1 / 2], [H[0] + n[0] * w1 / 2, H[1] + n[1] * w1 / 2]]);
 }
 function armMarkup(S, v, mirror) {
   // ru, rf: how much of the upper arm and forearm shows; under 1 when the elbow comes towards you (foreshortened)
-  const [wx, wy, bend, hand = 'relax', wdeg = 0, ru = 1, rf = 1] = v, [E, W] = ik(S, [S[0] + wx, S[1] + wy], UA * ru, FA * rf, bend);
-  const S2 = [S[0] + (E[0] - S[0]) * 0.08, S[1] + (E[1] - S[1]) * 0.08], SL = [S[0] + (E[0] - S[0]) * 0.5, S[1] + (E[1] - S[1]) * 0.5];
-  const up = [S2, E, 106, 94], fore = [E, W, 90, 78], sleeve = [S2, SL, 128, 124];
+  const [wx, wy, , hand = 'relax', wdeg = 0, ru = 1, rf = 1] = v, Wt = [S[0] + wx, S[1] + wy], [E, W] = ik(S, Wt, UA * ru, FA * rf, elbowBend(S, v, Wt, UA, FA));
+  if (window.__dbg) window.__dbg.push({ S, E, W, wdeg, hand, mirror });   // for live/anatomy-check.mjs
+  const up = [S, E, 106, 94], fore = [E, W, 90, 78], sl = sleevePath(S, E, 0.48, 132, 124), SLx = [S[0] + (E[0] - S[0]) * 0.48, S[1] + (E[1] - S[1]) * 0.48];
   const fd = [W[0] - E[0], W[1] - E[1]], fl = Math.hypot(fd[0], fd[1]) || 1, u = [fd[0] / fl, fd[1] / fl];
   const watch = mirror < 0 ? `<path d="${capsule([W[0] - u[0] * 46, W[1] - u[1] * 46], [W[0] - u[0] * 24, W[1] - u[1] * 24], 84, 82, 4)}" fill="${C.watch}" ${INK(LW * 0.45)}/><circle cx="${f1(W[0] - u[0] * 35)}" cy="${f1(W[1] - u[1] * 35)}" r="15" fill="${C.watchFace}" ${INK(2)}/>` : '';
+  const [mid, mask] = jointMask(S, mirror > 0 ? 'L' : 'R'), [o, c] = limb(S, E, W, 106, 92, 78);
   return handMarkup(W, deg(E, W) - 90 + wdeg, hand, mirror) +
-    (([o, c]) => `<path d="${o}" fill="${C.skin}" ${INK()}/>` + (c ? `<path d="${c}" fill="none" stroke="${C.skinSh}" stroke-width="5" stroke-linecap="round"/>` : ''))(limb(S2, E, W, 106, 92, 78)) +
-    `<path d="${shadeBand(...up)}" fill="${C.skinSh}"/><path d="${shadeBand(...fore)}" fill="${C.skinSh}"/>` + watch +
-    union([capsule(...sleeve)], C.shirt) + `<path d="${shadeBand(...sleeve)}" fill="${C.shirtSh}"/>` +
-    `<path d="M${P2([SL[0] - u[0] * 0, SL[1]])}" fill="none"/>`;
+    `<path d="${o}" fill="${C.skin}" ${INK()}/>` + (c ? `<path d="${c}" fill="none" stroke="${C.skinSh}" stroke-width="5" stroke-linecap="round"/>` : '') +
+    `<path d="${shadeBand(...fore)}" fill="${C.skinSh}"/>` + watch + mask +
+    `<path d="${sl}" fill="${C.shirt}"/><g mask="url(#${mid})"><path d="${shadeBand(S, SLx, 132, 124)}" fill="${C.shirtSh}"/><path d="${sl}" fill="none" ${INK()}/></g>`;
 }
 function shoeMarkup(A, side) {   // an oxford seen from the front, toes turned out about 8 degrees
   const pts = [[-46, -84], [-54, -44], [-57, -12], [-46, 4], [0, 10], [46, 4], [57, -12], [54, -44], [46, -84], [18, -94], [-18, -94]];
@@ -511,12 +578,14 @@ function hemTube(K, A, wk, wa) {
   const top = []; for (let i = 0; i <= 8; i++) { const a = Math.atan2(dy, dx) + Math.PI / 2 + Math.PI * i / 8; top.push([K[0] + Math.cos(a) * rk, K[1] + Math.sin(a) * rk]); }
   return pathOf([...top, [A[0] - nx * ra, A[1] - ny * ra], [A[0] + dx / L * 14, A[1] + dy / L * 14], [A[0] + nx * ra, A[1] + ny * ra]]);
 }
+// Legs from anatomy (live/body.js): hips 94 mm out (0.05 of his height), trouser legs 187 / 160 / 150 mm at the top /
+// knee / hem (0.10 / 0.086 / 0.08 of it: a straight hem is about 14 cm across from the front), meeting at the crotch and opening to a gap down to the shoes; the knee rounded outside
+// with a fold inside when bent; the hem breaking on a designed dress shoe, toes out 12 degrees.
 function legMarkup(H, v, bend, side) {
-  const [x, y] = v, A = [x, y - 46], [K, Ac] = ik(H, [x, y - 72], TH, SN, bend);
-  const th = [H, K, 214, 184], sn = [K, Ac, 182, 168];
-  return shoeMarkup([x, y], side) + union([capsule(...th), hemTube(K, A, 182, 170)], C.trousers) +
-    `<path d="${shadeBand(...th)}" fill="${C.trousersSh}"/><path d="${shadeBand(...sn)}" fill="${C.trousersSh}"/>` +
-    `<path d="M${P2([lerp(H[0], K[0], 0.2), lerp(H[1], K[1], 0.2)])} L${P2(K)} L${P2([lerp(K[0], Ac[0], 0.9), lerp(K[1], Ac[1], 0.9)])}" fill="none" stroke="${C.trousersSh}" stroke-width="3"/>`;
+  const [x, y] = v, Hem = [x, y - 46], [K] = ik(H, [x, y - 72], TH, SN, bend);
+  return shoePart([x, y], side, { sole: C.sole, shoe: C.shoe, shoeLine: C.shoeHi, shoeHi: C.shoeHi }, C.ink, LW, 1.15) +   // the toe sticks out in front of the hem
+    trouserLeg(H, K, Hem, [187, 160, 150], { cloth: C.trousers, shade: C.trousersSh, ink: C.ink, lw: LW }) +
+    `<path d="${shadeBand(H, K, 187, 160)}" fill="${C.trousersSh}"/><path d="${shadeBand(K, Hem, 160, 150)}" fill="${C.trousersSh}"/>`;
 }
 
 function drawing() {
@@ -528,6 +597,7 @@ function drawing() {
     <g class="torso"></g>
     <g class="head"></g>
     <g class="collar"></g>
+    <g class="armsMid"></g>
     <g class="armsFront"></g>
     <g class="shoulders"></g>
     <g class="fx"></g>
@@ -540,7 +610,7 @@ function drawing() {
 // measured expressions), ew (its weight), mouth ('closed' | 'half' | 'open' | 'round'), blink (0-1), look ([x, y] mm).
 const REST = { x: 0, y: 0, rot: 0, chest: 0, head: 0, headY: 0,
   armL: [16, 600, 1, 'relax', 0], armR: [-16, 600, -1, 'relax', 0], layerL: 'front', layerR: 'front',
-  legL: [-84, 0], legR: [84, 0], kneeL: 1, kneeR: -1,
+  legL: [-112, 0], legR: [112, 0], kneeL: 1, kneeR: -1,
   expr: null, ew: 1, mouth: 'closed', blink: 0, look: [0, 0], fx: '' };
 let uid = 0;
 function apply(svg, p) {
@@ -552,20 +622,35 @@ function apply(svg, p) {
   const T = (pt) => rotPt([pt[0], -1200 + (pt[1] + 1200) * k + p.y], p.rot, [0, -960 + p.y]);
   for (const g of ['.torso', '.collar', '.shoulders']) q(g).setAttribute('transform', body);
   if (!q('.torso').firstChild) { q('.torso').innerHTML = torsoMarkup(id); q('.collar').innerHTML = collarMarkup(); q('.shoulders').innerHTML = shouldersMarkup(); }
+  JOINT = { id, torso: curve(SHIRT), tf: body };
   // Head: tilt about the neck, the face from the measured data.
   const N = T([0, -1608]);
   q('.head').setAttribute('transform', `translate(${P2([N[0], N[1] + p.headY])}) rotate(${f1(p.rot + p.head)}) translate(0 1608)`);
   const face = faceFrame(FACE, { expr: p.expr, ew: p.ew, mouth: p.mouth, blink: p.blink, look: p.look });
   q('.head').innerHTML = DRAW.head(face, { ...FACE_STYLE, id: id + 'h' });
   // Limbs: arms behind the jacket (hands in his pockets) or in front of it; legs under it.
-  const S = SH.map(T), H = HIP.map((h) => [h[0], h[1] + p.y]), arms = { back: '', front: '' };
+  const S = SH.map(T), H = HIP.map((h) => [h[0], h[1] + p.y]), arms = { back: '', mid: '', front: '' };
   arms[p.layerL] += armMarkup(S[0], p.armL, 1); arms[p.layerR] += armMarkup(S[1], p.armR, -1);
-  q('.armsBack').innerHTML = arms.back; q('.armsFront').innerHTML = arms.front;
+  q('.armsBack').innerHTML = arms.back; q('.armsMid').innerHTML = arms.mid; q('.armsFront').innerHTML = arms.front;
   q('.legs').innerHTML = legMarkup(H[1], p.legR, p.kneeR, 1) + legMarkup(H[0], p.legL, p.kneeL, -1);
   q('.fx').innerHTML = p.fx || '';
 }
-const mixArm = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), k < 0.5 ? a[2] : b[2], k < 0.5 ? a[3] : b[3], lerp(a[4] || 0, b[4] || 0, k), lerp(a[5] || 1, b[5] || 1, k), lerp(a[6] || 1, b[6] || 1, k)];   // elbow side and hand follow the heavier pose
+// The hand moves on an arc round the shoulder (its distance and angle blend), as an arm sweeps, not on a straight line, which
+// passes close to the shoulder where the elbow must fold sharply and can flip. Elbow side and hand follow the heavier pose.
+const mixArm = (a, b, k) => {
+  const ra = Math.hypot(a[0], a[1]), aa = Math.atan2(a[1], a[0]); let da = Math.atan2(b[1], b[0]) - aa;
+  if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+  const r = lerp(ra, Math.hypot(b[0], b[1]), k), an = aa + da * k;
+  const m = [r * Math.cos(an), r * Math.sin(an), k < 0.5 ? a[2] : b[2], k < 0.5 ? a[3] : b[3], lerp(a[4] || 0, b[4] || 0, k), lerp(a[5] || 1, b[5] || 1, k), lerp(a[6] || 1, b[6] || 1, k)];
+  m.ends = [a, b, k];   // for elbowBend (live/body.js): the elbow's angle blends between the two poses
+  return m;
+};   // elbow side and hand follow the heavier pose
 const blinkAt = (t, at) => (Math.abs(t - at) < 0.09 ? 1 : 0);
+// Through a middle pose, so an arm takes the natural path (elbow down at the side) rather than swinging out.
+// Raising a hand to the face: first to the stomach (elbow down at the side), then the forearm swings up towards you, which a
+// front view sees foreshortened (short), then up beside the face.
+const MID_UP = [24, 330, 0, 'point', 0, 0.8, 0.9], MID_FWD = [-60, 150, 'in', 'point', 0, 0.8, 0.45];
+const MID_UP_R = [-24, 330, 0, 'point', 0, 0.8, 0.9], MID_FWD_R = [60, 150, 'in', 'point', 0, 0.8, 0.45];
 const talkAt = (t, t0, script) => { const i = Math.floor((t - t0) * 6); return i >= 0 && i < script.length ? { '-': 'closed', h: 'half', o: 'open', r: 'round' }[script[i]] : 'closed'; };
 
 // At attention: arms straight down, chest out, chin up; a suspicious glance one way, then the other.
@@ -595,7 +680,7 @@ function karate(t) {
   p.armL = mixArm(REST.armL, GUARD_L, g); p.armR = mixArm(REST.armR, GUARD_R, g);
   if (t >= 0.5 && t < 0.67) p.armL = mixArm(GUARD_L, CHOP, (t - 0.5) / 0.17);
   else if (t >= 0.67 && t < 1.0) p.armL = CHOP.slice();
-  else if (t >= 1.0 && t < 1.25) p.armL = mixArm(CHOP, GUARD_L, (t - 1.0) / 0.25);
+  else if (t >= 1.0 && t < 1.25) p.armL = along([CHOP, [-300, 260, 1, 'flat', 0], GUARD_L], (t - 1.0) / 0.25);   // back past the hip
   else if (t >= 1.4 && t < 1.57) p.armL = mixArm(GUARD_L, PUNCH, (t - 1.4) / 0.17);
   else if (t >= 1.57 && t < 1.95) p.armL = PUNCH.slice();
   else if (t >= 1.95 && t < 2.2) p.armL = mixArm(PUNCH, GUARD_L, (t - 1.95) / 0.25);
@@ -608,7 +693,7 @@ function karate(t) {
 // Question.: the index finger up beside his face, brows down, "Question."
 function question(t) {
   const p = idle(t), UPF = [-43, -20, -1, 'point', 0, 0.75, 0.88], up = ease(t / 0.35), down = ease((t - 2.4) / 0.4);
-  p.armL = mixArm(mixArm(REST.armL, UPF, up), REST.armL, down); p.expr = 'stern'; p.ew = 1; p.look = [0, 0];
+  p.armL = down > 0 ? along([UPF, MID_FWD, MID_UP, REST.armL], down) : along([REST.armL, MID_UP, MID_FWD, UPF], up); p.expr = 'stern'; p.ew = 1; p.look = [0, 0];
   p.mouth = talkAt(t, 0.5, 'hoh-o-'); p.head = t > 0.4 && t < 2.4 ? -2 : 0;
   return p;
 }
@@ -624,7 +709,8 @@ function falseClip(t) {
 }
 // The evil grin: the grin creeps on, his fingertips together at his chest, tapping.
 function evil(t) {
-  const p = idle(t), TL = [120, 300, 1, 'relax', 150], TR = [-120, 300, -1, 'relax', -150], up = ease(t / 0.4), down = ease((t - 2.6) / 0.4);
+  // a steeple: forearms across his chest, hands bent back (about 70 degrees, as wrists can) with the fingertips touching
+  const p = idle(t), TL = [100, 228, 1, 'flat', -72], TR = [-100, 228, -1, 'flat', 72], up = ease(t / 0.4), down = ease((t - 2.6) / 0.4);
   p.armL = mixArm(mixArm(REST.armL, TL, up), REST.armL, down); p.armR = mixArm(mixArm(REST.armR, TR, up), REST.armR, down);
   if (t > 0.5 && t < 2.6) { const j = frame2(t) % 4 < 2 ? 1 : -1; p.armL[0] += 6 * j; p.armR[0] -= 6 * j; }
   p.expr = 'grin'; p.ew = Math.min(1, ease((t - 0.3) / 0.8)) * (1 - down); p.look = [0, 0]; p.headY = 14 * p.ew; p.head = -4 * p.ew; p.rot = 3 * p.ew; p.chest = 10 * p.ew;
@@ -634,7 +720,7 @@ function evil(t) {
 function glassesPush(t) {
   // the wrist below his chin, the finger up to the bridge
   const p = idle(t), NOSE = [-100, 20, -1, 'point', 0, 0.8, 0.86], up = ease((t - 0.1) / 0.35), down = ease((t - 1.6) / 0.4);
-  p.armR = mixArm(mixArm(REST.armR, NOSE, up), REST.armR, down); p.expr = 'stern'; p.ew = 1; p.look = [0, 0];
+  p.armR = mixArm(along([REST.armR, MID_UP_R, MID_FWD_R, NOSE], up), REST.armR, down); p.expr = 'stern'; p.ew = 1; p.look = [0, 0];
   p.headY = t > 0.6 && t < 1.4 ? -6 : 0;
   return p;
 }
@@ -642,9 +728,12 @@ function glassesPush(t) {
 // head with his elbows wide and his body twists side to side as if pacing (51.6-52.8 s), then back.
 function panic(t) {
   const p = idle(t), OUT_L = [-250, 330, 1, 'open', 40, 0.9, 0.9], OUT_R = [250, 330, -1, 'open', -40, 0.9, 0.9];
-  const HL = [-30, -360, -1, 'open', 160], HR = [30, -360, 1, 'open', -160];
+  // hands on top of his head: elbows out, forearms up beside it, the hands bent in over the crown
+  // as in the still: elbows out, forearms up beside his head, hands on the back of it (only the fingertips over the crown)
+  const HL = [60, -330, -1, 'flat', 60], HR = [-60, -330, 1, 'flat', -60];
   const fling = ease((t - 0.05) / 0.17), clamp = ease((t - 0.55) / 0.2), down = ease((t - 2.5) / 0.4);
   p.armL = mixArm(mixArm(mixArm(REST.armL, OUT_L, fling), HL, clamp), REST.armL, down); p.armR = mixArm(mixArm(mixArm(REST.armR, OUT_R, fling), HR, clamp), REST.armR, down);
+  if (clamp > 0.5 && down < 0.5) p.layerL = p.layerR = 'back';
   const sw = t > 0.75 && t < 2.5 ? (Math.floor((t - 0.75) / 0.4) % 2 ? 1 : -1) : 0;
   p.x = 18 * sw; p.rot = -2.5 * sw; p.head = 3 * sw;
   p.expr = 'panic'; p.ew = Math.min(1, fling * 1.2) * (1 - down); p.look = [0, 0]; p.chest = 12 * (1 - down);
@@ -661,7 +750,7 @@ function life(t) {
   p.expr = 'stern'; p.ew = t > 0.6 && t < 3.2 ? 0.9 : 0.35;
   p.blink = (t > 3.55 && t < 3.7) || (t > 7.2 && t < 7.35) ? 1 : 0;
   const NOSE = [-100, 20, -1, 'point', 0, 0.8, 0.86], up = ease((t - 4.9) / 0.35), down = ease((t - 6.1) / 0.4);
-  p.armR = mixArm(mixArm(REST.armR, NOSE, up), REST.armR, down);
+  p.armR = mixArm(along([REST.armR, MID_UP_R, MID_FWD_R, NOSE], up), REST.armR, down);
   if (t > 5.3 && t < 5.9) p.headY -= 5;   // the push lifts his chin a touch
   return p;
 }

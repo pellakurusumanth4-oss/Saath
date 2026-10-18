@@ -127,6 +127,9 @@ const rasterise = () => {
   dirty = false;
   const c = svg.cloneNode(true);
   c.removeAttribute('style'); c.setAttribute('width', PX_W); c.setAttribute('height', PX_H); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  // His hidden parts (spare hands, Nobita's dog) stay out of the copy: the same picture, less to parse and draw. Not
+  // one holding an id: a gradient or clip in a hidden part can still be used by a shown one.
+  for (const e of c.querySelectorAll(':is([style*="display:none"], [style*="display: none"]):not([id], :has([id]))')) e.remove();
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)], { type: 'image/svg+xml' }));
   const img = new Image();
   drawing = new Promise((done) => {
@@ -143,6 +146,8 @@ const unitM = TALL_M / A.tall, cardW = vb[2] * unitM, cardH = vb[3] * unitM;
 const cardGeo = new THREE.PlaneGeometry(cardW, cardH);
 cardGeo.translate(-((A.ground[0] - vb[0]) / vb[2] - 0.5) * cardW, ((A.ground[1] - vb[1]) / vb[3] - 0.5) * cardH, 0);   // feet at the origin
 const card = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: artTex, transparent: true, alphaTest: 0.03 }));
+let cardDrawn = false;   // his card was drawn last frame: three.js draws (and calls this for) only what is in view
+card.onBeforeRender = () => { cardDrawn = true; };
 // A soft dark ellipse on the floor, w x d metres, alpha falling off along `stops` ([radius 0-1, alpha]).
 const blob = (w, d, stops) => {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g) => {
@@ -236,6 +241,7 @@ const place = (pos, now) => {
     const a = (i / sparks.length) * Math.PI * 2 + rand() * 0.5, sp = 0.45 + rand() * 0.6;
     s.userData = { p0: pos.clone().add(new THREE.Vector3(0, 0.15, 0)), v: new THREE.Vector3(Math.cos(a) * sp, 1.1 + rand() * 1.3, Math.sin(a) * sp), size: 0.06 + rand() * 0.07 };
   });
+  rig.renderAt(now); cardDrawn = true;   // his drawing waited until now (AR): its clock first, so his hi plays from the start
   rig.saath.play(['hi']);
   tip(`${NAME} is here! Walk around him.`);
   showBack();
@@ -360,11 +366,18 @@ const inside = ({ m, poly }, x, z) => {   // seen from above; the pose is rigid,
 // seen (in AR): points ARCore's hit tests actually found. He only stands where the camera has seen floor (a seen
 // point within 0.5 m), never on floor it hasn't, such as behind a bed: ARCore's floor outline can reach there,
 // and with no occlusion he would look pasted on top of the bed. When the mapped floor doesn't reach far enough he
-// stands on the seen point nearest 2.5 m ahead, 1.2-5 m away and within 35° of the view. null: no such check.
-const pickSpot = (planes, cam, fwd, lowHit = Infinity, seen = null) => {
+// stands on the seen point nearest 2.5 m ahead, 1.2-5 m away, with all of him and his hello cloud on screen (the
+// S24 shows only about ±19° across; he came out 14° off the middle, cut off). null: no such check.
+// A floor outline's corners count as seen: the outline is the hull of floor ARCore mapped, so its corners are floor the
+// camera saw, while a hit test (one point a frame, mid-view) often lands past a small outline (the simulated dim room:
+// floor set at 6 s, no hit on floor ahead until 24 s, so he came out at 28 s).
+// tanX: the tangent of half the view's width. HALF_W: his half-width, or his hello cloud's (up to 0.4 m) if wider.
+const HALF_W = Math.max((svg.getBBox().width * unitM) / 2, 0.4);
+const pickSpot = (planes, cam, fwd, lowHit = Infinity, seen = null, tanX = Infinity) => {
   const up = planes.filter((p) => p.m[5] > 0.9), y = floorAt(planes, lowHit);
   if (!isFinite(y)) return null;
   const floor = up.filter((p) => p.m[13] < y + 0.05), furniture = up.filter((p) => p.m[13] > y + 0.1);
+  if (seen) seen = [...seen, ...floor.flatMap(({ m, poly }) => poly.map((q) => ({ x: m[12] + q.x * m[0] + q.z * m[8], y: m[13], z: m[14] + q.x * m[2] + q.z * m[10] })))];
   const free = (x, z) => !furniture.some((p) => inside(p, x, z));
   const onSeen = (x, z) => !seen || seen.some((p) => Math.abs(p.y - y) < 0.08 && Math.hypot(p.x - x, p.z - z) < 0.5);
   for (const d of DISTS) {
@@ -374,7 +387,7 @@ const pickSpot = (planes, cam, fwd, lowHit = Infinity, seen = null) => {
   let best = null, bestErr = Infinity;
   for (const p of seen || []) {
     const dx = p.x - cam.x, dz = p.z - cam.z, d = Math.hypot(dx, dz);
-    if (d < NEAR_SPOT || d > FAR_SPOT || Math.abs(p.y - y) > 0.08 || (dx * fwd.x + dz * fwd.z) / d < 0.82 || !free(p.x, p.z)) continue;
+    if (d < NEAR_SPOT || d > FAR_SPOT || Math.abs(p.y - y) > 0.08 || Math.abs(dx * fwd.z - dz * fwd.x) + HALF_W > tanX * (dx * fwd.x + dz * fwd.z) || !free(p.x, p.z)) continue;
     const err = Math.hypot(p.x - (cam.x + fwd.x * BEST), p.z - (cam.z + fwd.z * BEST));
     if (err < bestErr) { best = p; bestErr = err; }
   }
@@ -485,8 +498,8 @@ if (PREVIEW) {
   // The floor is set first, from what the camera finds by your feet (within FEET_M of where you stand): a bed or table
   // top a few steps away can't pass for it then, so he never stands on one (18 Oct: "the floor needs to be set").
   const feet = [], FEET_M = 1.3;
-  const t0 = performance.now() / 1000, cam = new THREE.Vector3(), here = new THREE.Vector3();
-  const base = new THREE.Vector3(), lastCam = new THREE.Vector3(), gap = new THREE.Vector3();   // base: his spot, then his anchor's pose
+  const cam = new THREE.Vector3(), here = new THREE.Vector3();
+  const base = new THREE.Vector3(), lastCam = new THREE.Vector3(), gap = new THREE.Vector3(), moved = new THREE.Vector3();   // base: his spot, then his anchor's pose
   const GLIDE = 1;   // m/s: the fastest an anchor correction moves him
   const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
   start.textContent = ok ? 'Start AR' : 'AR is not available in this browser';
@@ -531,7 +544,9 @@ if (PREVIEW) {
     startedAt = performance.now() / 1000;
     tip('Point your phone at the floor by your feet');
   };
+  rasterise();   // a first picture of him, as the loop copies him only once he is out: his card is never blank
   renderer.setAnimationLoop((time, xrFrame) => {
+    if (!xrFrame) return;   // before Start AR nothing here shows, so nothing is drawn
     const now = performance.now() / 1000;
     if (xrFrame && hitSource) {
       const ref = renderer.xr.getReferenceSpace(), view = xrFrame.getViewerPose(ref);
@@ -560,7 +575,7 @@ if (PREVIEW) {
           // A guessed floor only where ARCore can't detect planes at all: on the S24 the guess drew his ring at desk
           // height (18 Oct), and a tap would have stood him there, so with plane detection he waits for the real floor.
           guessing = !planesOn && lowHit === Infinity && localFloor && now - startedAt > 6;
-          const spot = pickSpot(guessing ? [flatAt(0)] : planes, cam, levelForward(view.transform.matrix), lowHit, guessing ? null : seen);
+          const spot = pickSpot(guessing ? [flatAt(0)] : planes, cam, levelForward(view.transform.matrix), lowHit, guessing ? null : seen, 1 / view.views[0].projectionMatrix[0]);
           reticle.visible = !!spot;
           if (spot) { reticle.matrix.makeTranslation(spot.x, spot.y, spot.z); floorY = spot.y; }
           if (ready(spot, -view.transform.matrix[9], now, guessing, isFinite(lowHit) || guessing)) comeOut(new THREE.Vector3(spot.x, spot.y, spot.z), xrFrame, now);
@@ -568,17 +583,24 @@ if (PREVIEW) {
       }
       if (placedAt !== null) {
         // He goes where his anchor is as ARCore refines it, at walking pace at most: a correction glides, and a one-frame
-        // glitch moves him a centimetre or two, so he never jumps towards you. When the camera jumps too (ARCore re-fixed
-        // its map, or moved the floor) he goes there at once, which on screen is no jump at all.
+        // glitch moves him a centimetre or two, so he never jumps towards you. When ARCore re-fixes its map (or moves the
+        // floor) the camera and his anchor take the same step in one frame: he takes it at once, which on screen is no jump
+        // at all. (Going by a camera jump over 20 cm alone let 8-19 cm re-fixes show as a jump or a slide.)
         const p = anchor && xrFrame.trackedAnchors?.has(anchor) && xrFrame.getPose(anchor.anchorSpace, ref)?.transform.position;
-        if (p) base.set(p.x, p.y, p.z);
+        moved.set(0, 0, 0);
+        if (p) { moved.set(p.x - base.x, p.y - base.y, p.z - base.z); base.set(p.x, p.y, p.z); }
+        // Or the camera jumped over 20 cm (a re-fix while you walk, or after tracking came back while you walked): your own
+        // steps are in that jump too, so it never matches his anchor's.
+        if (moved.distanceTo(gap.subVectors(cam, lastCam)) < 0.03 || gap.length() > 0.2) figure.position.add(moved);
         gap.set(base.x, base.y + lift, base.z).sub(figure.position);
-        figure.position.add(cam.distanceTo(lastCam) > 0.2 ? gap : gap.clampLength(0, GLIDE * Math.min(0.1, now - lastNow)));
+        figure.position.add(gap.clampLength(0, GLIDE * Math.min(0.1, now - lastNow)));
       }
       lastCam.copy(cam);
     }
     faceTo(talk.face());
-    rig.renderAt(now - t0); rasterise();
+    // His drawing and its copy are most of a frame's work, so none before he is out, and no copy while he is out of view.
+    if (placedAt !== null) { rig.renderAt(now); if (cardDrawn) rasterise(); }
+    cardDrawn = false;
     update(now, cam, light);
     renderer.render(scene, camera);
   });
