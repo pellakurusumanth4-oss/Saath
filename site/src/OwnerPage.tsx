@@ -284,7 +284,7 @@ function ShopEditor({ shop }: { shop: Shop }) {
               <label className="owner-money">
                 ₹
                 <input type="number" min={0} step="any" inputMode="decimal" aria-label={`${item.name}: your price`}
-                  defaultValue={item.price}
+                  defaultValue={item.price ?? ''}
                   onChange={(event) => {
                     const price = event.target.valueAsNumber;
                     if (price >= 0) saveItem(item.id, { price });

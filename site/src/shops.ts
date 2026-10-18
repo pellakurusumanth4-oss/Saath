@@ -16,27 +16,36 @@ export type Shop = LatLng & {
   section: string;
   /** The mascot at the door (a MASCOTS id). */
   friend: string;
+  /** Where, in words ("JM Road, Deccan Gymkhana"). */
+  area: string;
   story: string;
   special: string;
+  /** The shop's own offers, up to 5. */
+  offers: string[];
   status: Status;
   status_note: string;
   owner: string | null;
   claimable: boolean;
+  /** Made up for the demo: shown as a demo shop, so nobody walks to it. */
+  demo: boolean;
 };
 
 export type MenuItem = {
   id: string;
   shop_id: string;
   name: string;
-  price: number;
+  /** Empty when the shop gives none (a mall's floors) or says it in words in the note ("from 150 rupees"). */
+  price: number | null;
   /** What the shop says delivery apps charge for it, if it says. */
   app_price: number | null;
   available: boolean;
+  /** The shop's words about it: "contains nuts", "from 150 rupees". */
+  note: string;
   sort: number;
   updated_at: string;
 };
 
-export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,story,special,status,status_note,owner,claimable';
+export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo';
 
 /** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon for those
  * without a mascot's pin yet. */
@@ -85,13 +94,18 @@ export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round(
 export function bestSaving(menu: MenuItem[]): { item: MenuItem; saving: number } | null {
   let best: { item: MenuItem; saving: number } | null = null;
   for (const item of menu) {
-    const saving = item.available && item.app_price !== null ? item.app_price - item.price : 0;
+    const saving = item.available && item.price !== null && item.app_price !== null ? item.app_price - item.price : 0;
     if (saving > 0 && (!best || saving > best.saving)) best = { item, saving };
   }
   return best;
 }
 
-export const rupees = (amount: number) => `₹${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+/** ₹ as people say it: 1,450 and 48 lakh and 1.15 crore. */
+export function rupees(amount: number): string {
+  if (amount >= 1e7) return `₹${+(amount / 1e7).toFixed(2)} crore`;
+  if (amount >= 1e5) return `₹${+(amount / 1e5).toFixed(2)} lakh`;
+  return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
 
 export function ago(iso: string, now: number): string {
   const minutes = Math.floor((now - Date.parse(iso)) / 60000);

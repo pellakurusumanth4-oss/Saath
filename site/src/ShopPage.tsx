@@ -40,8 +40,12 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
         <header className="shop-head">
           <img className="shop-host" src={portraitOf(host)} alt={`${host.name}, the mascot`} width={84} height={84} />
           <div>
-            <p className="shop-section">{section.icon} {section.label}</p>
+            <p className="shop-section">
+              {section.icon} {section.label}
+              {shop.demo && <span className="demo-badge" title="Made up for the Saath demo: there's no shop here">Demo shop</span>}
+            </p>
             <h2 className="shop-name">{shop.name}</h2>
+            {shop.area && <p className="shop-area">{shop.area}</p>}
             <p className={`shop-status is-${shop.status}`}>
               {STATUS_LABEL[shop.status]}
               {shop.status_note && <span> · {shop.status_note}</span>}
@@ -65,6 +69,11 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
             <p>{shop.special}</p>
           </section>
         )}
+        {shop.offers.length > 0 && (
+          <ul className="shop-offers">
+            {shop.offers.map((offer) => <li key={offer}>{offer}</li>)}
+          </ul>
+        )}
 
         <div className="shop-actions">
           <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>
@@ -81,11 +90,14 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
           <ul>
             {menu.map((item) => (
               <li key={item.id} className={item.available ? '' : 'is-out'}>
-                <span className="shop-item">{item.name}</span>
+                <span className="shop-item">
+                  {item.name}
+                  {item.note && <small>{item.note}</small>}
+                </span>
                 {item.available ? (
                   <span className="shop-price">
-                    {rupees(item.price)}
-                    {item.app_price !== null && item.app_price > item.price && (
+                    {item.price === null ? '' : item.price === 0 ? 'Free' : rupees(item.price)}
+                    {item.price !== null && item.app_price !== null && item.app_price > item.price && (
                       <s title="What delivery apps charge, says the shop">{rupees(item.app_price)} on apps</s>
                     )}
                   </span>

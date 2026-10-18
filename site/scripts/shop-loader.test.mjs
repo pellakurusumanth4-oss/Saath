@@ -14,9 +14,11 @@ const fakeDb = (row, asked = {}) => ({
 
 const row = {
   slug: 'sarasbaug-misal-house', name: 'Sarasbaug Misal House', section: 'restaurant', friend: 'rosa', story: '',
-  special: 'Misal pav with an extra pav, ₹90', status: 'busy', status_note: 'About a 10 min wait',
+  area: 'Sarasbaug, Swargate', special: 'Misal pav with an extra pav, ₹90', status: 'busy', status_note: 'About a 10 min wait',
+  offers: ['Saath walkers get a free papad', ' ', 'x'.repeat(201)],
   menu_items: [
-    { name: 'Kokum sharbat', price: 30, app_price: 59, available: true, sort: 3 },
+    { name: 'Kokum sharbat', price: 30, app_price: 59, available: true, note: '', sort: 3 },
+    { name: 'Parking', price: null, app_price: null, available: true, note: '30 rupees an hour', sort: 4 },
     { name: 'Misal pav', price: 80, app_price: 139, available: true, sort: 1 },
     { name: ' ', price: 10, app_price: null, available: true, sort: 2 },
     { name: 'Sabudana vada', price: 50, app_price: null, available: false, sort: 2 },
@@ -27,7 +29,8 @@ test('a shop row becomes what the mascot prompts take, its live facts in the SHO
   const asked = {};
   const shop = await loadShop(fakeDb(row, asked), 'sarasbaug-misal-house');
   assert.deepEqual([asked.table, asked.column, asked.value], ['shops', 'slug', 'sarasbaug-misal-house']);
-  assert.deepEqual(shop.menu.map((item) => item.name), ['Misal pav', 'Sabudana vada', 'Kokum sharbat']);
+  assert.deepEqual(shop.menu.map((item) => item.name), ['Misal pav', 'Sabudana vada', 'Kokum sharbat', 'Parking']);
+  assert.deepEqual(shop.offers, ['Saath walkers get a free papad']);
   assert.equal(mascotOf(shop).name, 'Chef Rosa');
   assert.match(mascotPrompt(shop), /mascot of Sarasbaug Misal House/);
   const live = shopData(shop);
@@ -35,6 +38,9 @@ test('a shop row becomes what the mascot prompts take, its live facts in the SHO
   assert.match(live, /Misal pav: 80 rupees \(about 139 rupees on delivery apps\)/);
   assert.match(live, /Sabudana vada: sold out/);
   assert.match(live, /Today's special: Misal pav with an extra pav, ₹90/);
+  assert.match(live, /- Saath walkers get a free papad/);
+  assert.match(live, /- Parking \(30 rupees an hour\)/);
+  assert.match(mascotPrompt(shop), /Area: Sarasbaug, Swargate/);
 });
 
 test('a bad or unknown slug loads nothing', async () => {
