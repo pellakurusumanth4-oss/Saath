@@ -947,3 +947,488 @@ body {
     padding: 8px 14px;
   }
 }
+
+/* ---------- Shops on the map: the host bobbing over a pin in the section's colour ---------- */
+
+@keyframes host-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* MapLibre positions the marker absolutely; that also anchors the name label below. */
+.shop-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 9px; /* room for the pin's point, which marks the spot */
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.shop-marker-face {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px solid var(--section, var(--ink));
+  background: var(--white);
+  box-shadow: 2px 2px 0 var(--ink);
+  object-fit: cover;
+  animation: host-bob 2s ease-in-out infinite;
+  animation-delay: var(--bob-delay, 0s);
+}
+
+.shop-marker-pin {
+  position: relative;
+  margin-top: -6px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+  background: var(--section, var(--yellow));
+  border: 2.5px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.shop-marker-pin::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top: 8px solid var(--ink);
+}
+
+/* Below the point, out of the marker's box, so the point (the box's bottom) sits on the spot. */
+.shop-marker-name {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 140px;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+}
+
+.shop-marker.is-closed .shop-marker-face {
+  filter: grayscale(1);
+  animation: none;
+}
+
+/* ---------- A shop's page ---------- */
+
+.shop-page {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  overflow-y: auto;
+  background: rgba(17, 19, 24, 0.35);
+  padding: 16px;
+}
+
+.shop-sheet {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 18px 28px;
+  background: var(--paper);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.shop-back {
+  display: inline-block;
+  font-weight: 800;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.shop-note,
+.shop-hint,
+.shop-fine {
+  font-size: 13px;
+  opacity: 0.75;
+  margin: 6px 0;
+}
+
+.shop-fine {
+  font-size: 11.5px;
+}
+
+.shop-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 12px;
+}
+
+.shop-host {
+  width: 84px;
+  height: 84px;
+  flex: none;
+  border-radius: 50%;
+  border: 3px solid var(--section, var(--ink));
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  object-fit: cover;
+  animation: host-bob 2s ease-in-out infinite;
+}
+
+.shop-section {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.shop-name {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.shop-status {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.shop-status.is-open { color: #1f8a4c; }
+.shop-status.is-busy { color: #b25e00; }
+.shop-status.is-closed { color: var(--red); }
+
+.shop-walk {
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  font-size: 16px;
+  background: var(--yellow);
+  border: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.shop-special {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: var(--white);
+  border: var(--border);
+  border-left: 8px solid var(--section, var(--yellow));
+  border-radius: 14px;
+}
+
+.shop-special h3,
+.shop-menu h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.shop-special p {
+  margin: 2px 0 0;
+  font-weight: 700;
+}
+
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.btn-plain {
+  background: var(--white);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.shop-menu {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: 14px;
+}
+
+.shop-menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.shop-updated {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.shop-menu ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.shop-menu li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1.5px dashed rgba(17, 19, 24, 0.2);
+}
+
+.shop-menu li.is-out {
+  opacity: 0.5;
+}
+
+.shop-item {
+  font-weight: 700;
+}
+
+.shop-price {
+  font-weight: 800;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.shop-price s {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.shop-story {
+  margin: 14px 0 0;
+  font-size: 14px;
+}
+
+a.card-hit {
+  text-decoration: none;
+}
+
+.owner-link {
+  display: block;
+  margin-top: 4px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* ---------- Shop owners ---------- */
+
+.owner-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.owner-link-btn {
+  font: inherit;
+  font-weight: 700;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.owner-form,
+.owner-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.owner-form label,
+.owner-editor > label,
+.owner-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.owner-form input,
+.owner-form select,
+.owner-editor input,
+.owner-editor select,
+.owner-editor textarea {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 8px 10px;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.owner-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.owner-editor h3,
+.owner-form h3,
+.owner-demo h3 {
+  margin: 10px 0 0;
+  font-size: 17px;
+}
+
+.owner-help {
+  margin: 0;
+  font-size: 12.5px;
+  opacity: 0.75;
+}
+
+.owner-msg {
+  margin: 4px 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #ffe1e1;
+  border: 2px solid var(--red);
+  border-radius: 10px;
+}
+
+.owner-state {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.owner-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.talk-chip.is-on {
+  background: var(--yellow);
+}
+
+.owner-add {
+  align-self: flex-start;
+  margin-top: 14px;
+}
+
+.owner-demo {
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 2px dashed rgba(17, 19, 24, 0.25);
+}
+
+.owner-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.owner-menu li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+}
+
+.owner-item-name {
+  grid-column: 1 / 3;
+}
+
+.owner-money {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.owner-money input {
+  width: 84px;
+}
+
+.owner-money.is-app {
+  opacity: 0.8;
+}
+
+.owner-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.owner-remove {
+  font: inherit;
+  font-weight: 800;
+  width: 34px;
+  height: 34px;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  cursor: pointer;
+  grid-row: 1;
+  grid-column: 3;
+}
+
+.owner-new-item {
+  justify-content: flex-start;
+}
+
+.owner-new-item > input {
+  flex: 1;
+}
+
+.owner-map {
+  height: 240px;
+  border: var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .shop-page {
+    padding: 8px;
+  }
+
+  .shop-sheet {
+    padding: 12px 14px 24px;
+  }
+
+  .owner-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-marker-face,
+  .shop-host {
+    animation: none;
+  }
+}

@@ -13,6 +13,7 @@
     "copy-rigs": "node scripts/copy-rigs.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "kokoro-js": "^1.2.1",
     "maplibre-gl": "^4.7.1",
     "react": "^18.3.1",

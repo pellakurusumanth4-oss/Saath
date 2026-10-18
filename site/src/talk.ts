@@ -13,15 +13,15 @@ export type ChatMessage = {
 /** Thrown when the edge function rate-limits the visitor (HTTP 429). The message is meant to be shown. */
 export class RateLimitError extends Error {}
 
-/** Ask the friend's edge function for a reply. Throws with a friendly message on failure. */
-export async function askFriend(friendId: string, messages: ChatMessage[]): Promise<string> {
+/** Ask the friend's edge function for a reply (as the host at a shop, given its slug). Throws with a friendly message on failure. */
+export async function askFriend(friendId: string, messages: ChatMessage[], shop?: string): Promise<string> {
   const response = await fetch(TALK_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
-    body: JSON.stringify({ friendId, messages }),
+    body: JSON.stringify({ friendId, messages, shop }),
   });
   if (!response.ok) {
     if (response.status === 429) {

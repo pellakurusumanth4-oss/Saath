@@ -1,38 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { LatLng } from '../../src/geo';
-
-const TAGS_KEY = 'saath:tags';
-
-const readTags = (): string[] => {
-  try {
-    const raw = localStorage.getItem(TAGS_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === 'string')
-      : [];
-  } catch {
-    return [];
-  }
-};
-
-/** Friends tagged with a handshake, remembered on this device. */
-export const useTags = () => {
-  const [tagged, setTagged] = useState<string[]>(readTags);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(TAGS_KEY, JSON.stringify(tagged));
-    } catch {
-      // Private browsing or full storage: tags just won't survive a reload.
-    }
-  }, [tagged]);
-
-  const tag = useCallback((id: string) => {
-    setTagged((current) => (current.includes(id) ? current : [...current, id]));
-  }, []);
-
-  return { tagged, tag };
-};
 
 /** Where "here" is: real GPS if allowed, or a spot set by hand on the map. */
 export const useMe = () => {

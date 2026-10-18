@@ -32,8 +32,17 @@ const STARTERS: Record<string, Chip[]> = {
   ],
 };
 
-export default function TalkPanel({ friend, onClose, onReplySpoken }: {
+// At a shop, the host answers about the shop: its menu, prices, special and how busy it is.
+const SHOP_STARTERS: Chip[] = [
+  { label: 'What’s good today?', send: 'What’s good here today?' },
+  { label: 'Is it busy?', send: 'Is it busy right now?' },
+  { label: 'How much do I save?', send: 'How much do I save if I walk over instead of ordering on a delivery app?' },
+];
+
+export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
   friend: Friend;
+  /** Talking to the host at this shop. */
+  shop?: { slug: string; name: string };
   onClose: () => void;
   onReplySpoken?: () => void;
 }) {
@@ -138,7 +147,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     currentSpeak.current?.cancel();
     currentSpeak.current = null;
     try {
-      const answer = await askFriend(friend.id, next.slice(-12));
+      const answer = await askFriend(friend.id, next.slice(-12), shop?.slug);
       reply(answer);
     } catch (err) {
       if (err instanceof RateLimitError) {
@@ -184,7 +193,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     }
   };
 
-  const starters = STARTERS[friend.character] ?? [];
+  const starters = shop ? SHOP_STARTERS : STARTERS[friend.character] ?? [];
   const firstName = friend.name.split(' ')[0];
   const loadingVoice = voiceLoading && kokoroState === 'loading';
 
@@ -192,7 +201,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
     <div className="watch talk" role="dialog" aria-label={`Talking with ${friend.name}`}>
       <div className="talk-head">
         <h3 className="talk-title">
-          Talk to {friend.name}
+          Talk to {friend.name}{shop && ` at ${shop.name}`}
           {loadingVoice && <span className="talk-voice-loading"> Loading voice…</span>}
         </h3>
         <button
@@ -213,7 +222,7 @@ export default function TalkPanel({ friend, onClose, onReplySpoken }: {
       </div>
       <div className="talk-scroll" ref={scroller}>
         {messages.length === 0 && !waiting && (
-          <p className="talk-empty">Say hello to {firstName}!</p>
+          <p className="talk-empty">{shop ? `Ask ${firstName} about ${shop.name}!` : `Say hello to ${firstName}!`}</p>
         )}
         {messages.map((message, index) => (
           message.role === 'user' ? (

@@ -1,36 +1,44 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import MapView from './MapView';
 import MapBoundary from './MapBoundary';
-import FriendsList from './FriendsList';
+import ShopsList from './ShopsList';
+import ShopPage from './ShopPage';
+import OwnerPage from './OwnerPage';
 import HangoutPanel from './HangoutPanel';
-import { useMe, useTags } from './hooks';
-import { NEARBY_M } from './constants';
-import { FRIENDS, type Friend } from '../../src/friends';
-import { distanceM, formatDistance } from '../../src/geo';
+import { useMe } from './hooks';
+import { useShops, walkMinutes, type Shop } from './shops';
+import { distanceM } from '../../src/geo';
 import type { LatLng } from '../../src/geo';
+
+/** The page is in the hash (#/shop/<slug>, #/owner): the host serves only index.html, so paths would 404. */
+const useHash = () => {
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+  return hash;
+};
 
 export default function App() {
   const { me, locating, error, whereAmI, setMySpot } = useMe();
-  const { tagged, tag } = useTags();
-  const [selected, setSelected] = useState<string | null>(null);
+  const shops = useShops();
+  const hash = useHash();
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [hangout, setHangout] = useState(false);
 
-  const ranked: Array<{ friend: Friend; distance: number | null }> = useMemo(() => {
-    const rows = FRIENDS.map((friend) => ({ friend, distance: me ? distanceM(me, friend) : null }));
-    rows.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    return rows;
-  }, [me]);
+  const shopSlug = /^#\/shop\/([a-z0-9-]{3,40})$/.exec(hash)?.[1] ?? null;
+  const owner = hash === '#/owner';
 
   const focusOn = (spot: LatLng) =>
     setFocus({ spot, key: `${spot.lat},${spot.lng},${Date.now()}` });
 
-  const pickFriend = (id: string) => {
-    setSelected(id);
-    const friend = FRIENDS.find((f) => f.id === id);
-    if (friend) focusOn(friend);
+  const pickShop = (shop: Shop) => {
+    focusOn(shop);
+    window.location.hash = `#/shop/${shop.slug}`;
   };
 
   const onWhereAmI = () => {
@@ -52,13 +60,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meKey]);
 
-  const nearest = ranked.find((row) => row.distance !== null);
-  const nearestLine =
-    nearest && nearest.distance !== null
-      ? nearest.distance <= NEARBY_M
-        ? `${nearest.friend.name} is right here with you!`
-        : `${nearest.friend.name} is closest, ${formatDistance(nearest.distance)} away`
-      : null;
+  const nearest = me
+    ? shops.reduce<Shop | null>((best, shop) => (!best || distanceM(me, shop) < distanceM(me, best) ? shop : best), null)
+    : null;
 
   return (
     <div className="app">
@@ -66,25 +70,24 @@ export default function App() {
         fallback={
           <div className="map-fallback">
             <p>The map needs WebGL, which is off in this preview.</p>
-            <p>Use the list to tag a friend, or open this page in a browser with WebGL on.</p>
+            <p>Use the list to open a shop, or open this page in a browser with WebGL on.</p>
           </div>
         }
       >
         <MapView
           me={me}
-          tagged={tagged}
-          selected={selected}
+          shops={shops}
           focus={focus?.spot ?? null}
           focusKey={focus?.key ?? ''}
           settingSpot={settingSpot}
           onSetSpot={onSetSpot}
-          onPickFriend={pickFriend}
+          onPickShop={pickShop}
         />
       </MapBoundary>
 
       <header className="topbar">
         <h1 className="logo">Saath</h1>
-        <p className="tagline">Four friends, waiting around Pune</p>
+        <p className="tagline">Walk there, save money</p>
       </header>
 
       <button
@@ -108,22 +111,21 @@ export default function App() {
       </div>
 
       {error && <div className="notice" role="alert">{error}</div>}
-      {me && !error && nearestLine && (
-        <div className="notice notice-soft">{nearestLine}</div>
+      {me && !error && nearest && (
+        <div className="notice notice-soft">{nearest.name} is closest: a {walkMinutes(me, nearest)} min walk</div>
       )}
 
-      <FriendsList
-        friends={FRIENDS}
+      <ShopsList
+        shops={shops}
         me={me}
-        tagged={tagged}
-        selected={selected}
         expanded={expanded}
-        onPick={pickFriend}
-        onTag={tag}
+        onPick={(shop) => focusOn(shop)}
         onToggle={() => setExpanded((value) => !value)}
       />
 
       {hangout && <HangoutPanel onClose={() => setHangout(false)} />}
+      {shopSlug && <ShopPage key={shopSlug} slug={shopSlug} me={me} />}
+      {owner && <OwnerPage />}
     </div>
   );
 }
