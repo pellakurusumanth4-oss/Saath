@@ -1,13 +1,16 @@
 import { HOME_CAST, OFFICE_CAST, type Cast, type Friend } from './friends';
-import { DEG, EARTH_RADIUS_M, type LatLng } from './geo';
+import { DEG, EARTH_RADIUS_M, distanceM, type LatLng } from './geo';
 
 // Friends stand round the home and office you set, one in each ring, and move every hour. Their spots are worked
 // out, never saved: the same place and hour always give the same spots, so a restart within the hour shows the same
-// ones and on the hour they all move. Tests: node --test src/placement.test.mjs
-// shortcut: plain random spots can land in water or on private ground; snap them to paths (OpenStreetMap) to fix.
+// ones and on the hour they all move. A random spot can be in a lake or someone's house, so each friend stands on the
+// nearest path or road to it that is still in their ring, which the map page finds in its tiles (src/mapWalk.ts).
+// Tests: node --test src/placement.test.mjs
 
 /** Rings round your home or office, in metres: one friend in each, at a random distance and direction. */
 export const RINGS = [[10, 500], [500, 2000], [2000, 5000]] as const;
+/** A friend tries this many random spots in turn, until one has a path or road near it inside their ring. */
+export const TRIES = 3;
 /** The near friend stands this far from you instead, wherever you are, and stays there. */
 export const NEAR_M = [5, 10] as const;
 
@@ -43,14 +46,32 @@ export const nearSpot = (you: LatLng): LatLng =>
 /** The home and office you set, kept on this phone only (App.tsx). */
 export type Places = { home?: LatLng; office?: LatLng };
 
+/** The points you can walk to that the map page found near a spot, nearest first; undefined until it has looked. */
+export type Walkable = (spot: LatLng) => readonly LatLng[] | undefined;
+
+/**
+ * Where a ring friend stands: the first point `walkable` found near their random spot that is still in their ring,
+ * trying TRIES spots in turn. Until the map has looked, or if none of them has one, it's their first spot.
+ */
+function stand(at: LatLng, ring: readonly [number, number], key: string, walkable: Walkable): LatLng {
+  for (let k = 0; k < TRIES; k++) {
+    const near = walkable(spotIn(at, ring, k ? `${key}#${k}` : key));
+    if (!near) break;
+    const fit = near.find((p) => { const d = distanceM(at, p); return d >= ring[0] && d <= ring[1]; });
+    if (fit) return fit;
+  }
+  return spotIn(at, ring, key);
+}
+
 /**
  * Everyone, where they stand this hour: the first home friend at `near` (a nearSpot from your first good GPS reading),
  * the other home friends in RINGS round your home and the office friends round your office, once those are set.
+ * `walkable` is called with every random spot the ring friends want to know about.
  */
-export function placeFriends({ home, office }: Places, near: LatLng | null, hour: number): Friend[] {
+export function placeFriends({ home, office }: Places, near: LatLng | null, hour: number, walkable: Walkable = () => undefined): Friend[] {
   // The place is in the key as well as the hour, so nobody can work out a home from a friend's spot and the time.
   const around = (at: LatLng | undefined, cast: Cast[], place: string): Friend[] =>
-    at ? cast.map((f, i) => ({ ...f, place, ...spotIn(at, RINGS[i], `${f.id}@${hour}@${at.lat},${at.lng}`) })) : [];
+    at ? cast.map((f, i) => ({ ...f, place, ...stand(at, RINGS[i], `${f.id}@${hour}@${at.lat},${at.lng}`, walkable) })) : [];
   const [first, ...rest] = HOME_CAST;
   return [
     ...(near ? [{ ...first, place: 'a few steps from you', ...near }] : []),

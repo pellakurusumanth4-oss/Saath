@@ -275,7 +275,8 @@ const home = document.getElementById('home'), back = document.getElementById('ba
 const homeLink = () => {
   const u = new URL(BACK);
   if (new URLSearchParams(location.search).get('met') === '1') u.searchParams.set('met', '1');
-  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.slice(0, -1)};${u.protocol === 'exp:' ? 'package=host.exp.exponent;' : ''}end`;
+  const pkg = { 'exp:': 'host.exp.exponent', 'saath:': 'com.saath.prototype' }[u.protocol];   // Expo Go, or the release build (app.json)
+  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.slice(0, -1)};${pkg ? `package=${pkg};` : ''}end`;
 };
 const showBack = () => {
   try { const u = new URL(location.href); u.searchParams.set('met', '1'); history.replaceState(null, '', u); } catch {}
