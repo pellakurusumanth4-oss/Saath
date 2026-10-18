@@ -15,8 +15,29 @@ const FRIENDS = {
   goku: "You are Goku, a cheerful Saiyan warrior standing at the Parvati Hill steps in Pune. You love food and training, and you're always hoping to find a strong opponent for a friendly spar. Stay in character and keep every reply family-friendly. Reply in plain spoken text only: no markdown, no asterisks, no *actions*, no bold, no emojis. 1–3 short sentences.",
 };
 
+const FRIEND_IDS = Object.keys(FRIENDS);
+
 const MAX_MESSAGES = 12;
 const MAX_CONTENT = 500;
+const GROUP_MAX_MESSAGES = 16;
+const GROUP_MAX_CONTENT = 300;
+
+const GROUP_SYSTEM = `You are running a group hangout with four characters and a visitor in Pune, India. The characters are:
+
+- doraemon: ${FRIENDS.doraemon}
+- nobita: ${FRIENDS.nobita}
+- shinchan: ${FRIENDS.shinchan}
+- goku: ${FRIENDS.goku}
+
+The visitor's lines are tagged speaker "user". Each character's lines are tagged with their own id.
+
+Rules:
+- Respond as exactly ONE character per turn. Begin your reply with the speaker id followed by a colon, then the line.
+- If an addressee is given, that character must speak.
+- If no addressee is given, pick whichever character fits best, but never the same character who spoke last.
+- Keep the reply to 1–2 short sentences, plain text, no markdown, no asterisks, no *actions*, no bold, no emojis.
+- Stay in character and keep everything family-friendly.
+- Format: <speaker_id>: <line>`;
 
 import { createHash } from "node:crypto";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -43,7 +64,7 @@ async function checkRateLimit(req: Request): Promise<Response | null> {
     .from("talk_requests")
     .select("id", { count: "exact", head: true })
     .eq("ip", ip)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60_000).toISOString());
+    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
   if (minuteError || dayError) return null; // Fail open rather than block chat.
 
@@ -60,6 +81,25 @@ async function checkRateLimit(req: Request): Promise<Response | null> {
   if (insertError) return null;
 
   return null;
+}
+
+function stripFormatting(text: string): string {
+  return text.replace(/[*_]/g, "").trim();
+}
+
+/** Parse "<speaker_id>: <line>" from the model output. Falls back to addressee or first friend. */
+function parseGroupReply(raw: string, addressee: string | null, lastSpeaker: string | null): { speaker: string; reply: string } | null {
+  const match = raw.match(/^\s*(doraemon|nobita|shinchan|goku)\s*[:\-]\s*(.+)$/is);
+  if (match) {
+    const speaker = match[1].toLowerCase();
+    const reply = stripFormatting(match[2]);
+    if (reply) return { speaker, reply };
+  }
+  // No parseable speaker tag — try the addressee, else a friend that isn't the last speaker.
+  const fallback = addressee ?? FRIEND_IDS.find((id) => id !== lastSpeaker) ?? FRIEND_IDS[0];
+  const reply = stripFormatting(raw);
+  if (!reply) return null;
+  return { speaker: fallback, reply };
 }
 
 Deno.serve(async (req: Request) => {
@@ -84,6 +124,106 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => null);
+    const mode = body?.mode ?? "single";
+
+    // ---- Group mode ----
+    if (mode === "group") {
+      const messages = body?.messages;
+      const addressee = body?.addressee;
+
+      if (
+        !Array.isArray(messages) ||
+        messages.length === 0 ||
+        messages.length > GROUP_MAX_MESSAGES ||
+        messages.some(
+          (m: any) =>
+            !m ||
+            typeof m.speaker !== "string" ||
+            (m.speaker !== "user" && !FRIEND_IDS.includes(m.speaker)) ||
+            typeof m.text !== "string" ||
+            m.text.length === 0 ||
+            m.text.length > GROUP_MAX_CONTENT,
+        )
+      ) {
+        return new Response(JSON.stringify({ error: "Invalid messages" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (addressee !== undefined && addressee !== null && !FRIEND_IDS.includes(addressee)) {
+        return new Response(JSON.stringify({ error: "Unknown addressee" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const limited = await checkRateLimit(req);
+      if (limited) return limited;
+
+      const lastSpeaker = messages.filter((m: any) => m.speaker !== "user").slice(-1)[0]?.speaker ?? null;
+
+      const conversation = messages.map((m: any) => {
+        if (m.speaker === "user") return { role: "user", content: m.text };
+        return { role: "assistant", content: `${m.speaker}: ${m.text}` };
+      });
+
+      const userPrompt = addressee
+        ? `The visitor is talking to ${addressee}. ${addressee} should reply.`
+        : `Continue the conversation. Pick whoever fits best, but not ${lastSpeaker ?? "anyone in particular"}.`;
+
+      conversation.push({ role: "user", content: userPrompt });
+
+      const anthropic = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-5-5",
+          max_tokens: 200,
+          system: GROUP_SYSTEM,
+          messages: conversation,
+        }),
+      });
+
+      if (!anthropic.ok) {
+        return new Response(JSON.stringify({ error: "The friend didn't answer" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await anthropic.json();
+      const raw = data?.content
+        ?.filter((block: any) => block?.type === "text")
+        .map((block: any) => block.text)
+        .join("\n")
+        .trim();
+
+      if (!raw) {
+        return new Response(JSON.stringify({ error: "The friend didn't answer" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const parsed = parseGroupReply(raw, addressee, lastSpeaker);
+      if (!parsed) {
+        return new Response(JSON.stringify({ error: "The friend didn't answer" }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ speaker: parsed.speaker, reply: parsed.reply }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ---- Single-friend mode (existing) ----
     const friendId = body?.friendId;
     const messages = body?.messages;
 
