@@ -1,6 +1,6 @@
 // The AR talk function (supabase/functions/ar) runs web/talk's own server code. Bolt deploys only what is inside the
 // function's folder, so these files are copies: run this after changing web/talk, or with --check to see they match.
-// The only change is the Anthropic SDK import, which Deno takes as an npm: specifier.
+// The only changes: the Anthropic SDK import (Deno takes it as an npm: specifier) and the key names (below).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -10,7 +10,10 @@ const files = {
   'reply.mjs': (s) => s,
   'prompts.mjs': (s) => s,
   'voices.json': (s) => s,
-  'server.mjs': (s) => s.replace("from '@anthropic-ai/sdk';", `from 'npm:@anthropic-ai/sdk@${sdk}';`),
+  // Supabase can't set env vars, so the laptop's key names also fall back to the names the Bolt secrets have.
+  'server.mjs': (s) => s.replace("from '@anthropic-ai/sdk';", `from 'npm:@anthropic-ai/sdk@${sdk}';`)
+    .replaceAll('process.env.CLAUDE_API_KEY', '(process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)')
+    .replaceAll('process.env.ELEVEN_LABS_API_KEY', '(process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY)'),
 };
 const check = process.argv.includes('--check');
 let stale = 0;

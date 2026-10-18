@@ -9,10 +9,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { ACTIONS, checkInput } from "./reply.mjs";
 import { hear, talk, warm } from "./server.mjs";
 
-// server.mjs reads the laptop's key names from process.env.
+// server.mjs reads its keys from process.env (only reading: Supabase can't set env vars at run time).
 (globalThis as { process?: unknown }).process ??= process;
-process.env.CLAUDE_API_KEY ||= Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY") || "";
-process.env.ELEVEN_LABS_API_KEY ||= Deno.env.get("ELEVEN_LABS_API_KEY") || Deno.env.get("ELEVENLABS_API_KEY") || "";
 
 const ORIGINS = new Set(["https://pellakurusumanth4-os-39c4.bolt.host"]);
 // Shared with the website's talk function (same table): a question is two or three calls (warm, hear, talk).

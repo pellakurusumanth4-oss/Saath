@@ -22,7 +22,7 @@ const prompt = (friend) => ({
 // Warming up while the child is still talking (on a mic press): opens both connections and refreshes the cached
 // prompt, so the reply that follows starts sooner. Never throws.
 export async function warm(friend) {
-  const claude = process.env.CLAUDE_API_KEY, voice = process.env.ELEVEN_LABS_API_KEY;
+  const claude = (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY), voice = (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY);
   if (!claude || !voice || !PERSONAS[friend]) return;
   await Promise.allSettled([
     new Anthropic({ apiKey: claude, maxRetries: 0, timeout: 10_000 }).messages.create({ ...prompt(friend), max_tokens: 0, messages: [{ role: 'user', content: 'hi' }] }),
@@ -57,7 +57,7 @@ async function speak({ key, voice, text, previous, s, send, signal }) {
 // What a child said, from a recording: ElevenLabs Scribe writes it down in English, without "(laughter)" tags.
 // audio: the recording's bytes; type: its media type (audio/webm …). -> { text } or { error } to show.
 export async function hear(audio, type, signal) {
-  const key = process.env.ELEVEN_LABS_API_KEY;
+  const key = (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY);
   if (!key) return { error: 'Talking isn’t set up on the laptop yet.' };
   const form = new FormData(), t0 = performance.now();
   for (const [k, v] of Object.entries({ model_id: 'scribe_v2', language_code: 'en', tag_audio_events: 'false' })) form.append(k, v);
@@ -76,7 +76,7 @@ export async function hear(audio, type, signal) {
 
 // input: already checked by checkInput (web/talk/reply.mjs). send(obj) writes one line; signal ends it all early.
 export async function talk({ friend, text, history }, send, signal) {
-  const key = { claude: process.env.CLAUDE_API_KEY, voice: process.env.ELEVEN_LABS_API_KEY }, voice = VOICES[friend];
+  const key = { claude: (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY), voice: (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY) }, voice = VOICES[friend];
   if (!key.claude || !key.voice || !voice) return send({ type: 'error', message: 'Talking isn’t set up on the laptop yet.' });
   const t0 = performance.now(), ms = () => Math.round(performance.now() - t0), times = {};
   const ac = new AbortController(), stop = () => ac.abort();
