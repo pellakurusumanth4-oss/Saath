@@ -3,7 +3,7 @@ import { FRIENDS, type Friend, type Character } from '../../src/friends';
 import { askGroup, RateLimitError, type GroupMessage, type GroupSpeaker } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
-import { kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
+import { elevenAvailable, kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
 import { useSaathRig } from './useSaathRig';
 
 type HangoutMessage = GroupMessage & { id: number };
@@ -96,7 +96,7 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
   // Preload Kokoro when the hangout opens.
   useEffect(() => {
     if (kokoroUnavailable()) return;
-    loadKokoro().catch(() => {});
+    void elevenAvailable().then((eleven) => { if (!eleven) loadKokoro().catch(() => {}); });
   }, []);
 
   // Cleanup on close.

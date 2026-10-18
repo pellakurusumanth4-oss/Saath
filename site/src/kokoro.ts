@@ -1,4 +1,5 @@
 import { VOICES, pickEnglishVoice } from './voices';
+import { SUPABASE_ANON_KEY, TALK_URL } from './talk';
 
 /**
  * Lazy-loaded Kokoro TTS, shared across every chat.
@@ -210,6 +211,10 @@ async function speakWithKokoro(
  * speechSynthesis if Kokoro is unavailable or a generation times out.
  */
 export async function speakReply(friendId: string, text: string): Promise<SpeakHandle> {
+  if (await elevenAvailable()) {
+    const eleven = await speakWithEleven(friendId, text);
+    if (eleven) return eleven;
+  }
   const settings = VOICES[friendId]?.kokoro;
 
   if (!settings || kokoroUnavailable()) {
@@ -226,6 +231,54 @@ export async function speakReply(friendId: string, text: string): Promise<SpeakH
     speakFallback(friendId, text);
     return { cancel: () => window.speechSynthesis?.cancel(), done: synthDone() };
   }
+}
+
+let elevenStatus: Promise<boolean> | null = null;
+
+/** True when the talk function has an ElevenLabs key (asked once per page load). */
+export function elevenAvailable(): Promise<boolean> {
+  elevenStatus ??= fetch(TALK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ mode: 'voice-status' }),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d: unknown) => typeof d === 'object' && d !== null && (d as { eleven?: unknown }).eleven === true)
+    .catch(() => false);
+  return elevenStatus;
+}
+
+/** Audio already fetched for a line, so ▶ replay doesn't pay for the same speech twice. */
+const elevenClips = new Map<string, string>();
+
+/** Speak with the friend's ElevenLabs voice. Resolves null on any failure so callers can fall back. */
+async function speakWithEleven(friendId: string, text: string): Promise<SpeakHandle | null> {
+  const key = `${friendId}:${text}`;
+  let url = elevenClips.get(key);
+  if (!url) {
+    try {
+      const response = await fetch(TALK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ mode: 'speak', friendId, text }),
+      });
+      if (!response.ok) {
+        console.warn('ElevenLabs voice unavailable', response.status, await response.text().catch(() => ''));
+        return null;
+      }
+      url = URL.createObjectURL(await response.blob());
+      elevenClips.set(key, url);
+    } catch {
+      return null;
+    }
+  }
+  const audio = new Audio(url);
+  let finish!: () => void;
+  const done = new Promise<void>((resolve) => { finish = resolve; });
+  audio.addEventListener('ended', () => finish(), { once: true });
+  audio.addEventListener('error', () => finish(), { once: true });
+  audio.play().catch(() => finish()); // autoplay blocked: don't leave the hangout waiting forever
+  return { cancel: () => { audio.pause(); finish(); }, done };
 }
 
 /** Stop any speech playback in flight. */
