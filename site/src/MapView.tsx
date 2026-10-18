@@ -62,6 +62,7 @@ export default function MapView({ me, shops, focus, focusKey, settingSpot, onSet
   const [ready, setReady] = useState(false);
   const pickShop = useRef(onPickShop);
   pickShop.current = onPickShop;
+  const fitted = useRef(false);
 
   // Create the map once.
   useEffect(() => {
@@ -119,8 +120,32 @@ export default function MapView({ me, shops, focus, focusKey, settingSpot, onSet
       element.setAttribute('aria-label', `${shop.name}, ${sectionOf(shop).label}`); // addTo() sets a generic "Map marker"
       return marker;
     });
+    // The first time the shops arrive, frame them all (clear of the list: a side panel, or a bottom sheet on phones).
+    if (!fitted.current && shops.length) {
+      fitted.current = true;
+      const bounds = new maplibregl.LngLatBounds();
+      for (const shop of shops) bounds.extend([shop.lng, shop.lat]);
+      const phone = window.innerWidth <= 720;
+      map.fitBounds(bounds, {
+        padding: phone ? { top: 170, bottom: window.innerHeight * 0.5, left: 30, right: 30 } : { top: 90, bottom: 60, left: 190, right: 390 },
+        maxZoom: 15,
+        duration: 0,
+      });
+    }
     return () => markers.forEach((marker) => marker.remove());
   }, [ready, shops]);
+
+  // Names only once they can be read without piling up.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => map.getContainer().classList.toggle('is-far', map.getZoom() < 15);
+    update();
+    map.on('zoom', update);
+    return () => {
+      map.off('zoom', update);
+    };
+  }, [ready]);
 
   // Keep the blue "you" dot in step with my location.
   useEffect(() => {

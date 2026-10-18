@@ -1037,6 +1037,10 @@ body {
   border-radius: 999px;
 }
 
+.map.is-far .shop-marker-name {
+  display: none;
+}
+
 .shop-marker.is-closed .shop-marker-face {
   filter: grayscale(1);
   animation: none;
