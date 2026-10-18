@@ -235,7 +235,7 @@ body {
 .friends-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 12px 12px 64px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -312,9 +312,6 @@ body {
 }
 
 .card-tag {
-  position: absolute;
-  right: 10px;
-  top: 12px;
   font: inherit;
   font-size: 13px;
   font-weight: 800;
@@ -363,9 +360,6 @@ body {
 }
 
 .card-watch {
-  position: absolute;
-  right: 10px;
-  top: 48px;
   font: inherit;
   font-size: 12.5px;
   font-weight: 800;
@@ -378,8 +372,12 @@ body {
   cursor: pointer;
 }
 
-.card-watch.card-talk {
-  right: 76px;
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 10px;
+  align-items: center;
 }
 
 .card-watch:disabled {
@@ -412,7 +410,7 @@ body {
 /* ---------- Watch panel ---------- */
 
 .watch {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 30;
   display: flex;
@@ -421,13 +419,19 @@ body {
   justify-content: center;
   gap: 12px;
   background: var(--paper);
-  padding: 16px;
+  padding: 16px 16px 64px;
+}
+
+.watch-top {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .watch-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  position: static;
+  flex: none;
   font: inherit;
   font-size: 16px;
   font-weight: 800;
@@ -456,8 +460,9 @@ body {
 
 .watch-stage {
   position: relative;
-  width: 300px;
-  height: 450px;
+  width: min(440px, 100%);
+  min-height: 440px;
+  height: 60vh;
   border: var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
@@ -707,6 +712,7 @@ body {
   gap: 8px;
   width: 100%;
   max-width: 420px;
+  padding-bottom: 64px;
 }
 
 .talk-input {

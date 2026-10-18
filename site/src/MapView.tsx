@@ -11,7 +11,8 @@ const PUNE: [number, number] = [73.8567, 18.5204];
 
 const friendFeatures = (
   tagged: string[],
-): FeatureCollection<Point, { id: string; color: string; tagged: boolean }> => ({
+  selected: string | null,
+): FeatureCollection<Point, { id: string; color: string; tagged: boolean; sortKey: number }> => ({
   type: 'FeatureCollection',
   features: FRIENDS.map((friend) => ({
     type: 'Feature' as const,
@@ -20,6 +21,7 @@ const friendFeatures = (
       id: friend.id,
       color: friend.color,
       tagged: tagged.includes(friend.id),
+      sortKey: selected === friend.id ? 2 : tagged.includes(friend.id) ? 1 : 0,
     },
   })),
 });
@@ -31,9 +33,10 @@ const youFeature = (me: LatLng | null): FeatureCollection<Point> => ({
     : [],
 });
 
-export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSetSpot, onPickFriend }: {
+export default function MapView({ me, tagged, selected, focus, focusKey, settingSpot, onSetSpot, onPickFriend }: {
   me: LatLng | null;
   tagged: string[];
+  selected: string | null;
   focus: LatLng | null;
   /** Changes whenever focus is set again, even to the same spot, so the camera re-flies. */
   focusKey: string;
@@ -73,7 +76,7 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
     const map = mapRef.current;
     if (!map) return;
 
-    map.addSource('saath-friends', { type: 'geojson', data: friendFeatures(tagged) });
+    map.addSource('saath-friends', { type: 'geojson', data: friendFeatures(tagged, selected) });
     map.addSource('saath-you', { type: 'geojson', data: youFeature(me) });
 
     let cancelled = false;
@@ -89,8 +92,7 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
       map.addLayer({
         id: 'friend-ring', type: 'circle', source: 'saath-friends',
         paint: {
-          // ~4px bigger than the face icon (192px image @ pixelRatio 2 = 48px radius at size 1)
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 24, 14, 34, 17, 47],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 14, 12, 20, 14, 34, 17, 47],
           'circle-color': ['case', ['get', 'tagged'], '#FFC83D', ['get', 'color']],
           'circle-stroke-color': '#111318', 'circle-stroke-width': 2.5,
         },
@@ -99,15 +101,19 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
         id: 'friend-face', type: 'symbol', source: 'saath-friends',
         layout: {
           'icon-image': ['get', 'id'],
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.42, 14, 0.62, 17, 0.9],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.30, 12, 0.42, 14, 0.62, 17, 0.9],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
+          'symbol-sort-key': ['get', 'sortKey'],
         },
       });
       // A bigger, invisible circle so taps on a phone land on the pin.
       map.addLayer({
         id: 'friend-hit', type: 'circle', source: 'saath-friends',
-        paint: { 'circle-radius': 34, 'circle-color': 'transparent' },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 18, 14, 34, 17, 34],
+          'circle-color': 'transparent',
+        },
       });
       map.on('click', 'friend-hit', (event) => {
         const feature = event.features?.[0];
@@ -115,22 +121,22 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
       });
       map.on('mouseenter', 'friend-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', 'friend-hit', () => { map.getCanvas().style.cursor = ''; });
-    });
 
-    // "You" — a blue dot with a soft halo.
-    map.addLayer({
-      id: 'you-halo', type: 'circle', source: 'saath-you',
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 14, 16, 26],
-        'circle-color': '#2E7CF6', 'circle-opacity': 0.25,
-      },
-    });
-    map.addLayer({
-      id: 'you', type: 'circle', source: 'saath-you',
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 7, 16, 11],
-        'circle-color': '#2E7CF6', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2.5,
-      },
+      // "You" — a blue dot with a soft halo, drawn after friend pins so it stays on top.
+      map.addLayer({
+        id: 'you-halo', type: 'circle', source: 'saath-you',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 14, 16, 26],
+          'circle-color': '#2E7CF6', 'circle-opacity': 0.25,
+        },
+      });
+      map.addLayer({
+        id: 'you', type: 'circle', source: 'saath-you',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 7, 16, 11],
+          'circle-color': '#2E7CF6', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2.5,
+        },
+      });
     });
 
     return () => { cancelled = true; };
@@ -141,8 +147,8 @@ export default function MapView({ me, tagged, focus, focusKey, settingSpot, onSe
   // Keep friend pins (and their gold rings) in step with tags.
   useEffect(() => {
     const source = mapRef.current?.getSource('saath-friends') as maplibregl.GeoJSONSource | undefined;
-    source?.setData(friendFeatures(tagged));
-  }, [ready, tagged]);
+    source?.setData(friendFeatures(tagged, selected));
+  }, [ready, tagged, selected]);
 
   // Keep the blue "you" dot in step with my location.
   useEffect(() => {

@@ -71,6 +71,7 @@ export default function App() {
         <MapView
           me={me}
           tagged={tagged}
+          selected={selected}
           focus={focus?.spot ?? null}
           focusKey={focus?.key ?? ''}
           settingSpot={settingSpot}

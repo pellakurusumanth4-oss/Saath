@@ -68,9 +68,11 @@ export default function WatchPanel({ friend, firstOpen, onClose, waveKey }: { fr
 
   return (
     <div className="watch" role="dialog" aria-label={`Watching ${friend.name}`}>
-      <button className="watch-close" onClick={onClose} aria-label={`Stop watching ${friend.name}`}>
-        ✕
-      </button>
+      <div className="watch-top">
+        <button className="watch-close" onClick={onClose} aria-label={`Stop watching ${friend.name}`}>
+          ✕
+        </button>
+      </div>
       <div className="watch-stage">
         <iframe
           ref={frame}

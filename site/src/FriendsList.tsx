@@ -107,35 +107,37 @@ export default function FriendsList({ friends, me, tagged, selected, expanded, o
                 </div>
               </button>
 
-              {isTagged ? (
-                <div className="card-tag done" aria-label={`${friend.name} tagged`}>
-                  <span className="card-tag-mark">✓</span> Tagged
-                </div>
-              ) : (
+              <div className="card-actions">
+                {isTagged ? (
+                  <div className="card-tag done" aria-label={`${friend.name} tagged`}>
+                    <span className="card-tag-mark">✓</span> Tagged
+                  </div>
+                ) : (
+                  <button
+                    className="card-tag"
+                    disabled={!isNearby}
+                    onClick={() => onTag(friend.id)}
+                    title={isNearby ? `Tag ${friend.name}` : 'Walk closer to tag'}
+                  >
+                    Tag
+                  </button>
+                )}
                 <button
-                  className="card-tag"
-                  disabled={!isNearby}
-                  onClick={() => onTag(friend.id)}
-                  title={isNearby ? `Tag ${friend.name}` : 'Walk closer to tag'}
+                  className="card-watch"
+                  onClick={() => openWatch(friend.id)}
+                  title={`Watch ${friend.name}`}
                 >
-                  Tag
+                  Watch
                 </button>
-              )}
-              <button
-                className="card-watch"
-                onClick={() => openWatch(friend.id)}
-                title={`Watch ${friend.name}`}
-              >
-                Watch
-              </button>
-              <button
-                className="card-watch card-talk"
-                disabled={!isNearby && !isTagged}
-                onClick={() => setTalking(friend.id)}
-                title={!isNearby && !isTagged ? `Get closer to talk with ${friend.name}` : `Talk with ${friend.name}`}
-              >
-                Talk
-              </button>
+                <button
+                  className="card-watch card-talk"
+                  disabled={!isNearby && !isTagged}
+                  onClick={() => setTalking(friend.id)}
+                  title={!isNearby && !isTagged ? `Get closer to talk with ${friend.name}` : `Talk with ${friend.name}`}
+                >
+                  Talk
+                </button>
+              </div>
               {!isTagged && !isNearby && distance !== null && (
                 <p className="card-hint">Walk closer to tag · {formatDistance(distance)} away</p>
               )}
