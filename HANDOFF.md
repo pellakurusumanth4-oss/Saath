@@ -23,7 +23,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
 
 ## 2. What the user wants
 
-- **Saath** is the user's Bolt Builders Week entry, due **Wed 21 Oct 2026, 12:29 PM IST**. It is an AR app: Doraemon, Nobita, Shin-chan and Goku each stand at one fixed public Pune spot (Tom and Jerry are left out until their rigs are built and approved). Friends never move. The real entry gets built in Bolt later. This Expo prototype is a throwaway spike for testing ideas on the phone.
+- **Saath** is the user's Bolt Builders Week entry, due **Wed 21 Oct 2026, 12:29 PM IST**. It is an AR app: the friends stand around each user's own home and office, which the user sets on the phone, anywhere in the world, and move every hour (section 4, "World-wide friends"). The website still shows the four anime friends at fixed public spots. Tom and Jerry are left out until their rigs are built and approved. The real entry gets built in Bolt later. This Expo prototype is a throwaway spike for testing ideas on the phone.
 - The user disliked the previous candy map ("looks cartoonish… comedy"). They want a premium, Zootopia-like look, designed in Figma first. **The Figma design ("Golden Hour Pune") is done.**
 - The current goal is to **finish building that look into the map**: style, route guide, friend figures, page tweaks. Verify it headless. Then tell the user it is ready to view on the phone. Their words: "you first build designs in figma later we see in mobile" and "complete map things".
 
@@ -165,7 +165,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
   - The user chose to combine them.
 - **Now:** at a friend's spot, CameraScreen shows "Meet {name} in AR". It opens `web/ar/` in **Chrome**, using `expo-intent-launcher` with package `com.android.chrome`, because the phone's default browser is Brave.
   - The URL is `?friend=<rig>&name=&tall=<m>&return=<app>/--/ar-done?friend=<id>`.
-  - On the page:
+  - On the page (as it was until the evening of 18 Oct; **now you aim a ring and tap**, see "Placement by tap" below):
     - ARCore's detected floor is used: the lowest plane facing up, then hit tests, then a `local-floor` guess.
     - The friend comes out **by himself** about 2.5 m ahead, or about 2 m on the flat floor when the mapped floor doesn't reach that far (small rooms). This happens 1 s after the phone looks ahead.
     - The view greys under 1 m.
@@ -234,6 +234,20 @@ Read this first. It covers where everything lives, what the user wants, what is 
       - Shin-chan: `-90 -130 580 670`
       - Goku: `-700 -2440 2940 2590`, so his Kamehameha beam, Instant Transmission and Yosha! jump no longer get cut off.
 
+### Placement by tap, and no words on screen (18 Oct, evening)
+- **Why:** the evening phone test (recording in `~/.cache/saath-recordings/trip-1.mp4`, kept out of the repo) took 1 min 43 s from Start AR to Nobita: 36 s of black camera at the first start (the second start, after a reload, showed the camera in 1 s), then about 55 s of "Point your phone at the floor by your feet" across two attempts without the floor ever being set, 8 s of "look around", then he came out and held his spot; talking worked (ask at 2:12, reply with lip-sync at 2:18). The user then asked: "when we go to the browser, ask the user to set the location point on the floor", "remove the character's cloud on top, don't want subtitles, just audio".
+- **Now (`web/ar/index.html`):**
+  - The intro says: "Point your phone at the floor a few steps away, then tap the gold ring: NAME comes to it".
+  - A gold ring sits where the middle of the screen meets a surface facing up (the nearest WebXR hit-test result, normal `m[5] > 0.9`), only when it is 1.2–5 m from the camera; it lingers 0.3 s after the last good hit so a tap while holding still can't miss. Tips: "Point your phone at the floor a few steps away and move it slowly" (no up-facing hit), "Too close: point at the floor a bit further away", "Too far: point at the floor a bit closer", "Tap to bring NAME to the ring".
+  - A tap (WebXR `select`; taps on the mic and Back don't count) calls him to the ring and anchors him there. The anchor glide and map re-fix handling after placement are unchanged; while tracking is lost the ring hides and a tap does nothing.
+  - Plane detection and `local-floor` are no longer requested (reference space `local`), so Chrome no longer hands over every plane outline each frame. Only `hit-test` is required; `anchors`, `light-estimation`, `dom-overlay` optional.
+  - **Gone:** the floor-by-your-feet stage, the automatic spot (`pickSpot`), the 1 s hold, the guessed floor, and the speech cloud (hello, thinking dots, sentences). While the reply is fetched the hint under the mic says "NAME is thinking…"; otherwise "Hold to talk" / "Listening… let go to send" / an error. You only hear him. `web/talk/cloud.js` stays only for the talk test page (`web/talk/index.html`).
+  - `window.state()` now has `ringAt` and no cloud fields.
+  - The previous page is backed up at `~/.cache/saath-backups/index.before-tap.html`.
+- **The simulator (`tools/ar-sim/`) follows the new flow:** the scripted user aims at the floor a few steps ahead, nearer or further when told, and taps once the ring is on the floor (never on a bed or desk top); `follow` takes an optional `yaw`. Checks: ring within N s (`ringWithin`), ring only ever 1.2–5 m away, out at the tap where the ring was, on the floor, never on furniture, stays put, glides, re-fix, too close, clip feet, "he thinks then speaks" with nothing written on screen but the thinking hint, frame p95, no errors. `node tools/ar-sim/run.mjs all` (18 Oct, 19:50): 163 checks pass. `good-room`: ring at 3.5 s, tap at 4.0 s, out 2.5 m away, stays put (worst 1.1 cm); walk-closer, tracking-loss, anchor-jump and talk pass; all 7 friends come out at the tap, think ("NAME is thinking…" under the mic), speak with their mouths moving and nothing written on screen. In the simulated dim room the ring takes about 32 s (the sim maps floor 2.5 m ahead slowly; `ringWithin` is 35/40 s there). The only failing check predates this change: the funny spot-leaving clips (Nobita's Splat!, Lazy lawn, Dog!; Doraemon's Nezumi!, Anywhere Door; Goku's Instant Transmission) move the feet off the spot or hide him by design, and only play on a talk cue.
+- **Phone test (S24, 18 Oct, 19:56; recording `~/.cache/saath-recordings/test-2/trip-1.mp4`, out of the repo):** the map showed the near test Nobita at once ("3 m, a few steps from you", Arrived); "Meet Nobita in AR" → Chrome → Start AR; the ring showed about 5 s later, "Too close" for a moment as the user aimed nearer than 1.2 m, then the tap: **Nobita out about 11 s after Start AR** (1 min 43 s in the earlier automatic flow), and he held his spot for the next 90 s while the user walked round him. Talking: one "Didn't catch that" on a short hold, then questions answered with "Nobita is thinking…" under the mic and no words on screen. The camera card's line still described the old flow ("finds the floor…"), fixed in `src/CameraScreen.tsx`. Chrome's "to exit full screen" banner covered the tip for the first ~6 s of AR (the ring was there, "Tap to bring…" wasn't readable): the tip now sits 96 px up instead of 36 px; not re-tested on the phone.
+- When testing: Metro must be running (`npx expo start --localhost --port 8081`), `node web/serve.mjs` on 8099, and `adb reverse` for both ports.
+
 ### Talking friends (17-18 Oct; the core feature)
 - **Where the decisions are:**
   - Research: `notes/talking-characters.md`.
@@ -258,6 +272,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
   - Your words are never shown. The hint under the mic says "Hold to talk" or "Listening… let go to send", or what went wrong.
   - In AR, the cloud replaced the old "Hi! I'm NAME!" bubble. It's a 1.2 x 0.75 m card above his head, redrawn only when it changes. The "is here! Walk around him." tip now goes with his hello; "too close" still shows.
   - `talk.js` gained `cloud()`. Each audio line now carries `text`, the sentence as written, because the voice's timings spell numbers out.
+  - **Since the evening of 18 Oct the AR page shows no cloud at all** (the user: "don't want subtitles, just audio"); see "Placement by tap, and no words on screen". The cloud lives on only in the talk test page.
 - **The TV friends (18 Oct, night; the parent session asked while the user slept):** `michael`, `dwight` and `holt` now talk on the server side. Details are in `notes/talking-personas.md` and `notes/talking-voices.md`.
   - Personas faithful to the shows and friendly, with clean humour.
   - Stand-in stock voices: Chris, Adam and Brian.
@@ -306,7 +321,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
   - Start took two taps. The mic is now asked for as the page opens.
 - **Files:**
   - `web/talk/`: `talk.js` (browser engine), `mouth.mjs` (lip flap), `cloud.js` (the cloud over his head), `server.mjs` (`talk()`, `warm()` and `hear()`), `reply.mjs` (tag, sentences, safety), `prompts.mjs` (rules and personas), `voices.json`, `smoke.mjs` (real replies on the laptop), plus the `*.test.mjs` files.
-  - `web/ar/index.html`: the mic, the cloud card, the per-frame face, mic permission asked before AR.
+  - `web/ar/index.html`: the mic, the per-frame face, mic permission asked before AR (the cloud card was removed on 18 Oct, evening).
   - `scripts/rig-ar.js`: `saath.face` / `act` / `now`, over any clip.
   - `scripts/build-rigs.mjs`: each rig's `talk` tables, existing parts only.
   - `scripts/voices.mjs`: Voice Design. Paid plans only through the API.
@@ -315,6 +330,7 @@ Read this first. It covers where everything lives, what the user wants, what is 
   - `node --test "web/talk/*.test.mjs"`: 41, using fake APIs, no credits.
   - `~/.cache/saath-recovery/harness/talk/`: `rig-hook-test.mjs`, `ar-talk-test.mjs`, `talk-page-test.mjs` (CDP on 9333; they check the cloud's dots, sentences and place, and that your words never show), `hear-test.mjs` (listening on through a pause; recording in Brave or without a speech service); `face-sheet.mjs` and `talk-video.mjs` make pictures and a video for the user.
   - The AR regressions now live in `harness/ar/` (`web-preview-test.mjs`, `web-ar-mock-test.mjs 9333`, the latter with a first-visit mic check). All pass (18 Oct, after the clean screen).
+    - Rewritten for the tap flow on 18 Oct, evening (`node <test> <cdp port>`; the old versions are beside them as `*.bak-tap`): preview 9 checks (ring on the floor, never the box; the tap at 2 s puts him where the ring was; the tips in order; too close; no cloud fields), mock 28 checks (features, `local` + `viewer` spaces, no ring / too close / too far / a wall / floor 2.5 m, the ring lingering 0.3 s, select with and without a ring, Back to Saath, light, too close, the mic and the "thinking…" hint with no words, a failed reply, tracking lost and back). Both pass.
 - **Measured:**
   - From request to first audio: 1.17-1.5 s. Warming up on the mic press saves about 0.25 s.
   - The safety check (`smoke.mjs <friend> --no-voice --safety`, 40 questions) passed.
@@ -333,6 +349,46 @@ Read this first. It covers where everything lives, what the user wants, what is 
   - The TV friends: their rigs' `talk` blocks (part names from sitcom-friends), their places, and the user's verdict on the stand-in voices.
   - `--faces` now opens and closes its own tab in that Chrome. Before, it borrowed the first open tab, which other sessions' tests may be using.
   - funny-animations' new clips, once approved: add them to `talk.actions` in `build-rigs.mjs` and to `ACTIONS` in `web/talk/reply.mjs`, with matching persona action lines.
+
+### One test friend near you, no more long-press test friends (18 Oct, evening)
+- The user asked: "remove tests on the map, just put one character near to me just for testing, 4 to 10 metres".
+- **Gone:** long-press test friends (`makeTestFriend`, `savedTestFriend`, `OLD_LOOKS`, `spotAt` and the touch handlers in `mapHtml.ts`, the "Remove test friends" link, the toast). The app deletes their old saved spots (`saath.testFriends.v1`) on start. Michael, Dwight and Holt keep their data (`UNPLACED` in `friends.ts`) for when they get public places.
+- **Now:** test Nobita (`test-near`, `nearTestFriend` in `friends.ts`) stands 4–10 m from you in a random direction, placed once per run from the first raw GPS reading of ±30 m or better (`gps` from `useLocation`; the smoothed dot can lag tens of metres behind after weak GPS), and never moves. He lives only in memory and meeting him isn't saved, so each run he starts unmet.
+- Checks: tsc clean; `placement-test` part A and `tap-test` pass; part B's 3 long-press checks and `roof-test` fail by design now (section 6). Not tried on the phone yet.
+
+### World-wide friends around your home and office (18 Oct, evening)
+This replaces the test friend above. The user asked for friends anywhere in the world: each user sets a home and an office, friends get random spots in rings round them (the first 10 m, then 500 m, 2 km and 5 km), they move every hour, and the near friend stays 5 to 10 m from the user. Design and plan: `worldwide-plan.md` in the shared side-session notes folder.
+- **Your places:** the house button on the map's top row opens "Your places". Home and Office each have "Use my location" (the blue dot's position) and "Clear".
+  - Until home is set, the bottom card says "Set your home to find friends around you." with a "Set home" link.
+  - They're saved on the phone only, in AsyncStorage `saath.places.v1` as `{home?: {lat, lng}, office?: {lat, lng}}`. They're never sent anywhere or logged, and a malformed value is ignored.
+- **Who stands where** (`HOME_CAST` and `OFFICE_CAST` in `src/friends.ts`; the maths in `src/placement.ts`):
+  - Nobita, the near friend: 5–10 m from your first GPS reading of ±30 m or better, kept in memory for the run. He doesn't move hourly, and he shows with or without a home.
+  - Around home: Doraemon 10–500 m, Shin-chan 500 m–2 km, Goku 2–5 km.
+  - Around the office: Michael 10–500 m, Dwight 500 m–2 km, Holt 2–5 km.
+  - Each gets a random distance in the ring and a random direction, on the same sphere `distanceM` measures, so the rings hold at any latitude.
+- **Hourly moves:** a spot is a hash of the friend's id, the hour (`hourIndex` = now / 3600000, rounded down) and the place's coordinates.
+  - Nothing is saved: a restart within the hour shows the same spots, and on the hour everyone but Nobita moves. App.tsx checks the clock once a minute.
+  - The place is in the hash, so a friend's spot and the time can't give away where someone lives.
+- **Ids are still the character ids** (`nobita`, `doraemon`, …), so met ids, the AR hand-off (`friend=<character>`, `ar-done?friend=<id>`) and the talk server keep working. Meeting Nobita is now saved like the others, so his "?" shows only until you meet him once.
+- **Card text:** `place` is now a phrase shown as it is: "a few steps from you", "around your home" or "around your office" (the map card and the camera chip). Hints no longer name landmarks.
+- **Talk:** `web/talk/prompts.mjs` no longer puts a friend at a landmark.
+  - RULES says they're near the child, at a spot the app picked, and never to name a town, street or landmark as where they are.
+  - The place facts, landmark jokes and the landmarks' sad-history lines are gone. The checked facts are still in `notes/talking-characters.md`.
+  - The website's own prompts (`supabase/functions/talk`) and its `FRIENDS` list are unchanged.
+- **Removed:** `nearTestFriend`, `test-near`, `UNPLACED`, the `test` flag, the map's TEST tag, and the `test-` filter on saved met ids.
+- **Checks (18 Oct, about 19:55):**
+  - tsc is clean.
+  - `node --test src/placement.test.mjs`: 9/9. It covers the rings at five latitudes (including 69.5° N and the antimeridian), the 5 km bound, the same spots within an hour, new spots the next hour, the near friend at 5–10 m and staying put, each set showing only once its place is set, and no landmark words. Thirteen deliberately broken copies of the code each fail it.
+  - `node --test "web/talk/*.test.mjs"`: 55/55.
+  - The running Metro builds the Android bundle.
+  - Not tried on the phone yet.
+- **Known limits:**
+  - Plain random spots can land in water, on private ground or inside a building. A cheap fix would be to snap each spot to the nearest path with OpenStreetMap's Overpass API (one query per place per hour), or to shrink the rings. It isn't built: it needs a network call and well over 30 lines.
+  - A friend you're walking to moves on the hour, and the route follows them.
+  - Clearing the office while you navigate to an office friend switches the target to the nearest friend.
+  - Nobita doesn't follow you. Walk far and he stays where he first appeared until the next run.
+  - Places can only be set from where you stand; picking them on the map isn't built.
+  - Before the first GPS fix, the map still opens over its old default view (`mapHtml.ts`).
 
 ### Accuracy audit (17 Oct, by a subagent; scripts and outputs in `~/.cache/saath-recovery/accuracy/`)
 The distance maths is fine: haversine R 6371 km is within 0.5% of WGS-84 (0.09 m at 20 m), bearings are within 0.17°, compass maths is exact, and the card, edge pill and levels agree. NOT fixed yet (waiting on the user):
@@ -366,7 +422,7 @@ The distance maths is fine: haversine R 6371 km is within 0.5% of WGS-84 (0.09 m
   - About 103k shadow vertices; 80 trees (240 blobs); 3500 roofs; `buildToys` takes about 22 ms.
   - Shadow and haze were confirmed by pixel diffs.
   - No GL errors and no failure messages.
-- `building-3d` still uses `['get','render_height']` and `['get','render_min_height']`; the roof long-press needs them.
+- `building-3d` still uses `['get','render_height']` and `['get','render_min_height']`, un-interpolated: the roof lids (`building-roof` and decorateMap's) sit on the raw `render_height`.
 - **Tests after the rewrite (17 Oct):** `tsc` clean; placement test all passed; roof test **20/20**; tap test all passed. Full log: `~/.cache/saath-recovery/shots/v3/tests.txt`.
 - `mapNav.ts`, `mapFigures.ts` and `mapHtml.ts` are **unchanged** (still the old candy/ink look). The phone has not been updated or relaunched with any of this.
 
@@ -432,7 +488,7 @@ The distance maths is fine: haversine R 6371 km is within 0.5% of WGS-84 (0.09 m
 
 - The three modules are template strings pasted into **one ES5 IIFE** in `mapHtml.ts`.
   - Double every backslash (`'\\n'`).
-  - Don't declare top-level names that `mapHtml` already uses: `post, VECTOR, RASTER, map, styleLoaded, usingRaster, useRaster, me, accuracy, meMarker, coneMarker, centredOnce, mode, heading, shownHeading, nav, figures, EMPTY, accuracyData, refresh, setMode, focus, frame, spotAt, along, inside, crossing, press, cancelPress`.
+  - Don't declare top-level names that `mapHtml` already uses: `post, VECTOR, RASTER, map, styleLoaded, usingRaster, useRaster, me, accuracy, meMarker, coneMarker, centredOnce, mode, heading, shownHeading, nav, figures, EMPTY, accuracyData, refresh, setMode, focus, frame`.
   - `post({type:'log', msg})` reaches the app; the harness prints these as "page messages".
 - Custom layer GL state:
   - `prerender` runs in the offscreen pass. After `prerender` and `render`, MapLibre calls `context.setDirty()` and `setBaseState()`, which restore the viewport, cull face and blend equation; everything else is re-applied lazily.
@@ -475,14 +531,14 @@ Then:
 ```
 H=~/.cache/saath-recovery/harness; R=~/Documents/Hackathons/bolt-builders-week/saath-prototype
 cd $R && npx tsc --noEmit -p .
-node --no-warnings $H/mapcheck/placement-test.mjs $R 9333
-node --no-warnings $H/mapcheck/roof-test.mjs $R 9333        # must stay 20/20
+node --test src/placement.test.mjs                          # where friends stand: rings, hours, the near friend
+node --no-warnings $H/mapcheck/placement-test.mjs $R 9333   # part B's 3 long-press checks fail: the long-press is gone (18 Oct)
 node --no-warnings $H/mapcheck/tap-test.mjs $R 9333
 cd $H/mapcheck && node --no-warnings shot.mjs $R 9333 out.png --view 73.855534,18.520155,17.64,70,160 --js "$(cat scene-wada.js)" --wait 6000
 ```
 - `shot.mjs` options: `--view lng,lat,zoom,pitch,bearing`, `--js '<expr or promise>'` (the result is printed as `js →`), `--wait ms`, `--frames n --every ms`, `--dpr n`. It prints page logs and problems.
 - `scene-wada.js` sets up the public test scene: Doraemon at Shaniwar Wada as the target, Jerry unmet nearby, and a route.
-- Headless gotcha: two CDP long-presses within 30 px become a double-click, which zooms the map. The tests re-jump the view before each press.
+- `roof-test.mjs` is retired with the long-press (18 Oct): every check in it was a roof long-press, so it can only fail now.
 
 ## 7. Running on the phone (only with the user's go-ahead)
 

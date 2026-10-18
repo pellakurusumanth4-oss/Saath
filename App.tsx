@@ -8,8 +8,9 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CameraScreen } from './src/CameraScreen';
 import { MapScreen } from './src/MapScreen';
-import { FRIENDS, levelFor, makeTestFriend, savedTestFriend, type Friend, type Level, type LiveFriend } from './src/friends';
+import { levelFor, type Level, type LiveFriend } from './src/friends';
 import { bearingDeg, distanceM, type LatLng } from './src/geo';
+import { hourIndex, nearSpot, placeFriends, type Places } from './src/placement';
 import { RaiseDetector } from './src/fusion';
 import { watchOrientation } from './src/sensors';
 import { C } from './src/theme';
@@ -17,10 +18,14 @@ import { useLocation } from './src/useLocation';
 
 /** Beyond this, a friend you already met can greet you again next time you come close. */
 const REARM_M = 60;
-/** Test friends survive app restarts, so you can hide one and walk to it later. */
-const TESTS_KEY = 'saath.testFriends.v1';
 /** Who you've met survives app restarts too (Chrome's AR page can outlive the app, and a deep link cold-starts it). */
 const MET_KEY = 'saath.met.v1';
+const saveMet = (ids: ReadonlySet<string>) => AsyncStorage.setItem(MET_KEY, JSON.stringify([...ids])).catch(() => {});
+/** The home and office you set, as { home?, office? }: on this phone only, never sent anywhere. */
+const PLACES_KEY = 'saath.places.v1';
+/** A saved place, if it is one (the store can hold anything): just its lat and lng. */
+const spot = (p: any): LatLng | undefined =>
+  Number.isFinite(p?.lat) && Number.isFinite(p?.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180 ? { lat: p.lat, lng: p.lng } : undefined;
 
 /** How close the tracked friend is. Hysteresis only carries over while it's the same friend. */
 function useLevel(target: LiveFriend | null): Level {
@@ -36,12 +41,13 @@ function useLevel(target: LiveFriend | null): Level {
 
 export default function App() {
   useKeepAwake();
-  const { status, fix, retry } = useLocation();
-  const [tests, setTests] = useState<Friend[]>([]);
+  const { status, fix, gps, retry } = useLocation();
+  const [near, setNear] = useState<LatLng | null>(null);
+  const [places, setPlaces] = useState<Places>({});
+  const [hour, setHour] = useState(hourIndex);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [screen, setScreen] = useState<'map' | 'camera'>('map');
   const [navigating, setNavigating] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [metIds, setMetIds] = useState<ReadonlySet<string>>(() => new Set());
   const beep = useAudioPlayer(require('./assets/beep.wav'));
   const announced = useRef(new Set<string>());
@@ -51,47 +57,53 @@ export default function App() {
     setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers' }).catch(() => {});
   }, []);
 
+  // The near friend stands a few steps from your first good GPS reading, then stays put. Only in memory: each run places
+  // him afresh. The reading, not the dot: the accuracy is the reading's, and after weak GPS the dot can lag far behind it.
   useEffect(() => {
-    AsyncStorage.getItem(TESTS_KEY)
-      .then((raw) => {
-        const saved = raw ? (JSON.parse(raw) as unknown[]).map(savedTestFriend).filter((f): f is Friend => f !== null) : [];
-        if (saved.length) setTests((current) => (current.length ? current : saved));
-      })
-      .catch(() => {});
+    if (!near && gps && (gps.accuracy == null || gps.accuracy <= 30)) setNear(nearSpot(gps));
+  }, [near, gps]);
+
+  // Everyone else moves on the hour (src/placement.ts): look at the clock once a minute.
+  useEffect(() => {
+    const timer = setInterval(() => setHour(hourIndex()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
+    AsyncStorage.removeItem('saath.testFriends.v1').catch(() => {});   // the old long-press test friends and their spots: nothing reads them now
+    AsyncStorage.getItem(PLACES_KEY)
+      .then((raw) => {
+        const saved = raw ? JSON.parse(raw) : null;
+        setPlaces((p) => ({ home: spot(saved?.home), office: spot(saved?.office), ...p }));   // a place set while this loaded wins
+      })
+      .catch(() => {});
     AsyncStorage.getItem(MET_KEY)
       .then((raw) => {
         const saved: unknown = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(saved) || !saved.length) return;
         setMetIds((ids) => {   // keep any met while this loaded (a cold-start deep link), and save the union
           const next = new Set([...saved.filter((x): x is string => typeof x === 'string'), ...ids]);
-          AsyncStorage.setItem(MET_KEY, JSON.stringify([...next])).catch(() => {});
+          saveMet(next);
           return next;
         });
       })
       .catch(() => {});
   }, []);
 
-  const saveTests = (next: Friend[]) => {
-    setTests(next);
-    AsyncStorage.setItem(TESTS_KEY, JSON.stringify(next)).catch(() => {});
-  };
-
-  // Friends never move, so only your own position changes their distance and direction.
+  // Where everyone stands this hour; in between, only your own position changes their distance and direction.
+  const placed = useMemo(() => placeFriends(places, near, hour), [places, near, hour]);
   const friends = useMemo<LiveFriend[]>(
     () =>
-      [...FRIENDS, ...tests].map((f) => ({
+      placed.map((f) => ({
         ...f,
         distance: fix ? distanceM(fix, f) : Infinity,
         bearing: fix ? bearingDeg(fix, f) : 0,
         met: metIds.has(f.id),
       })),
-    [tests, fix, metIds],
+    [placed, fix, metIds],
   );
 
-  const nearest = fix ? friends.reduce((a, b) => (b.distance < a.distance ? b : a)) : null;
+  const nearest = fix && friends.length ? friends.reduce((a, b) => (b.distance < a.distance ? b : a)) : null;
   const selected = friends.find((f) => f.id === selectedId) ?? null;
   const target = selected ?? nearest;
   const level = useLevel(target);
@@ -124,12 +136,6 @@ export default function App() {
     for (const f of friends) if (f.distance > REARM_M) announced.current.delete(f.id);
   }, [friends]);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 2600);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
   const openCamera = useCallback(() => setScreen('camera'), []);
   const raise = useRef(new RaiseDetector());
   const backToMap = useCallback(() => {
@@ -144,11 +150,18 @@ export default function App() {
       if (raise.current.push(o.elevation, Date.now() / 1000)) openCamera();
     });
   }, [screen, level, openCamera]);
+  const setPlace = useCallback((which: keyof Places, at: LatLng | null) => {
+    setPlaces((p) => {
+      const next = { ...p, [which]: at ? { lat: at.lat, lng: at.lng } : undefined };
+      AsyncStorage.setItem(PLACES_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
   const onMet = useCallback((id: string) => {
     setMetIds((ids) => {
       if (ids.has(id)) return ids;
       const next = new Set(ids).add(id);
-      AsyncStorage.setItem(MET_KEY, JSON.stringify([...next])).catch(() => {});
+      saveMet(next);
       return next;
     });
   }, []);
@@ -162,22 +175,6 @@ export default function App() {
     const sub = Linking.addEventListener('url', ({ url }) => done(url));
     return () => sub.remove();
   }, [onMet]);
-
-  const onLongPress = (at: LatLng) => {
-    const friend = makeTestFriend(at, tests.length);
-    saveTests([...tests, friend]);
-    setSelectedId(friend.id);
-    setToast('Test friend hidden there. Walk to it!');
-  };
-
-  const onClearTests = () => {
-    saveTests([]);
-    if (selectedId?.startsWith('test-')) {
-      setSelectedId(null);
-      setNavigating(false);
-    }
-    setToast('Test friends removed');
-  };
 
   // Navigation sticks to this friend even if another one ends up nearer on the way.
   const onStart = () => {
@@ -198,16 +195,14 @@ export default function App() {
         tracking={!!selected && selected.id !== nearest?.id}
         navigating={navigating}
         level={level}
-        testCount={tests.length}
-        toast={toast}
         onRetryGps={retry}
-        onLongPress={onLongPress}
         onSelect={setSelectedId}
         onShowNearest={() => setSelectedId(null)}
-        onClearTests={onClearTests}
         onStart={onStart}
         onEnd={() => setNavigating(false)}
         onOpenCamera={openCamera}
+        places={places}
+        onSetPlace={setPlace}
       />
       {screen === 'camera' ? (
         <View style={StyleSheet.absoluteFill}>

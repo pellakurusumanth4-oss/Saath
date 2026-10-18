@@ -3,7 +3,7 @@ import type { LatLng } from './geo';
 /** The friends with an approved 2D anime rig (src/rigs.ts) and portrait (src/faces.ts). */
 export type Character = 'doraemon' | 'nobita' | 'shinchan' | 'goku' | 'michael' | 'dwight' | 'holt';
 
-/** A friend stands still at one exact real spot (lat/lng) and never moves from it. */
+/** A friend at one exact real spot (lat/lng). In the app, src/placement.ts picks it and moves it every hour. */
 export type Friend = LatLng & {
   id: string;
   name: string;
@@ -12,17 +12,17 @@ export type Friend = LatLng & {
   color: string;
   /** Height in metres, used to size them in the camera view. */
   height: number;
-  /** The real Pune place where they stand. */
+  /** Where they stand, in words: a landmark's name on the website; in the app, which of your places they're near. */
   place: string;
   /** Rumour shown before you've met them. */
   hint: string;
-  test?: boolean;
 };
 
 /** A friend plus where they are relative to you. Distance is Infinity until GPS has a fix. */
 export type LiveFriend = Friend & { distance: number; bearing: number; met: boolean };
 
-// Spots come from OpenStreetMap (© OpenStreetMap contributors): open, public ground right
+// The website (site/) shows the four at these fixed spots; the app places everyone itself (HOME_CAST and OFFICE_CAST
+// below, src/placement.ts). Spots come from OpenStreetMap (© OpenStreetMap contributors): open, public ground right
 // beside each landmark, so you can walk up to them.
 // Tom and Jerry are left out until their rigs are built and approved.
 export const FRIENDS: Friend[] = [
@@ -75,34 +75,29 @@ export const FRIENDS: Friend[] = [
   },
 ];
 
-// Friends with an approved rig but no public place yet: only test friends (long-press the map) can be them.
-const UNPLACED: Omit<Friend, 'lat' | 'lng' | 'place' | 'hint'>[] = [
-  { id: 'michael', name: 'Michael', character: 'michael', color: '#3F3A63', height: 1.75 },
-  { id: 'dwight', name: 'Dwight', character: 'dwight', color: '#C8962E', height: 1.87 },
-  { id: 'holt', name: 'Captain Holt', character: 'holt', color: '#262A3E', height: 1.83 },
+/** Who a friend is, without where: src/placement.ts stands them, and moves them every hour. */
+export type Cast = Omit<Friend, 'lat' | 'lng' | 'place'>;
+
+/** One of the four as FRIENDS draws them, without their landmark, with a hint that fits anywhere. */
+function look(id: Character, hint: string): Cast {
+  const { lat, lng, place, ...who } = FRIENDS.find((f) => f.id === id)!;
+  return { ...who, hint };
+}
+
+/** Round your home, nearest first. The first stands a few steps from you instead, wherever you are. */
+export const HOME_CAST: Cast[] = [
+  look('nobita', 'Someone sleepy was seen napping a few steps away'),
+  look('doraemon', 'Someone round and blue was seen looking for dorayaki'),
+  look('shinchan', 'Someone cheeky was seen dancing about'),
+  look('goku', 'Someone in orange was seen training hard'),
 ];
-const TESTABLE = [...UNPLACED, ...FRIENDS];   // the unplaced ones first: test friends are their only way in
-const CHARACTERS: readonly string[] = TESTABLE.map((f) => f.character);
 
-/** A friend you hide yourself by long-pressing the map, so you can test without crossing the city. */
-export function makeTestFriend(at: LatLng, count: number): Friend {
-  return asTestFriend(TESTABLE[count % TESTABLE.length].character, `test-${Date.now()}`, at);
-}
-
-function asTestFriend(character: Character, id: string, at: LatLng): Friend {
-  const like = TESTABLE.find((f) => f.character === character) ?? FRIENDS[0];
-  return { ...like, id, place: 'Your test spot', hint: 'The friend you hid for testing', lat: at.lat, lng: at.lng, test: true };
-}
-
-// Test friends saved before the rigs had a "look" instead; those that were Tom or Jerry become Goku.
-const OLD_LOOKS: Record<string, Character> = { round: 'doraemon', kidRed: 'shinchan', kidYellow: 'nobita', mouse: 'goku', cat: 'goku' };
-
-/** A saved test friend, brought up to date, or null if it isn't one. */
-export function savedTestFriend(f: any): Friend | null {
-  if (!f || typeof f.id !== 'string' || !f.id.startsWith('test-') || !Number.isFinite(f.lat) || !Number.isFinite(f.lng)) return null;
-  const character: Character = CHARACTERS.includes(f.character) ? f.character : (OLD_LOOKS[f.look] ?? 'doraemon');
-  return asTestFriend(character, f.id, f);
-}
+/** Round your office, nearest first. */
+export const OFFICE_CAST: Cast[] = [
+  { id: 'michael', name: 'Michael', character: 'michael', color: '#3F3A63', height: 1.75, hint: 'Someone with a big mug was practising a welcome speech' },
+  { id: 'dwight', name: 'Dwight', character: 'dwight', color: '#C8962E', height: 1.87, hint: 'Someone in glasses was seen guarding a beet' },
+  { id: 'holt', name: 'Captain Holt', character: 'holt', color: '#262A3E', height: 1.83, hint: 'Someone very punctual was seen checking the time' },
+];
 
 export type Level = 'far' | 'cold' | 'warm' | 'hot' | 'here';
 

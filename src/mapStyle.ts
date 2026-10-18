@@ -243,7 +243,7 @@ export const MAP_STYLE: string | object = {
       paint: { 'fill-color': ROOF_BY_ID, 'fill-opacity': byZoom(13, 0.5, 14, 0.9), 'fill-outline-color': '#CBB79A' },
     },
     {
-      // The long-press code ray-casts against exactly these heights: keep them un-interpolated.
+      // The roof lids (building-roof, decorateMap) sit on exactly these heights: keep them un-interpolated.
       id: 'building-3d', type: 'fill-extrusion', source: OMT, 'source-layer': 'building', minzoom: 14,
       paint: {
         'fill-extrusion-color': WALL_BY_ID,

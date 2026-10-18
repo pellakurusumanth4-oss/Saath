@@ -49,13 +49,6 @@ export const FIGURES_CSS = `
 .fg-ptr svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 2px 2px rgba(42,34,56,.35))}
 @keyframes fg-bounce{0%,100%{transform:none}50%{transform:translateY(-5px)}}
 
-/* Test friends you hid yourself. */
-.fg-tag{position:absolute;right:50%;bottom:0;display:none;transform-origin:100% 100%;
-  transform:translate(calc(var(--fg-k)*-14px),calc(var(--fg-k)*-50px)) rotate(-10deg);transition:transform .25s ease-out;
-  padding:1px 4px 1.5px;background:#fff;border:1.5px dashed #2B2433;border-radius:5px;color:#2B2433;
-  font:900 8px/1.2 system-ui,Roboto,"Segoe UI",sans-serif;letter-spacing:.6px}
-.fg-test .fg-tag{display:block}
-
 /* Meeting someone and tapping them. */
 .fg-burst{position:absolute;left:50%;top:40%;width:0;height:0;display:none}
 .fg-reveal .fg-burst{display:block}
@@ -72,7 +65,7 @@ export const FIGURES_CSS = `
 
 /**
  * Runs inside the map page. createFigures(map, post) returns setFriends(list), called with every
- * friend as { id, lat, lng, name, character, color, met, test, target }. Tapping one posts { type: 'friend', id }.
+ * friend as { id, lat, lng, name, character, color, met, target }. Tapping one posts { type: 'friend', id }.
  */
 export const FIGURES_JS = `
   function createFigures(map, post) {
@@ -109,8 +102,7 @@ export const FIGURES_JS = `
       el.innerHTML = '<div class="fg-pin"><div class="fg-shadow"></div><div class="fg-pop"><div class="fg-bob">' + TIP +
         '<div class="fg-pulse"></div><div class="fg-disc"><img class="fg-face" alt=""><img class="fg-sil" alt=""><div class="fg-q">?</div></div>' +
         '</div>' + BURST + '</div></div>' +
-        '<div class="fg-above"><div class="fg-ptr">' + POINTER + '</div><div class="fg-pill"></div></div>' +
-        '<div class="fg-tag">TEST</div>';
+        '<div class="fg-above"><div class="fg-ptr">' + POINTER + '</div><div class="fg-pill"></div></div>';
       var m = {
         el: el, face: el.querySelector('.fg-face'), sil: el.querySelector('.fg-sil'), pill: el.querySelector('.fg-pill'),
         marker: new maplibregl.Marker({ element: el, anchor: 'bottom', pitchAlignment: 'viewport', rotationAlignment: 'viewport' })
@@ -142,7 +134,6 @@ export const FIGURES_JS = `
       m.met = met;
       el.classList.toggle('fg-met', met);
       el.classList.toggle('fg-target', !!f.target);
-      el.classList.toggle('fg-test', !!f.test);
       if (m.pill.textContent !== name) m.pill.textContent = name;
       m.target = !!f.target;
     }

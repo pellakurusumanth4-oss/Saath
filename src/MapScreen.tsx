@@ -7,6 +7,7 @@ import { FACES } from './faces';
 import { LEVELS, type Level, type LiveFriend } from './friends';
 import { angleDiff, formatDistance, type LatLng } from './geo';
 import { MAP_HTML } from './mapHtml';
+import type { Places } from './placement';
 import { watchOrientation } from './sensors';
 import { G, softShadow } from './theme';
 import { WEAK_GPS_M, type Fix, type GpsStatus } from './useLocation';
@@ -27,16 +28,15 @@ type Props = {
   /** The walking route (and the buzz) are on. */
   navigating: boolean;
   level: Level;
-  testCount: number;
-  toast: string | null;
   onRetryGps: () => void;
-  onLongPress: (at: LatLng) => void;
   onSelect: (id: string) => void;
   onShowNearest: () => void;
-  onClearTests: () => void;
   onStart: () => void;
   onEnd: () => void;
   onOpenCamera: () => void;
+  /** The home and office you set (App.tsx keeps them on this phone): friends stand round them. */
+  places: Places;
+  onSetPlace: (which: keyof Places, at: LatLng | null) => void;
 };
 
 export function MapScreen(props: Props) {
@@ -50,6 +50,7 @@ export function MapScreen(props: Props) {
   const top = insets.top + 12;
   const bottom = insets.bottom + 12;
   const [sheetHeight, setSheetHeight] = useState(0);
+  const [placesOpen, setPlacesOpen] = useState(false);
 
   const run = (js: string) => web.current?.injectJavaScript(`window.saath && ${js}; true;`);
 
@@ -75,7 +76,6 @@ export function MapScreen(props: Props) {
           character: f.character,
           color: f.color,
           met: f.met,
-          test: !!f.test,
           target: f.id === target?.id,
         })),
       ),
@@ -111,7 +111,6 @@ export function MapScreen(props: Props) {
       return;
     }
     if (msg.type === 'boot') setBooted(true);
-    else if (msg.type === 'longpress') props.onLongPress({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === 'friend') props.onSelect(msg.id);
     else if (msg.type === 'mode') setMode(msg.mode);
     else if (msg.type === 'error') setMapError(msg.msg);
@@ -145,6 +144,14 @@ export function MapScreen(props: Props) {
           </View>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Your home and office"
+            onPress={() => setPlacesOpen((open) => !open)}
+            style={[styles.fab, softShadow]}
+          >
+            <HomeIcon />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel={
               mode === 'free' ? 'Follow me on the map' : mode === 'follow' ? 'Turn the map with me' : 'Point the map north'
             }
@@ -154,21 +161,17 @@ export function MapScreen(props: Props) {
             <LocateIcon mode={mode} />
           </Pressable>
         </View>
-        {props.toast ? (
-          <View style={styles.toast}>
-            <Text style={styles.toastText}>{props.toast}</Text>
-          </View>
-        ) : null}
+        {placesOpen ? <PlacesCard places={props.places} fix={fix} onSet={props.onSetPlace} onClose={() => setPlacesOpen(false)} /> : null}
       </View>
 
       <View style={[styles.sheetWrap, { bottom }]} onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}>
-        <Sheet {...props} onFocus={focusTarget} onStart={start} />
+        <Sheet {...props} onFocus={focusTarget} onStart={start} onOpenPlaces={() => setPlacesOpen(true)} />
       </View>
     </View>
   );
 }
 
-function Sheet(props: Props & { onFocus: () => void }) {
+function Sheet(props: Props & { onFocus: () => void; onOpenPlaces: () => void }) {
   const { status, fix, target, level, navigating } = props;
 
   if (status === 'denied' || status === 'off') {
@@ -193,6 +196,11 @@ function Sheet(props: Props & { onFocus: () => void }) {
       <View style={[styles.sheet, softShadow]}>
         <Text style={styles.title}>Finding you…</Text>
         <Text style={styles.body}>Step outside or near a window for a better GPS signal.</Text>
+        {fix && !props.places.home ? (
+          <Text style={styles.link} onPress={props.onOpenPlaces}>
+            Set your home to find friends around you
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -226,7 +234,7 @@ function Sheet(props: Props & { onFocus: () => void }) {
           <Text style={styles.distance}>{formatDistance(target.distance)}</Text>
           <Text style={styles.place}>
             {target.met ? `${target.name} · ` : ''}
-            {here ? 'at' : 'near'} {target.place}
+            {target.place}
           </Text>
         </View>
       </Pressable>
@@ -258,11 +266,10 @@ function Sheet(props: Props & { onFocus: () => void }) {
             <Text style={styles.ctaText}>Start navigation</Text>
           </Pressable>
           <View style={styles.rowBetween}>
-            {props.testCount === 0 ? (
-              <Text style={styles.tip}>Tap a friend to go to someone else. Long-press the map to hide a test friend.</Text>
-            ) : (
-              <Text style={styles.link} onPress={props.onClearTests}>
-                Remove test friends ({props.testCount})
+            <Text style={styles.tip}>{props.places.home ? 'Tap a friend to go to someone else.' : 'Set your home to find friends around you.'}</Text>
+            {props.places.home ? null : (
+              <Text style={styles.link} onPress={props.onOpenPlaces}>
+                Set home
               </Text>
             )}
             {props.tracking ? (
@@ -320,9 +327,51 @@ function LocateIcon({ mode }: { mode: MapMode }) {
   );
 }
 
-function SmallButton({ label, onPress }: { label: string; onPress: () => void }) {
+/** Your home and office, set to where you stand: friends wait round them. Kept on this phone only. */
+function PlacesCard({ places, fix, onSet, onClose }: { places: Places; fix: Fix | null; onSet: Props['onSetPlace']; onClose: () => void }) {
   return (
-    <Pressable onPress={onPress} style={styles.smallBtn} accessibilityRole="button">
+    <View style={[styles.sheet, softShadow]}>
+      <View style={styles.rowBetween}>
+        <Text style={styles.title}>Your places</Text>
+        <Text style={styles.link} onPress={onClose} accessibilityRole="button">
+          Done
+        </Text>
+      </View>
+      <Text style={styles.body}>Friends wait around your home and your office, and move every hour. Both stay on this phone.</Text>
+      {(['home', 'office'] as const).map((which) => (
+        <View key={which} style={styles.row}>
+          <View style={styles.flex}>
+            <Text style={styles.levelTitle}>{which === 'home' ? 'Home' : 'Office'}</Text>
+            <Text style={styles.levelBuzz}>{places[which] ? 'Set' : 'Not set'}</Text>
+          </View>
+          {places[which] ? (
+            <Text style={styles.link} onPress={() => onSet(which, null)} accessibilityRole="button" accessibilityLabel={`Clear your ${which}`}>
+              Clear
+            </Text>
+          ) : null}
+          {fix ? (
+            <SmallButton label="Use my location" accessibilityLabel={`Set your ${which} to where you are`} onPress={() => onSet(which, fix)} />
+          ) : (
+            <Text style={styles.levelBuzz}>Waiting for GPS…</Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** A little house: your home and office. */
+function HomeIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3.5 11.5 12 4.5l8.5 7M6 10v10h12V10M10 20v-5.5h4V20" />
+    </Svg>
+  );
+}
+
+function SmallButton({ label, onPress, accessibilityLabel }: { label: string; onPress: () => void; accessibilityLabel?: string }) {
+  return (
+    <Pressable onPress={onPress} style={styles.smallBtn} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
       <Text style={styles.smallBtnText}>{label}</Text>
     </Pressable>
   );
@@ -438,6 +487,4 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
   },
-  toast: { alignSelf: 'center', backgroundColor: G.text, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
-  toastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });

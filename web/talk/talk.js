@@ -8,7 +8,7 @@
 //   face() -> {mood, mouth: 'closed'|'half'|'open'} while he thinks or talks, for the rig's saath.face() each frame;
 //   then null when he has finished (his own face; a gesture held back until he stopped talking plays now), or false
 //   when he was cut off or the reply failed (his own face, and that gesture is dropped).
-//   cloud() -> {thinking: true} | {text} | null: what the cloud over his head shows (web/talk/cloud.js), asked each frame.
+//   cloud() -> {thinking: true} | {text} | null: what he is doing or saying, for tests (since 18 Oct the AR page shows no words).
 //   lip: seconds added to the audio clock, to line the mouth up by hand (e.g. Bluetooth earbuds).
 import { MOUTH, closures, loudness, mouthAt } from './mouth.mjs';
 

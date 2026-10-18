@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { PositionFilter } from './positioning';
+import { PositionFilter, type GpsReading } from './positioning';
 import { onStep } from './sensors';
 
 export type Fix = {
@@ -19,6 +19,8 @@ export const WEAK_GPS_M = 20;
 export function useLocation() {
   const [status, setStatus] = useState<GpsStatus>('asking');
   const [fix, setFix] = useState<Fix | null>(null);
+  // The latest raw reading, which its accuracy is about. After weak GPS the dot (fix) can lag far behind it.
+  const [gps, setGps] = useState<GpsReading | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [filter] = useState(() => new PositionFilter());
   const accuracy = useRef<number | null>(null);
@@ -52,7 +54,9 @@ export function useLocation() {
         (loc) => {
           const { latitude, longitude, speed } = loc.coords;
           accuracy.current = loc.coords.accuracy;
-          filter.gps({ lat: latitude, lng: longitude, accuracy: accuracy.current, speed }, Date.now());
+          const reading = { lat: latitude, lng: longitude, accuracy: accuracy.current, speed };
+          filter.gps(reading, Date.now());
+          setGps(reading);
           publish();
           setStatus('live');
         },
@@ -69,5 +73,5 @@ export function useLocation() {
   }, [attempt, filter, publish]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  return { status, fix, retry };
+  return { status, fix, gps, retry };
 }

@@ -6,12 +6,12 @@
 <title>Saath AR camera</title>
 <!--
   Saath's AR camera: a friend standing on your real floor, tracked by ARCore through Chrome's WebXR.
-  The app opens it in Chrome at a friend's spot: ?friend=doraemon|figure|shinchan|goku&name=&tall=
-  (metres)&return=<a deep link back into the app>. Built from four methods tried on 17 Oct:
-  - the floor is ARCore's detected floor (the lowest plane facing up), then hit tests, then a local-floor
-    guess; their spot is 2.5 m ahead on seen floor (else about 2 m on the flat floor), never on furniture;
-  - no tap needed: once that spot has held for 1 s with the phone looking ahead they burst out
-    (Pokémon GO AR+); within 1 m the view greys and asks you to step back;
+  The app opens it in Chrome at a friend's spot: ?friend=doraemon|nobita|shinchan|goku|michael|dwight|holt
+  &name=&tall=(metres)&return=<a deep link back into the app>.
+  - you choose their spot: a gold ring sits where the middle of the screen meets the floor (ARCore's hit
+    test), 1.2-5 m away, and a tap calls them there (18 Oct: the automatic spot took over a minute in a
+    cluttered room); they are anchored there; within 1 m the view greys and asks you to step back;
+  - you only hear them talk: no words on screen (18 Oct);
   - a tight contact shadow plus a soft one away from the room's main light, and the room's light dims
     them gently (no colour cast). No occlusion: on the S24 ARCore's coarse depth of the floor around
     their feet hid their feet and legs in open floor (17 Oct), so they are always drawn whole.
@@ -29,7 +29,9 @@
   #overlay { position: fixed; inset: 0; pointer-events: none; transition: background .25s; }
   #overlay.close { background: rgba(70, 70, 70, .45); }   /* too close: the view greys, as in Pokémon GO AR+ */
   #overlay.close #tip, #overlay.talk.close #tip { bottom: 46%; }   /* .talk.close outranks the .talk rule below */
-  #tip { position: absolute; left: 16px; right: 16px; bottom: 36px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
+  /* 96px up: Chrome's "to exit full screen" banner covers the bottom ~80px for a few seconds after AR starts, which hid
+     "Tap to bring…" on the S24 (18 Oct) just as the first ring showed. */
+  #tip { position: absolute; left: 16px; right: 16px; bottom: 96px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
          border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 800; font-size: 17px; text-align: center; display: none; }
   #hud { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 5px 12px; border-radius: 99px; white-space: nowrap;
          background: rgba(17, 19, 24, .62); color: #fff; font: 700 13px system-ui, Roboto, sans-serif; }
@@ -37,8 +39,8 @@
   #home { position: fixed; left: 16px; right: 16px; bottom: 112px; display: none; text-align: center; color: #fff; font: 800 17px system-ui, Roboto, sans-serif; }
   #back { position: absolute; right: 16px; top: 16px; display: none; padding: 10px 14px; border-radius: 99px; border: 2.5px solid var(--ink); background: #fff;
           color: var(--ink); box-shadow: 2px 2px 0 var(--ink); font: 800 15px system-ui, Roboto, sans-serif; text-decoration: none; pointer-events: auto; }
-  /* Talking, kept clean (the user, 18 Oct): his words are in the cloud over his head, yours aren't shown. Only the
-     approved Golden Hour mic (gold; blue and pulsing while it listens), a hint or what went wrong, and the credit. */
+  /* Talking, kept clean (the user, 18 Oct): you hear his words, and nobody's are shown. Only the approved Golden
+     Hour mic (gold; blue and pulsing while it listens), a hint or what went wrong, and the credit. */
   #overlay.talk #tip { bottom: 180px; }
   #talk { position: absolute; left: 16px; right: 16px; bottom: 22px; display: flex; flex-direction: column; align-items: center; }
   #talk[hidden] { display: none; }
@@ -72,7 +74,6 @@
 <script type="module">
 import * as THREE from 'three';
 import { createTalk } from '../talk/talk.js';
-import { drawCloud } from '../talk/cloud.js';
 
 const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
 // Which friend, from the app (src/friends.ts): only the rigs there are; the name is only ever used as text. An id
@@ -82,9 +83,8 @@ if (!FRIENDS.includes(FRIEND)) { document.body.textContent = `Unknown friend: ${
 const NAME = (Q.get('name') || FRIEND).slice(0, 24), TALL_M = Number(Q.get('tall')) || 1.4;   // their height in metres
 const BACK = Q.get('return');   // a deep link back into the app, if it opened this page
 const VFOV = 72.7;    // S24 main camera (notes/ar-stability.md); only the preview camera uses it
-// Pokémon GO AR+ timing and distances: he comes out once his spot has held for 1 s; under 1 m you're told
-// to step back, cleared past 1.2 m.
-const HOLD_S = 1, NEAR_M = 1.0, CLEAR_M = 1.2;
+// Pokémon GO AR+ distances: under 1 m you're told to step back, cleared past 1.2 m.
+const NEAR_M = 1.0, CLEAR_M = 1.2;
 // The room's light only sets his brightness, between 80% and 100% of the art, with no colour cast, so he
 // sits in the room but still looks like himself. shortcut: ARCore's light units are taken as-is; tune ?gain on the phone.
 const GAIN = Number(Q.get('gain')) || 1.5, DIMMEST = 0.8;
@@ -177,7 +177,7 @@ const rasterise = () => {
   return drawing;
 };
 
-// ---- The scene: the friend (card, two shadows, cloud), the floor ring, the pop-in sparkles -------
+// ---- The scene: the friend (card, two shadows), the floor ring, the pop-in sparkles -------
 const scene = new THREE.Scene();
 const unitM = TALL_M / A.tall, cardW = vb[2] * unitM, cardH = vb[3] * unitM;
 const cardGeo = new THREE.PlaneGeometry(cardW, cardH);
@@ -208,47 +208,8 @@ const lightAt = (est, n, out) => {
   return out.setRGB(sh(0) + I.x * lambert, sh(1) + I.y * lambert, sh(2) + I.z * lambert);
 };
 
-// The cloud (web/talk/cloud.js), 1.2 x 0.75 m: his hello as he comes out, three dots while he thinks, then each
-// sentence as he says it. Drawn again only when it changes. It floats over his head: the end of its trail on top of his
-// head box as he first stands, hair and all (Goku's hair rises above his height), 1 cm in front of his card (the figure
-// turns its +z to you), so the two planes never share a depth (they striped over Goku's hair).
-// If its top would leave the view (a tall friend at 2.5 m, the phone tipped down a little), it moves beside his head,
-// on the side with more room and within the screen, its trail pointing at him; it goes back once it would fit again.
-const cloudCanvas = Object.assign(document.createElement('canvas'), { width: 1024, height: 640 });
-const cloudTex = new THREE.CanvasTexture(cloudCanvas); cloudTex.colorSpace = THREE.SRGBColorSpace;
-const cloud = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.75).translate(0, 0.375, 0), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: cloudTex }));
-const headBox = svg.querySelector('.head').getBoundingClientRect(), svgBox = svg.getBoundingClientRect();
-const headTopM = (A.ground[1] - vb[1] - ((headBox.top - svgBox.top) * vb[3]) / svgBox.height) * unitM;
-const headHalfM = ((headBox.width * vb[2]) / svgBox.width / 2) * unitM, OVER = new THREE.Vector3(0, headTopM + 0.02, 0.01);
-const cv = new THREE.Vector3(), hv = new THREE.Vector3();
-let fit = { top: 0, half: 0 }, beside = 0, cloudInView = false;   // beside: 0 over his head, 1 your right of him, -1 your left
-cloud.position.copy(OVER); cloud.visible = false; cloud.frustumCulled = false;   // so it is always asked where it fits
-cloud.onBeforeRender = (renderer, sc, camera) => {   // with the camera drawing this frame; a new place shows from the next
-  const high = 0.75 * (1 - fit.top), half = 1.2 * fit.half;   // the drawn cloud: its top above the card's bottom, half its width
-  const over = figure.localToWorld(cv.set(0, OVER.y + high, OVER.z)).project(camera).y;   // its top over his head, on screen
-  if (beside ? over < 0.85 : over > 0.96) {   // it leaves the view, or fits again: move, and draw its trail the other way
-    beside = beside ? 0 : figure.localToWorld(cv.set(0, headTopM, 0)).project(camera).x > 0 ? -1 : 1;
-    cloudKey = '';
-  }
-  if (beside) {   // as near his head as the screen allows: at his distance it reaches depth / projection[0] m each side
-    figure.localToWorld(cv.set(0, headTopM, 0)); hv.copy(cv).project(camera);
-    const depth = -cv.applyMatrix4(camera.matrixWorldInverse).z, room = ((1 - beside * hv.x) * 0.96 * depth) / camera.projectionMatrix.elements[0];
-    cloud.position.set(beside * Math.min(headHalfM + half + 0.05, room - half), headTopM + 0.05 - high, 0.01);
-  } else cloud.position.copy(OVER);
-  const y = figure.localToWorld(cv.set(0, cloud.position.y + high, 0.01)).project(camera).y;   // for tests: all of it on screen?
-  const x = figure.localToWorld(cv.set(cloud.position.x + (beside || 1) * half, cloud.position.y, 0.01)).project(camera).x;
-  cloudInView = y <= 1 && Math.abs(x) <= 1;
-};
-const HELLO = `Hi! I'm ${NAME}!`;
-let cloudKey = '-', cloudNow = null;
-const cloudTo = (c, now) => {
-  const key = !c ? '-' : c.thinking ? 'dots' + Math.floor(now * 12) : c.text;   // the dots hop 12 times a second
-  if (key === cloudKey) return;
-  cloudKey = key; cloudNow = c; cloud.visible = !!c;
-  if (c) { fit = drawCloud(cloudCanvas, { ...c, phase: now, flip: beside < 0 }); cloudTex.needsUpdate = true; }
-};
 const figure = new THREE.Group();
-figure.add(...shadows, card, cloud); figure.visible = false; scene.add(figure);
+figure.add(...shadows, card); figure.visible = false; scene.add(figure);
 
 // The gold ring with footprints that marks where he will come out.
 const reticle = new THREE.Group(), reticleInner = new THREE.Group();
@@ -285,15 +246,16 @@ const place = (pos, now) => {
   talkEl.hidden = false; overlay.classList.add('talk');
 };
 
-// Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face and cloud. Your words
-// aren't shown: the hint under the mic says what to do, or what went wrong.
+// Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face to his voice. No words
+// are shown, his or yours (the user, 18 Oct: "just audio"): the hint under the mic says what to do, that he is
+// thinking, or what went wrong.
 const talkEl = document.getElementById('talk'), hintEl = document.getElementById('hint'), mic = document.getElementById('mic');
 // ?lip=0.1 moves his mouth that many seconds later (for Bluetooth earbuds); ?debug shows each turn's timings.
 const talkTimes = {}, HOLD = 'Hold to talk', LISTENING = 'Listening… let go to send';
-let heard = '', error = '', listening = false;
-const hint = () => { hintEl.textContent = listening ? LISTENING : error || HOLD; };
+let heard = '', error = '', listening = false, thinking = false;
+const hint = () => { hintEl.textContent = listening ? LISTENING : thinking ? `${NAME} is thinking…` : error || HOLD; };
 const talk = createTalk({ friend: FRIEND, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
-  if (type === 'state') { listening = data === 'listening'; if (listening || data === 'thinking') error = ''; mic.classList.toggle('on', listening); hint(); }
+  if (type === 'state') { listening = data === 'listening'; thinking = data === 'thinking'; if (listening || thinking) error = ''; mic.classList.toggle('on', listening); hint(); }
   else if (type === 'heard') heard = data;
   else if (type === 'error') { error = data; hint(); }
   else if (type === 'cue') rig.saath.act(data.action);
@@ -324,11 +286,11 @@ for (const el of [home, back]) {
   el.addEventListener('beforexrselect', (e) => e.preventDefault());   // a tap on it isn't an AR tap
 }
 if (BACK) home.style.display = 'block';
-document.getElementById('introLine').textContent = `Meet ${NAME} on your real floor`;
+document.getElementById('introLine').textContent = `Point your phone at the floor a few steps away, then tap the gold ring: ${NAME} comes to it`;
 const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
 const UP = new THREE.Vector3(0, 1, 0), facing = new THREE.Vector3(), away = new THREE.Vector3(), lit = new THREE.Color(), want = new THREE.Color();
 let lastNow = 0, close = false;
-// Each frame: the pop-in, the sparkles, the cloud, the pulsing ring; he turns to face the camera, takes the
+// Each frame: the pop-in, the sparkles, the pulsing ring; he turns to face the camera, takes the
 // room's brightness, and if you come within 1 m he stays on his spot while the view greys and asks you to
 // step back. est: the room's light (an XRLightEstimate), or null.
 const update = (now, cam, est) => {
@@ -341,7 +303,7 @@ const update = (now, cam, est) => {
   const k = now - placedAt;
   close = dist < NEAR_M || (close && dist < CLEAR_M);
   overlay.classList.toggle('close', close);
-  tip(close ? 'You’re too close — step back a little' : k < 3.6 ? `${NAME} is here! Walk around him.` : '');   // then only him, his cloud and the mic
+  tip(close ? 'You’re too close — step back a little' : k < 3.6 ? `${NAME} is here! Walk around him.` : '');   // then only him and the mic
   card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
   for (const s of shadows) s.material.opacity = Math.min(1, k / 0.35);
   figure.rotation.y = Math.atan2(cam.x - figure.position.x, cam.z - figure.position.z);
@@ -360,7 +322,6 @@ const update = (now, cam, est) => {
   soft.rotation.y = reach ? Math.atan2(away.x, away.z) - figure.rotation.y : 0;
   soft.scale.set(reach ? 0.8 : 1, 1, reach ? (0.8 * (1 + 0.5 * reach)) / 0.7 : 1);
   soft.position.copy(away).multiplyScalar(0.2 * reach).applyAxisAngle(UP, -figure.rotation.y).setY(0.002);
-  cloudTo(talk.cloud() ?? (talk.state === 'idle' && k > 0.35 && k < 3.6 ? { text: HELLO } : null), now);
   dust.visible = k < 0.6;
   if (dust.visible) { dust.scale.setScalar(0.15 + (k / 0.6) * 0.6); dust.material.opacity = 0.6 * (1 - k / 0.6); }
   for (const s of sparks) {
@@ -372,86 +333,26 @@ const update = (now, cam, est) => {
   }
 };
 
-// ---- His spot, from planes as WebXR reports them: { m: pose matrix (Y axis = normal), poly: outline in plane space } ----
-// The floor is the lowest big plane facing up (ARCore calls ceilings "horizontal" too). He stands on it 2.5 m
-// ahead along the phone's level forward, at the first distance that is on seen floor and not under furniture.
-// Why 2.5 m: with the phone 1.4 m up, his feet are 29° below the horizon, the floor in front of him 32° and the
-// top of a short cloud 10° above, so all of it fits the 72.7° view at any tilt from -26° to +5° (a long sentence's
-// cloud reaches 16°, still in view while you look at him).
-// Always 1.2-5 m away, by himself or on a tap (the user, 18 Oct: "floor point at least 1 to 5 metres"; under 1 m he
-// looked stuck on the screen, and the view greys there): Nobita fills most of the screen's height at 1.2 m, a third at
-// 2.5 m, a fifth at 5 m. A small, cluttered room may only show open floor 1.2-1.5 m away, so that is allowed too; the
-// seen point nearest 2.5 m still wins. No DIST under 1.8 m: a spot counts with seen floor 0.5 m short of it.
-const NEAR_SPOT = 1.2, FAR_SPOT = 5, BEST = 2.5, DISTS = [2.5, 2.25, 2.75, 2, 3, 1.8];
-const area = (poly) => Math.abs(poly.reduce((s, p, i) => { const q = poly[(i + 1) % poly.length]; return s + p.x * q.z - q.x * p.z; }, 0)) / 2;
-// The floor's height: the lowest big plane facing up, or lowHit if that is lower (Infinity: not found yet). Only a big
-// plane may set it: a small stray one (a reflection in glossy tiles) would hold it too low.
-const floorAt = (planes, lowHit) => Math.min(lowHit, ...planes.filter((p) => p.m[5] > 0.9 && area(p.poly) > 0.5).map((p) => p.m[13]));
-const inside = ({ m, poly }, x, z) => {   // seen from above; the pose is rigid, so plane-space x, z are dots with its axes
-  const u = (x - m[12]) * m[0] + (z - m[14]) * m[2], v = (x - m[12]) * m[8] + (z - m[14]) * m[10];
-  let k = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    if ((a.z > v) !== (b.z > v) && u < ((b.x - a.x) * (v - a.z)) / (b.z - a.z) + a.x) k = !k;
-  }
-  return k;
-};
-// lowHit: the floor's height from hit tests, the 3rd-lowest floor-like height seen (Infinity before 3), so one or
-// two stray low readings can't hold it below the real floor for good. On the S24, in a small room,
-// ARCore's floor outline rarely reached 1.8 m ahead, so when no seen floor is there he stands on the flat
-// floor at that height about 2 m ahead instead (still never on furniture).
-// seen (in AR): points ARCore's hit tests actually found. He only stands where the camera has seen floor (a seen
-// point within 0.5 m), never on floor it hasn't, such as behind a bed: ARCore's floor outline can reach there,
-// and with no occlusion he would look pasted on top of the bed. When the mapped floor doesn't reach far enough he
-// stands on the seen point nearest 2.5 m ahead, 1.2-5 m away, with all of him and his hello cloud on screen (the
-// S24 shows only about ±19° across; he came out 14° off the middle, cut off). null: no such check.
-// A floor outline's corners count as seen: the outline is the hull of floor ARCore mapped, so its corners are floor the
-// camera saw, while a hit test (one point a frame, mid-view) often lands past a small outline (the simulated dim room:
-// floor set at 6 s, no hit on floor ahead until 24 s, so he came out at 28 s).
-// tanX: the tangent of half the view's width. HALF_W: his half-width, or his hello cloud's (up to 0.4 m) if wider.
-const HALF_W = Math.max((svg.getBBox().width * unitM) / 2, 0.4);
-const pickSpot = (planes, cam, fwd, lowHit = Infinity, seen = null, tanX = Infinity) => {
-  const up = planes.filter((p) => p.m[5] > 0.9), y = floorAt(planes, lowHit);
-  if (!isFinite(y)) return null;
-  const floor = up.filter((p) => p.m[13] < y + 0.05), furniture = up.filter((p) => p.m[13] > y + 0.1);
-  if (seen) seen = [...seen, ...floor.flatMap(({ m, poly }) => poly.map((q) => ({ x: m[12] + q.x * m[0] + q.z * m[8], y: m[13], z: m[14] + q.x * m[2] + q.z * m[10] })))];
-  const free = (x, z) => !furniture.some((p) => inside(p, x, z));
-  const onSeen = (x, z) => !seen || seen.some((p) => Math.abs(p.y - y) < 0.08 && Math.hypot(p.x - x, p.z - z) < 0.5);
-  for (const d of DISTS) {
-    const x = cam.x + fwd.x * d, z = cam.z + fwd.z * d;
-    if (floor.some((p) => inside(p, x, z)) && free(x, z) && onSeen(x, z)) return { x, y, z };
-  }
-  let best = null, bestErr = Infinity;
-  for (const p of seen || []) {
-    const dx = p.x - cam.x, dz = p.z - cam.z, d = Math.hypot(dx, dz);
-    if (d < NEAR_SPOT || d > FAR_SPOT || Math.abs(p.y - y) > 0.08 || Math.abs(dx * fwd.z - dz * fwd.x) + HALF_W > tanX * (dx * fwd.x + dz * fwd.z) || !free(p.x, p.z)) continue;
-    const err = Math.hypot(p.x - (cam.x + fwd.x * BEST), p.z - (cam.z + fwd.z * BEST));
-    if (err < bestErr) { best = p; bestErr = err; }
-  }
-  return best && { x: best.x, y, z: best.z };
-};
-// The phone's forward, levelled (its top edge when it points straight down). m is a column-major pose.
-const levelForward = (m) => { let x = -m[8], z = -m[10]; if (Math.hypot(x, z) < 0.2) { x = m[4]; z = m[6]; } const l = Math.hypot(x, z); return { x: x / l, z: z / l }; };
-// A floor known only by its height (from hit tests or local-floor): a huge flat plane.
-const flatAt = (y) => ({ m: new THREE.Matrix4().makeTranslation(0, y, 0).elements, poly: [[-1e3, -1e3], [1e3, -1e3], [1e3, 1e3], [-1e3, 1e3]].map(([x, z]) => ({ x, z })) });
-// Until he is out: the ring shows his spot, and he bursts out once it has held for HOLD_S with the phone looking
-// ahead (at most 30° down: with the 72.7° view his feet at 2.5 m, 29° below level, and his head at eye level are
-// then both on screen). A guessed floor never calls him by itself. lookY: the camera forward's up component.
-let heldSince = null;
-const ready = (spot, lookY, now, guessed, floorSet = true) => {
-  // and at most 11° up: people hold the phone up like a camera, often tipped up a little (18 Oct, S24), and past that
-  // his feet (29° down) leave the view. The tip says which way to tilt.
-  const high = lookY >= 0.2, ahead = lookY > -0.5 && !high;
-  heldSince = spot && ahead && !guessed ? (heldSince ?? now) : null;
-  tip(!floorSet ? 'Point your phone at the floor by your feet' : !spot ? 'Slowly look around the floor a few steps ahead'
-    : guessed ? `Floor not found yet: tap to call ${NAME} anyway`
-    : high ? 'Floor found! Tilt your phone down a little' : !ahead ? 'Floor found! Now look ahead of you' : `${NAME} is coming…`);
-  return heldSince !== null && now - heldSince >= HOLD_S;
+// ---- His spot: you choose it (the user, 18 Oct: "ask the user to set the point on the floor"). The gold ring sits where
+// the middle of the screen meets a surface facing up, and a tap calls him there. Only 1.2-5 m away (the user: "floor point
+// at least 1 to 5 metres"): nearer, he filled the screen and looked stuck on it; Nobita fills most of the screen's height
+// at 1.2 m, a fifth at 5 m. The automatic spot this replaces (the floor by your feet first, then seen floor 2.5 m ahead)
+// took over a minute in a cluttered room, and you didn't know where he would come.
+// The ring stays RING_S after the middle of the screen leaves its spot (a hit test missing a frame, a shaky hand), so a
+// tap as you hold still never misses it. p: where the middle of the screen meets a surface facing up, or null.
+const NEAR_SPOT = 1.2, FAR_SPOT = 5, RING_S = 0.3;
+let ringAt = -Infinity;
+const aim = (p, cam, now) => {
+  const d = p ? Math.hypot(p.x - cam.x, p.z - cam.z) : NaN;
+  if (d >= NEAR_SPOT && d <= FAR_SPOT) { reticle.matrix.makeTranslation(p.x, p.y, p.z); floorY = p.y; ringAt = now; }
+  reticle.visible = now - ringAt < RING_S;
+  tip(reticle.visible ? `Tap to bring ${NAME} to the ring` : d < NEAR_SPOT ? 'Too close: point at the floor a bit further away'
+    : d > FAR_SPOT ? 'Too far: point at the floor a bit closer' : 'Point your phone at the floor a few steps away and move it slowly');
 };
 // For tests: what the page is doing.
 window.state = () => ({ placed: placedAt !== null, at: figure.position.toArray().map((v) => +v.toFixed(3)), ring: reticle.visible,
-  close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
-  backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent, cloud: cloudNow, cloudSide: beside, cloudInView });
+  ringAt: reticle.visible ? new THREE.Vector3().setFromMatrixPosition(reticle.matrix).toArray().map((v) => +v.toFixed(3)) : null, close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
+  backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -489,25 +390,34 @@ if (PREVIEW) {
   const sh = new Float32Array(27); [0.5, 0.5, 0.5].forEach((v, i) => (sh[i] = v / 0.282095));
   const LAMP = new THREE.Vector3(-0.55, 0.7, 0.45).normalize();
   const roomLight = { sphericalHarmonicsCoefficients: sh, primaryLightDirection: LAMP, primaryLightIntensity: { x: 0.25, y: 0.25, z: 0.25 } };
-  const EYE = 1.4, look = new THREE.Vector3(), aim0 = new THREE.Vector3(), P = new THREE.Vector3(), dir = new THREE.Vector3();
+  const EYE = 1.4, look = new THREE.Vector3(), aim0 = new THREE.Vector3(), P = new THREE.Vector3(), dir = new THREE.Vector3(), o = new THREE.Vector3();
   let placedT = null;
-  // 0-3 s: look down at the floor in front (the box is there), glance left at the bed and back; the planes are
-  // found at 0.6 s. 3-3.8 s: raise the phone to a natural tilt, so he comes out about 1 s later. Then walk up
-  // to him until the view greys, and step back.
+  // 0-1 s: the phone tips down to the floor about 2.4 m ahead (the ring appears on it), glancing left towards the bed
+  // and back by 1.5 s; at 2 s a tap calls him. Then walk up to him until the view greys, and step back.
   const scan = (s) => {
-    const g = Math.sin(Math.PI * ease((s - 0.9) / 1.6)), up = ease((s - 3) / 0.8);
-    camera.position.set(0, EYE, 0); camera.rotation.set(rad(-45 + 7 * g + 30 * up), rad(36 * g), 0); camera.updateMatrixWorld();
+    const g = Math.sin(Math.PI * ease((s - 0.3) / 1.2));
+    camera.position.set(0, EYE, 0); camera.rotation.set(rad(-30 * ease(s / 1)), rad(25 * g), 0); camera.updateMatrixWorld();
+  };
+  const hitAhead = () => {   // the preview's hit test: where the middle of the view meets the nearest of the planes, 4 mm up (the simulated floor is a real surface)
+    camera.getWorldDirection(dir);
+    let best = null;
+    for (const { m, poly } of planes) {
+      const t = (m[13] - camera.position.y) / dir.y;
+      if (!(dir.y < 0) || t <= 0 || (best && t >= best.t)) continue;
+      o.copy(camera.position).addScaledVector(dir, t);
+      const xs = poly.map((q) => q.x), zs = poly.map((q) => q.z);
+      if (o.x - m[12] >= Math.min(...xs) && o.x - m[12] <= Math.max(...xs) && o.z - m[14] >= Math.min(...zs) && o.z - m[14] <= Math.max(...zs)) best = { t, p: o.clone().setY(m[13] + 0.004) };
+    }
+    return best?.p ?? null;
   };
   window.previewAt = async (t) => {
     faceTo(talk.face());
     rig.renderAt(t);
     if (placedT === null) {
       scan(t);
-      const spot = t < 0.6 ? null : pickSpot(planes, camera.position, levelForward(camera.matrixWorld.elements));
-      reticle.visible = !!spot;
-      if (spot) { reticle.matrix.makeTranslation(spot.x, spot.y + 0.004, spot.z); floorY = spot.y; }   // 4 mm up: the simulated floor is a real surface
-      if (ready(spot, camera.getWorldDirection(dir).y, t, false)) {
-        P.set(spot.x, spot.y, spot.z); placedT = t; place(P.clone(), t);
+      aim(hitAhead(), camera.position, t);
+      if (reticle.visible && t >= 2) {   // the tap
+        P.setFromMatrixPosition(reticle.matrix); placedT = t; place(P.clone(), t);
         aim0.copy(camera.position).addScaledVector(camera.getWorldDirection(dir), 2);
       }
     } else {
@@ -524,18 +434,10 @@ if (PREVIEW) {
     return window.state();
   };
 } else {
-  // ---- AR: ARCore through WebXR. The floor comes from detected planes; without them, from the lowest
-  // floor-like hit-test result; with neither after 6 s, from local-floor (on ARCore a fixed 1.2 m below where
-  // the phone started, so only a guess, corrected once the floor is found). His spot is held by an anchor; the
-  // room's light is used when granted ----
-  let hitSource = null, anchor = null, planesOn = false, localFloor = false, lowHit = Infinity, startedAt = 0, probe = null, light = null, lastView = 0;
-  // guessing: the ring is on the guessed floor; onGuess: he came out on it; lift: that guess's error, once the real floor is found
-  let guessing = false, onGuess = false, lift = 0;
-  const seen = [];   // floor-like hit-test points, for pickSpot
-  // The floor is set first, from what the camera finds by your feet (within FEET_M of where you stand): a bed or table
-  // top a few steps away can't pass for it then, so he never stands on one (18 Oct: "the floor needs to be set").
-  const feet = [], FEET_M = 1.3;
-  const cam = new THREE.Vector3(), here = new THREE.Vector3();
+  // ---- AR: ARCore through WebXR. The ring follows the hit test down the middle of the screen (ARCore's own detected
+  // surfaces), a tap calls him to it, and an anchor holds his spot; the room's light is used when granted ----
+  let hitSource = null, anchor = null, probe = null, light = null;
+  const cam = new THREE.Vector3(), here = new THREE.Vector3(), hit = new THREE.Vector3();
   const base = new THREE.Vector3(), lastCam = new THREE.Vector3(), gap = new THREE.Vector3(), moved = new THREE.Vector3();   // base: his spot, then his anchor's pose
   const GLIDE = 1;   // m/s: the fastest an anchor correction moves him
   const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
@@ -544,8 +446,8 @@ if (PREVIEW) {
   const anchorAt = (xrFrame, p) => {
     try { xrFrame.createAnchor?.(new XRRigidTransform({ x: p.x, y: p.y, z: p.z }), renderer.xr.getReferenceSpace())?.then((a) => (anchor = a), () => {}); } catch {}
   };
-  // He comes out at p, by himself or on a tap (both only ever at the ring, so 1.2-5 m away), and is anchored there.
-  const comeOut = (p, xrFrame, now) => { place(p, now); base.copy(p); onGuess = guessing; anchorAt(xrFrame, p); };
+  // He comes out at p (only ever the ring, so 1.2-5 m away) and is anchored there.
+  const comeOut = (p, xrFrame, now) => { place(p, now); base.copy(p); anchorAt(xrFrame, p); };
   // Talking needs the mic, and its prompt comes as the page opens, before AR: inside AR it may not show, and on a
   // tap it outlasted the tap AR needs, so Start took two taps (18 Oct).
   if (ok) navigator.permissions?.query({ name: 'microphone' }).then((p) => {
@@ -554,14 +456,15 @@ if (PREVIEW) {
   start.onclick = async () => {
     let session = null;
     try {
+      // No plane-detection: his spot comes from the hit test alone, and Chrome handing over every plane's outline each
+      // frame was work the phone no longer needs to do.
       session = await navigator.xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test'],
-        optionalFeatures: ['dom-overlay', 'anchors', 'plane-detection', 'local-floor', 'light-estimation'],
+        optionalFeatures: ['dom-overlay', 'anchors', 'light-estimation'],
         domOverlay: { root: overlay },
       });
       const has = (f) => !!session.enabledFeatures?.includes(f);
-      planesOn = has('plane-detection'); localFloor = has('local-floor');
-      renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType(localFloor ? 'local-floor' : 'local');
+      renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local');
       await renderer.xr.setSession(session);
       hitSource = await session.requestHitTestSource({ space: await session.requestReferenceSpace('viewer') });
       if (has('light-estimation')) probe = await session.requestLightProbe().catch(() => null);
@@ -570,7 +473,7 @@ if (PREVIEW) {
       start.textContent = e?.name === 'NotAllowedError' ? 'Camera blocked: allow it for this site, then tap again' : 'AR couldn’t start: tap to try again';
       return;
     }
-    // A tap calls him straight away (and is the only way on a guessed floor).
+    // A tap on the screen (not on the mic or Back, which stop it) calls him to the ring.
     session.addEventListener('select', (e) => {
       if (placedAt !== null || !reticle.visible) return;
       comeOut(here.setFromMatrixPosition(reticle.matrix).clone(), e.frame, performance.now() / 1000);   // the event's frame is only live during this call
@@ -578,44 +481,23 @@ if (PREVIEW) {
     session.addEventListener('end', () => location.reload());
     start.style.display = 'none'; intro.style.display = 'none'; home.style.display = 'none';
     back.style.display = BACK ? 'block' : 'none';   // a way out before he comes (met=1 is added only once he's out)
-    startedAt = performance.now() / 1000;
-    tip('Point your phone at the floor by your feet');
+    tip('Point your phone at the floor a few steps away and move it slowly');
   };
   rasterise();   // a first picture of him, as the loop copies him only once he is out: his card is never blank
   renderer.setAnimationLoop((time, xrFrame) => {
     if (!xrFrame) return;   // before Start AR nothing here shows, so nothing is drawn
     const now = performance.now() / 1000;
-    if (xrFrame && hitSource) {
+    if (hitSource) {
       const ref = renderer.xr.getReferenceSpace(), view = xrFrame.getViewerPose(ref);
       if (view) cam.set(view.transform.position.x, view.transform.position.y, view.transform.position.z);
       if (probe) light = xrFrame.getLightEstimate(probe) || light;   // null until ARCore has one; keep the last
-      if (!view || now - lastView > 0.25) heldSince = null;   // a tracking gap or a hidden page restarts the 1 s hold
-      if (view) lastView = now; else reticle.visible = false;   // no tracking, no ring: you may have walked up to where it was
-      if ((placedAt === null || onGuess) && view) {
-        // Only the nearest hit is what the camera sees: ARCore also returns planes further along the ray, such as the
-        // floor behind a bed. A hit pose's Y axis is the surface normal.
-        const m = xrFrame.getHitTestResults(hitSource)[0]?.getPose(ref)?.transform.matrix;
-        if (m && m[5] > 0.9) {
-          seen.push({ x: m[12], y: m[13], z: m[14] });
-          if (Math.hypot(m[12] - cam.x, m[14] - cam.z) < FEET_M) feet.push(m[13]);
-        }
-        if (seen.length > 300) seen.splice(0, seen.length - 300);
-        if (feet.length > 60) feet.splice(0, feet.length - 60);
-        lowHit = feet.length >= 3 ? [...feet].sort((a, b) => a - b)[2] : Infinity;
-        // Planes below the floor by your feet are reflections (glossy tiles); with no floor yet, none count.
-        const planes = planesOn ? [...xrFrame.detectedPlanes].map((p) => ({ m: xrFrame.getPose(p.planeSpace, ref)?.transform.matrix, poly: p.polygon }))
-          .filter((p) => p.m && p.m[13] > lowHit - 0.1) : [];
-        if (onGuess) {   // he came out on a guessed floor: once the real floor is found he steps onto it, where he stands
-          const y = floorAt(planes, lowHit);
-          if (isFinite(y)) { lift = y - base.y; floorY = y; onGuess = false; }
-        } else {
-          // A guessed floor only where ARCore can't detect planes at all: on the S24 the guess drew his ring at desk
-          // height (18 Oct), and a tap would have stood him there, so with plane detection he waits for the real floor.
-          guessing = !planesOn && lowHit === Infinity && localFloor && now - startedAt > 6;
-          const spot = pickSpot(guessing ? [flatAt(0)] : planes, cam, levelForward(view.transform.matrix), lowHit, guessing ? null : seen, 1 / view.views[0].projectionMatrix[0]);
-          reticle.visible = !!spot;
-          if (spot) { reticle.matrix.makeTranslation(spot.x, spot.y, spot.z); floorY = spot.y; }
-          if (ready(spot, -view.transform.matrix[9], now, guessing, isFinite(lowHit) || guessing)) comeOut(new THREE.Vector3(spot.x, spot.y, spot.z), xrFrame, now);
+      if (placedAt === null) {
+        if (!view) { ringAt = -Infinity; aim(null, cam, now); }   // no tracking, no ring (and the tip says to aim again, not to tap)
+        else {
+          // Only the nearest hit is what the camera sees: ARCore also returns surfaces further along the ray, such as the
+          // floor behind a bed. A hit pose's Y axis is the surface normal, so m[5] > 0.9 is a surface facing up.
+          const m = xrFrame.getHitTestResults(hitSource)[0]?.getPose(ref)?.transform.matrix;
+          aim(m && m[5] > 0.9 ? hit.set(m[12], m[13], m[14]) : null, cam, now);
         }
       }
       if (placedAt !== null) {
@@ -629,7 +511,7 @@ if (PREVIEW) {
         // Or the camera jumped over 20 cm (a re-fix while you walk, or after tracking came back while you walked): your own
         // steps are in that jump too, so it never matches his anchor's.
         if (moved.distanceTo(gap.subVectors(cam, lastCam)) < 0.03 || gap.length() > 0.2) figure.position.add(moved);
-        gap.set(base.x, base.y + lift, base.z).sub(figure.position);
+        gap.set(base.x, base.y, base.z).sub(figure.position);
         figure.position.add(gap.clampLength(0, GLIDE * Math.min(0.1, now - lastNow)));
       }
       lastCam.copy(cam);

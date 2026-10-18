@@ -17,7 +17,6 @@ const WHICH = argv.find((a, i) => !a.startsWith('--') && !argv[i - 1]?.startsWit
 const THROTTLE = Number(flag('throttle', 4)), FRIEND = flag('friend', 'nobita');
 const INJECT = ['sim-xr.js', 'fake-talk.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8')).join('\n');
 const UA = 'Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
-const FEET_TIP = 'Point your phone at the floor by your feet';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function chrome() {
@@ -25,7 +24,7 @@ async function chrome() {
   if (await up()) return;
   // The laptop's GPU through ANGLE, as a phone has one (SwiftShader would make every frame look slow). Left running.
   spawn('google-chrome', ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${path.join(os.tmpdir(), 'saath-ar-sim-chrome')}`, '--no-first-run',
-    '--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=gl-egl', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { detached: true, stdio: 'ignore' }).unref();
+    '--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=gl-egl', '--autoplay-policy=no-user-gesture-required', '--mute-audio', 'about:blank'], { detached: true, stdio: 'ignore' }).unref();
   for (let i = 0; i < 50; i++) { await sleep(200); if (await up()) return; }
   throw new Error(`no Chrome on CDP port ${PORT}`);
 }
@@ -122,12 +121,16 @@ function judge({ name, friend, sc, room, sim, errors, leaked, gl }) {
   const flat = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]), d3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   const dedupe = (xs) => xs.filter((x, i) => x !== xs[i - 1]), cm = (m) => +(m * 100).toFixed(1);
 
-  const floorAt = L.find((r) => r.tip && r.tip !== FEET_TIP)?.t ?? null;
-  check(`floor set within ${sc.floorWithin} s`, floorAt !== null && floorAt <= sc.floorWithin, { floorAt });
-  const out = L.find((r) => r.placed), clips = {};
-  if (!out) check('he comes out', false, { lastTip: L.at(-1)?.tip, planes: L.at(-1)?.planes });
+  const ringAt = L.find((r) => r.ring)?.t ?? null;
+  check(`the ring shows within ${sc.ringWithin} s`, ringAt !== null && ringAt <= sc.ringWithin, { ringAt });
+  // The ring only ever marks a spot 1.2-5 m away (a hand's sway while it lingers 0.3 s is allowed a few cm).
+  const rings = L.filter((r) => r.ringAt), ringOff = rings.filter((r) => flat(r.ringAt, r.cam) < 1.15 || flat(r.ringAt, r.cam) > 5.05);
+  if (rings.length) check('the ring is only ever 1.2-5 m away', !ringOff.length, { frames: ringOff.length, first: ringOff[0] && { t: ringOff[0].t, dist: +flat(ringOff[0].ringAt, ringOff[0].cam).toFixed(2) } });
+  const tap = E.find((e) => e.tap), out = L.find((r) => r.placed), clips = {};
+  if (!out) check('he comes out at the tap', false, { tapped: !!tap, lastTip: L.at(-1)?.tip, planes: L.at(-1)?.planes });
   else {
     const P = L.filter((r) => r.placed), p = out.friend;
+    check('he comes out at the tap, where the ring was', tap && out.t - tap.t < 0.1 && d3(p, L.findLast((r) => r.t <= tap.t && r.ringAt)?.ringAt ?? [9, 9, 9]) < 0.02, { tapAt: tap?.t, outAt: out.t, at: p });
     check('he comes out on the floor (feet within 2 cm of it)', Math.abs(p[1]) <= 0.02, { at: p, t: out.t, yCm: cm(p[1]) });
     check('1.2-5 m away', flat(p, out.cam) >= 1.2 && flat(p, out.cam) <= 5, { dist: +flat(p, out.cam).toFixed(2) });
     const onIt = (q) => room.boxes.find((b) => q[0] > b.x[0] && q[0] < b.x[1] && q[2] > b.z[0] && q[2] < b.z[1]);
@@ -178,8 +181,10 @@ function judge({ name, friend, sc, room, sim, errors, leaked, gl }) {
   if (L.some((r) => r.lost)) check('no ring while tracking is lost', !lostRing.length, { frames: lostRing.length });
   const asked = E.find((e) => e.talk);
   if (asked) {
-    const R = L.filter((r) => r.t >= asked.t), sp = R.filter((r) => r.talk === 'speaking'), words = sp.find((r) => r.cloud && r.cloud !== '…')?.cloud;
-    check('holding the mic gives a reply (he speaks, his words in the cloud)', sp.length && words, { states: dedupe(R.map((r) => r.talk)), words });
+    const R = L.filter((r) => r.t >= asked.t), sp = R.filter((r) => r.talk === 'speaking'), thinking = `${FRIENDS[friend][0]} is thinking…`;
+    check('holding the mic gives a reply (he thinks, then speaks)', R.some((r) => r.talk === 'thinking') && sp.length, { states: dedupe(R.map((r) => r.talk)) });
+    // No words on screen (the user, 18 Oct: "just audio"): only the hint under the mic says he is thinking.
+    check('nothing is written while he talks, except that he is thinking', R.some((r) => r.hint === thinking) && sp.every((r) => !r.tip && r.hint !== thinking), { hints: dedupe(R.map((r) => r.hint)), tips: dedupe(sp.map((r) => r.tip)) });
     const mouths = [...new Set(sp.map((r) => r.mouth).filter(Boolean))], redraws = sp.filter((r) => r.feet).length;
     check('his mouth moves while he talks', mouths.length >= 2 && redraws >= 5, { mouths, redrawsWhileSpeaking: redraws });
   }
@@ -205,17 +210,17 @@ async function video(frames, wall0, file) {
   await once(ff, 'close');
 }
 
-// 12 time-stamped frames: the moments that matter (floor set, out, too close, speaking, jumps), the rest evenly spread.
+// 12 time-stamped frames: the moments that matter (ring shows, tap, out, too close, speaking, jumps), the rest evenly spread.
 async function sheet(frames, sim, report, file) {
   if (!frames.length) return;
   const L = sim.log, w0 = sim.wall0 / 1000, end = L.at(-1).t, esc = (s) => String(s ?? '').replace(/[&<]/g, (c) => (c === '&' ? '&amp;' : '&lt;'));
   const near = (xs, t, f) => xs.reduce((b, x) => (Math.abs(f(x) - t) < Math.abs(f(b) - t) ? x : b));
-  const key = [['floor set', L.find((r) => r.tip && r.tip !== FEET_TIP)?.t], ['he is out', L.find((r) => r.placed)?.t], ['too close', L.find((r) => r.close)?.t],
+  const key = [['ring shows', L.find((r) => r.ring)?.t], ['tap', sim.events.find((e) => e.tap)?.t], ['he is out', L.find((r) => r.placed)?.t], ['too close', L.find((r) => r.close)?.t],
     ['speaking', L.find((r) => r.talk === 'speaking')?.t], ...sim.events.filter((e) => e.jump || e.lose).map((e) => [e.jump ? 'jump' : 'tracking lost', e.t + 0.4])]
     .filter(([, t]) => t != null).slice(0, 7);
   const picks = [...key, ...Array.from({ length: 12 - key.length }, (_, i) => ['', (end * (i + 0.5)) / (12 - key.length)])].sort((a, b) => a[1] - b[1]);
   const cells = picks.map(([what, t]) => {
-    const r = near(L, t, (x) => x.t), state = r.close ? 'grey: too close' : r.tip || [r.talk !== 'idle' && r.talk, r.cloud && `“${r.cloud}”`, r.clip].filter(Boolean).join(' · ');
+    const r = near(L, t, (x) => x.t), state = r.close ? 'grey: too close' : r.tip || [r.talk !== 'idle' && r.talk, r.clip].filter(Boolean).join(' · ');
     return `<figure><img src="data:image/jpeg;base64,${near(frames, t, (f) => f.ts - w0).data}"><figcaption><b>${t.toFixed(1)} s</b> ${esc(what)}<br>${esc(state)}</figcaption></figure>`;
   }).join('');
   const fails = report.checks.filter((c) => !c.pass).map((c) => c.what);

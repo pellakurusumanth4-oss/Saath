@@ -5,8 +5,8 @@
 // Script steps, played in order (angles in degrees: yaw 0 is where the phone faced at Start, pitch < 0 looks down):
 //   hold: s | look: {pitch, yaw}, s | lookAt: box name or [x, y, z] | sweep: ±deg, s, pitch (a look left and right every s)
 //   walkTo: 'friend', dist | eye: m (sit 1.05, stand 1.45) | clips: every gesture of his in turn
-//   untilFloor: max s, ends the step once the page has set the floor (and you've read the tip)
-//   follow: max s, does what the page's tip says (feet, look around, look ahead) until he is out
+//   follow: max s, yaw: does what the page's tip says (aims at the floor a few steps ahead, nearer or further when told,
+//     taps once the ring is on the floor) until he is out
 //   talk: what you say, press: s held, s | jump: {camera | anchor: [dx, dy, dz]} (a map re-fix, or one anchor moving)
 //   lose: true on any step: no tracking during it.
 
@@ -36,46 +36,40 @@ export const ROOMS = {
     ] },
 };
 
-// What the page asks for: the floor by your feet, slowly around the floor ahead, then look ahead until he comes out.
-const FIND = [
-  { hold: 0.5 },
-  { look: { pitch: -58 }, s: 0.8 },
-  { sweep: 10, s: 3, pitch: -58, untilFloor: 20 },   // as long as the tip says so
-  { sweep: 30, s: 6, pitch: -35 },
-  { look: { pitch: -12, yaw: 0 }, s: 1 },
-  { follow: 30 },
-];
+// What the page asks for: aim at the floor a few steps ahead, then tap the ring.
+const FIND = [{ hold: 0.5 }, { look: { pitch: -30 }, s: 0.8 }, { follow: 30 }];
 
-// floorWithin: the floor must be set (the "by your feet" tip gone) within this many seconds of Start.
+// ringWithin: the ring must show within this many seconds of Start.
 // opts (optional): anchorNoise (m, each frame, default 0.002), seed.
 export const SCENARIOS = {
-  'good-room': { room: 'open', floorWithin: 5, script: [...FIND, { hold: 4 }, { clips: true }, { hold: 1 }] },
-  'small-cluttered-dim': { room: 'small', floorWithin: 15, script: [
-    { hold: 0.5 }, { look: { pitch: -58 }, s: 0.8 }, { sweep: 12, s: 4, pitch: -58, untilFloor: 25 },
+  'good-room': { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { clips: true }, { hold: 1 }] },
+  // The simulated dim room maps floor 2.5 m ahead slowly (the ring at about 30 s); on the S24 (18 Oct) floor a few steps
+  // ahead was found in about 8 s once the user looked there.
+  'small-cluttered-dim': { room: 'small', ringWithin: 35, script: [
+    { hold: 0.5 }, { look: { pitch: -30 }, s: 0.8 },
     { sweep: 50, s: 1.6, pitch: -40 },   // a quick wave round, too fast to map
-    { sweep: 30, s: 7, pitch: -35 },
     { look: { pitch: 15, yaw: 0 }, s: 1 }, { hold: 1.5 },   // held up like a camera, tipped a little too high
     { follow: 45 },
     { hold: 8 }, { eye: 1.05, s: 1.5 }, { hold: 6 }, { eye: 1.45, s: 1.5 }, { hold: 6 },   // sits down, stands up
   ] },
-  'scan-near-clutter-first': { room: 'small', floorWithin: 20, script: [
+  'scan-near-clutter-first': { room: 'small', ringWithin: 40, script: [   // 12 s on clutter, then the slow dim-room floor
     { hold: 0.5 }, { lookAt: 'bag', s: 0.8 }, { sweep: 8, s: 3 }, { lookAt: 'clothes', s: 0.8 }, { sweep: 8, s: 3 },
-    { lookAt: 'desk', s: 1 }, { sweep: 10, s: 3 }, ...FIND.slice(1), { hold: 6 },
+    { lookAt: 'desk', s: 1 }, { sweep: 10, s: 3 }, { follow: 40 }, { hold: 6 },
   ] },
-  'walk-closer': { room: 'open', floorWithin: 5, script: [...FIND, { hold: 4 }, { walkTo: 'friend', dist: 0.7 }, { hold: 2.5 }, { walkTo: 'friend', dist: 2 }, { hold: 2.5 }] },
-  'tracking-loss': { room: 'open', floorWithin: 8, script: [
-    { hold: 0.5 }, { look: { pitch: -58 }, s: 0.8 }, { sweep: 10, s: 3, pitch: -58 },
-    { sweep: 20, s: 1.5, pitch: -50, lose: true },
-    ...FIND.slice(2), { hold: 3 },
+  'walk-closer': { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { walkTo: 'friend', dist: 0.7 }, { hold: 2.5 }, { walkTo: 'friend', dist: 2 }, { hold: 2.5 }] },
+  'tracking-loss': { room: 'open', ringWithin: 8, script: [
+    { hold: 0.5 }, { look: { pitch: -30 }, s: 0.8 }, { sweep: 10, s: 3, pitch: -30 },
+    { sweep: 20, s: 1.5, pitch: -30, lose: true },
+    { follow: 30 }, { hold: 3 },
     { sweep: 15, s: 2, lose: true }, { jump: { camera: [0.04, 0, -0.03] } }, { hold: 5 },   // lost, then found again a few cm off
   ] },
-  'anchor-jump': { room: 'open', floorWithin: 5, script: [
+  'anchor-jump': { room: 'open', ringWithin: 5, script: [
     ...FIND, { hold: 3 },
     { jump: { anchor: [0.12, 0, 0.05] } }, { hold: 3 },   // ARCore moves his anchor 13 cm
     // Map re-fixes of 5, 8, 15, 19 and 30 cm, each a new way: he must stay on his real spot through every one.
     ...[[0.05, 0, 0], [0.08, 0, 0], [0, 0, -0.15], [-0.18, 0, 0.06], [0.24, 0, 0.18]].flatMap((camera) => [{ jump: { camera } }, { hold: 3 }]),
   ] },
-  talk: { room: 'open', floorWithin: 5, script: [...FIND, { hold: 4 }, { talk: 'what are you doing', press: 1.5, s: 14 }, { hold: 1 }] },
+  talk: { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { talk: 'what are you doing', press: 1.5, s: 14 }, { hold: 1 }] },
   // The quick pass over every friend (run.mjs all-friends): out, every gesture, one question.
-  'friend-pass': { room: 'open', floorWithin: 5, script: [...FIND, { hold: 4 }, { clips: true }, { talk: 'hi', press: 1.2, s: 12 }] },
+  'friend-pass': { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { clips: true }, { talk: 'hi', press: 1.2, s: 12 }] },
 };

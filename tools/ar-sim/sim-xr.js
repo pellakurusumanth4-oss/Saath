@@ -107,7 +107,7 @@
   const f = 1 / TY, PROJ = new Float32Array([f / (W / H), 0, 0, 0, 0, f, 0, 0, 0, 0, -60.02 / 59.98, -1, 0, 0, -2.4 / 59.98, 0]);
 
   // ---- The phone: a script of steps (scenarios.mjs), each easing from where the last one left the phone ----
-  const S = window.__sim = { faces, log: [], events: [], want: null, done: false, placed: false, friend: null, errors: 0 };
+  const S = window.__sim = { faces, log: [], events: [], want: null, tap: false, done: false, placed: false, friend: null, ringAt: null, errors: 0 };
   const ph = { o: start.slice(), yaw: 0, pitch: -20 };
   const target = (n) => { if (Array.isArray(n)) return n; const b = room.boxes.find((x) => x.name === n); return [(b.x[0] + b.x[1]) / 2, b.h, (b.z[0] + b.z[1]) / 2]; };
   const aim = (from, at) => { const v = sub(at, from); return { yaw: Math.atan2(-v[0], -v[2]) / D2R, pitch: Math.atan2(v[1], Math.hypot(v[0], v[2])) / D2R }; };
@@ -129,7 +129,6 @@
     }
     if (s.eye) { to.o[1] = s.eye; ease = dur = s.s ?? 1.2; }
     if (s.follow) { dur = s.follow; until = () => S.placed; }
-    if (s.untilFloor) { dur = s.untilFloor; until = (now) => S.floorAt != null && now - S.floorAt > 0.6; }   // as you read the new tip
     if (s.clips) {   // every gesture of his, one after another, each when the last has finished
       const A = rigWin()?.SAATH_AR; clipQueue = A ? Object.entries(A.actions) : [];
       let playing = null; dur = 600;
@@ -147,14 +146,20 @@
     seg = { s, t0: t, ease, dur, from, to, wob, until, amp: 0, phase: 0 };
     S.events.push({ t: +t.toFixed(3), step: si, ...s });   // rounded as the log is, so the frame of a jump is on its side of it
   };
-  // A user who does what the tip says: [pitch, sweep ±deg, sweep period s] for each tip, eased in over about 0.5 s.
-  const DO = { Point: [-58, 10, 3], Slowly: [-35, 30, 6] }, AHEAD = [-12, 0, 6];
+  // A user who does what the tip says and wants him on the floor: aims at the floor a few steps ahead of where the phone
+  // faced at Start (follow.yaw, default 0: open floor in both rooms), looking slowly left and right, nearer or further when
+  // told; when the ring is on the floor (not a bed or desk top) holds still and taps TAP_S later. Eased in over about 0.5 s.
+  const TAP_S = 0.4;
   const stepPose = (t, dt) => {
     while (!seg || (!S.done && (t - seg.t0 >= seg.dur || seg.until?.(t)))) next(t);
     if (seg.s.follow) {
-      const [pitch, amp, period] = DO[S.tip?.split(' ')[0]] ?? AHEAD, k = 1 - Math.exp(-dt / 0.5);
-      ph.pitch += (pitch - ph.pitch) * k; seg.amp += (amp - seg.amp) * k; seg.phase += (2 * Math.PI * dt) / period;
-      ph.yaw = seg.from.yaw + seg.amp * Math.sin(seg.phase);
+      const tip = S.tip ?? '', k = 1 - Math.exp(-dt / 0.5), onFloor = S.ring && Math.abs(S.ring[1]) < 0.05;
+      if (tip.startsWith('Tap') && onFloor) { seg.tapAt ??= t; if (t - seg.tapAt >= TAP_S) { S.tap = true; seg.tapAt = Infinity; } return; }   // hold still, tap once
+      seg.tapAt = null;
+      const pitch = tip.startsWith('Too close') ? -20 : tip.startsWith('Too far') ? -45 : -30;
+      seg.mid = (seg.mid ?? seg.from.yaw) + ((seg.s.yaw ?? 0) - (seg.mid ?? seg.from.yaw)) * k;
+      ph.pitch += (pitch - ph.pitch) * k; seg.amp += (12 - seg.amp) * k; seg.phase += (2 * Math.PI * dt) / 6;
+      ph.yaw = seg.mid + seg.amp * Math.sin(seg.phase);
       return;
     }
     const k = Math.min(1, (t - seg.t0) / (seg.ease || 1)), e = k * k * (3 - 2 * k);
@@ -295,14 +300,17 @@ onmessage = ({ data: d }) => {
     const cbs = session.cbs.splice(0), a = performance.now();
     for (const cb of cbs) try { cb(now, frame); } catch (e) { S.errors++; setTimeout(() => { throw e; }); }   // a page error, reported as one
     const ms = performance.now() - a;
+    // The scripted user's tap: a WebXR select, with this frame, as Chrome sends one for a tap on the screen.
+    if (S.tap) { S.tap = false; session.dispatchEvent(Object.assign(new Event('select'), { frame, inputSource: {} })); S.events.push({ t: +t.toFixed(3), tap: true }); }
     // What the page did with it, for run.mjs's checks.
     const st = window.state?.(), sa = rigWin()?.saath?.now?.();
     S.placed = !!st?.placed; S.tip = st?.tip; if (S.placed) S.friend = sub(st.at, off);
-    if (S.floorAt == null && (S.placed || (st?.tip && st.tip !== 'Point your phone at the floor by your feet'))) S.floorAt = t;
+    S.ring = st?.ringAt ? sub(st.ringAt, off) : null;   // where the ring is in the room, or null
+    if (S.ringAt == null && S.ring) S.ringAt = t;
     const row = { t: +t.toFixed(3), ms: +ms.toFixed(1), step: si, lost, cam: [...r3(p.o), +p.yaw.toFixed(1), +p.pitch.toFixed(1)], turn: +turn.toFixed(2),
       planes: faces.filter((x) => x.plane && x.N[1] > 0.9).map((x) => x.name ?? 'floor'), hit: hits[0] ? [...r3(hits[0].p), hits[0].f.name ?? (hits[0].f.N[1] > 0.9 ? 'floor' : 'wall')] : null,
-      tip: st?.tip, ring: st?.ring, placed: S.placed, at: st?.at,
-      friend: S.friend && r3(S.friend), close: st?.close, talk: st?.talk, cloud: st?.cloud ? (st.cloud.thinking ? '…' : st.cloud.text.slice(0, 40)) : null, clip: sa?.clip, mouth: sa?.face?.mouth ?? null };
+      tip: st?.tip, ring: !!st?.ring, ringAt: S.ring && r3(S.ring), placed: S.placed, at: st?.at,
+      friend: S.friend && r3(S.friend), close: st?.close, talk: st?.talk, hint: st?.hint, clip: sa?.clip, mouth: sa?.face?.mouth ?? null };
     if (S.art) { row.feet = feet(); S.art = null; }
     row.simMs = +(performance.now() - now - ms).toFixed(1);   // this simulator's own cost on the page's thread, not the page's
     S.log.push(row);

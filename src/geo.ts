@@ -1,6 +1,6 @@
 export type LatLng = { lat: number; lng: number };
 
-const EARTH_RADIUS_M = 6371000;
+export const EARTH_RADIUS_M = 6371000;
 export const DEG = Math.PI / 180;
 
 /** Great-circle distance in metres (haversine). */

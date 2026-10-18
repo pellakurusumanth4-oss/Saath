@@ -191,7 +191,7 @@ export function CameraScreen({ target, level, fix, onBack }: Props) {
     line = 'Move your phone in a slow figure 8.';
   } else if (here) {
     title = target.met ? `You met ${name}!` : `${name} is right here!`;
-    line = `Chrome opens your camera, finds the floor, and ${name} comes out on it.`;
+    line = `Chrome opens your camera: point it at the floor, tap the gold ring, and ${name} comes to it.`;
     action = { label: target.met ? `Meet ${name} again` : `Meet ${name} in AR`, onPress: openAr };
   } else {
     const turn = Math.abs(delta) < 15 ? 'straight ahead' : `${Math.round(Math.abs(delta))}° to your ${delta > 0 ? 'right' : 'left'}`;
@@ -238,7 +238,7 @@ export function CameraScreen({ target, level, fix, onBack }: Props) {
         {target ? (
           <View style={styles.chip}>
             <Text style={styles.chipText} numberOfLines={1}>
-              {target.met || here ? target.name : `near ${target.place}`}
+              {target.met || here ? target.name : target.place}
             </Text>
           </View>
         ) : null}
