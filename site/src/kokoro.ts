@@ -12,7 +12,19 @@ export type KokoroStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 
 export type SpeakHandle = {
   cancel: () => void;
+  /** Resolves when the voice has finished (or was cancelled). */
+  done: Promise<void>;
 };
+
+/** Resolves once speechSynthesis stops speaking (capped at 20 s). */
+async function synthDone(): Promise<void> {
+  const synth = window.speechSynthesis;
+  await new Promise((r) => setTimeout(r, 300));
+  const started = Date.now();
+  while (synth?.speaking && Date.now() - started < 20_000) {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
 
 const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const SLOW_GENERATION_MS = 8000;
@@ -159,7 +171,7 @@ async function speakWithKokoro(
   };
 
   // Drive generation + playback sequentially without blocking the returned handle.
-  void (async () => {
+  const done = (async () => {
     for (const sentence of sentences) {
       if (cancelled) return;
       try {
@@ -181,13 +193,16 @@ async function speakWithKokoro(
       } catch {
         // A single slow/failed sentence doesn't kill the whole reply:
         // fall back to speechSynthesis for the remaining text, then stop.
-        if (!cancelled) speakFallback(friendId, sentence);
+        if (!cancelled) {
+          speakFallback(friendId, sentence);
+          await synthDone();
+        }
         return;
       }
     }
   })();
 
-  return { cancel: controller.cancel };
+  return { cancel: controller.cancel, done };
 }
 
 /**
@@ -199,7 +214,7 @@ export async function speakReply(friendId: string, text: string): Promise<SpeakH
 
   if (!settings || kokoroUnavailable()) {
     speakFallback(friendId, text);
-    return { cancel: () => window.speechSynthesis?.cancel() };
+    return { cancel: () => window.speechSynthesis?.cancel(), done: synthDone() };
   }
 
   try {
@@ -209,7 +224,7 @@ export async function speakReply(friendId: string, text: string): Promise<SpeakH
   } catch {
     // Load failure (e.g. no WebGPU) — use the fallback voice.
     speakFallback(friendId, text);
-    return { cancel: () => window.speechSynthesis?.cancel() };
+    return { cancel: () => window.speechSynthesis?.cancel(), done: synthDone() };
   }
 }
 

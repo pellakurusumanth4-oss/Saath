@@ -540,9 +540,10 @@ function kamehameha(t, p = { ...REST }) {
   return p;
 }
 // Instant Transmission: two fingers to his forehead, eyes shut, a beat of concentration, then he
-// is gone in a flicker of speed lines ("shun!") and back the same way a step to the side.
+// is gone in a flicker of speed lines ("shun!") and back the same way, on the same spot: it's his arrival in AR, and a
+// step to the side snapped back when Hi! began (18 Oct). shift moves where he comes back.
 const IT = [222, -160, 1, 'two', 14];
-function instant(t, p = idle(t), shift = 300) {
+function instant(t, p = idle(t), shift = 0) {
   const toward = (k) => mixArm(REST.armL, IT, k);
   p.layerL = 'front'; p.brows = 'angry';
   const at = t < 1.2 ? 0 : shift;
