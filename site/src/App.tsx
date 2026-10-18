@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import MapView from './MapView';
 import MapBoundary from './MapBoundary';
 import FriendsList from './FriendsList';
+import HangoutPanel from './HangoutPanel';
 import { useMe, useTags } from './hooks';
 import { NEARBY_M } from './constants';
 import { FRIENDS, type Friend } from '../../src/friends';
@@ -15,6 +16,7 @@ export default function App() {
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [hangout, setHangout] = useState(false);
 
   const ranked: Array<{ friend: Friend; distance: number | null }> = useMemo(() => {
     const rows = FRIENDS.map((friend) => ({ friend, distance: me ? distanceM(me, friend) : null }));
@@ -71,6 +73,7 @@ export default function App() {
         <MapView
           me={me}
           tagged={tagged}
+          selected={selected}
           focus={focus?.spot ?? null}
           focusKey={focus?.key ?? ''}
           settingSpot={settingSpot}
@@ -83,6 +86,14 @@ export default function App() {
         <h1 className="logo">Saath</h1>
         <p className="tagline">Four friends, waiting around Pune</p>
       </header>
+
+      <button
+        className="btn btn-yellow hangout-btn"
+        onClick={() => setHangout(true)}
+        aria-label="Open the hangout"
+      >
+        Hangout
+      </button>
 
       <div className="controls">
         <button className="btn btn-yellow" onClick={onWhereAmI} disabled={locating}>
@@ -111,6 +122,8 @@ export default function App() {
         onTag={tag}
         onToggle={() => setExpanded((value) => !value)}
       />
+
+      {hangout && <HangoutPanel onClose={() => setHangout(false)} />}
     </div>
   );
 }

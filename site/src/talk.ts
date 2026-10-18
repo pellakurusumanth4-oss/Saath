@@ -48,3 +48,63 @@ export async function askFriend(friendId: string, messages: ChatMessage[]): Prom
   }
   return reply;
 }
+
+export type GroupSpeaker = 'user' | 'doraemon' | 'nobita' | 'shinchan' | 'goku';
+
+export type GroupMessage = {
+  speaker: GroupSpeaker;
+  text: string;
+};
+
+export type GroupReply = {
+  speaker: Exclude<GroupSpeaker, 'user'>;
+  reply: string;
+};
+
+/** Ask the edge function for the next group line. Throws RateLimitError on 429. */
+export async function askGroup(
+  messages: GroupMessage[],
+  addressee: Exclude<GroupSpeaker, 'user'> | null,
+): Promise<GroupReply> {
+  const response = await fetch(TALK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ mode: 'group', messages, addressee }),
+  });
+  if (!response.ok) {
+    if (response.status === 429) {
+      const body: unknown = await response.json().catch(() => null);
+      const message =
+        typeof body === 'object' && body !== null && 'error' in body
+          ? (body as { error: unknown }).error
+          : null;
+      throw new RateLimitError(
+        typeof message === 'string' && message.length > 0
+          ? message
+          : 'Too many messages, try again in a minute',
+      );
+    }
+    throw new Error(`talk failed: ${response.status}`);
+  }
+  const data: unknown = await response.json();
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'speaker' in data &&
+    'reply' in data
+  ) {
+    const { speaker, reply } = data as { speaker: unknown; reply: unknown };
+    if (
+      typeof speaker === 'string' &&
+      speaker !== 'user' &&
+      typeof reply === 'string' &&
+      reply.length > 0
+    ) {
+      return { speaker: speaker as Exclude<GroupSpeaker, 'user'>, reply };
+    }
+  }
+  throw new Error('talk returned no group reply');
+}

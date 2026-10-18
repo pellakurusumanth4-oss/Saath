@@ -16,5 +16,8 @@ export default defineConfig(({ mode }) => {
       fs: { allow: ['..'] },
     },
     build: { outDir: '../dist', emptyOutDir: true },
+    optimizeDeps: {
+      exclude: ['kokoro-js', '@huggingface/transformers', 'onnxruntime-web', 'phonemizer'],
+    },
   };
 });

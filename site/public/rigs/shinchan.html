@@ -24,7 +24,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#F4EEE3;font-family:sy
 <div class="title" id="title">SHIN-CHAN · 2D ANIME RIG · V1 · TRACED FROM TV ASAHI ART, TIMED FROM THE FILMS</div>
 <div class="sheet" id="sheet"></div>
 <div id="street"><img id="photo"><svg class="char" id="streetChar"></svg><div id="bubble"></div><div id="hint">Move your phone slowly to find the ground</div><canvas class="grain" id="grain"></canvas></div>
-<script>window.SAATH_AR = {"ground":[200,512],"tall":484,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Buri-buri","extras":["Action Kamen","Yay!","Buri-buri"]}};</script>
+<script>window.SAATH_AR = {"ground":[200,512],"tall":484,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Buri-buri","extras":["Action Kamen","Yay!","Buri-buri","Chocobi","Toss & catch","Which cake?"]},"mouths":{"closed":"closed","half":"a","open":"laugh"},"moods":{"neutral":{},"happy":{"eyes":"happy","blush":0.8},"excited":{"eyes":"happy","blush":0.8},"surprised":{"brows":[-10,-3,-10,3]},"curious":{"look":[6,0]},"sad":{"brows":[-4,-14,-4,14],"closed":"wavy"},"worried":{"brows":[-4,-14,-4,14],"closed":"wavy"},"sleepy":{"eyes":"half"},"thinking":{"look":[5,-2]}},"actions":{"wave":"Hi!","dance":"Buri-buri","pose":"Action Kamen","cheer":"Yay!","chocobi":"Chocobi","toss":"Toss & catch","hmm":"Which cake?"},"later":["dance"]};</script>
 <script>
 // ---------------------------------------------------------------------------------------------
 // Shin-chan as a cut-out rig, drawn the way the current anime draws him. Every outline is traced
@@ -131,7 +131,10 @@ function drawing() {
       `<g class="eyes eyes-half"><clipPath id="${clip}"><rect x="${f1(c[0] - w * 1.4)}" y="${f1(lidY)}" width="${f1(w * 2.8)}" height="${f1(h * 2)}"/></clipPath>` +
       `<path d="${path(e, view)}" fill="${C.ink}" clip-path="url(#${clip})"/><path d="M${f1(c[0] - w * 1.08)} ${f1(lidY + 1)} Q${f1(c[0])} ${f1(lidY - 3)} ${f1(c[0] + w * 1.08)} ${f1(lidY - 1)}" ${THIN} stroke-width="${LW * 1.3}"/></g>` +
       `<g class="eyes eyes-closed"><path d="M${f1(c[0] - w * 0.95)} ${f1(c[1] + h * 0.1)} Q${f1(c[0])} ${f1(c[1] + h * 0.45)} ${f1(c[0] + w * 0.95)} ${f1(c[1] + h * 0.05)}" ${THIN} stroke-width="${LW * 1.4}"/></g>` +
-      `<g class="eyes eyes-happy"><path d="M${f1(c[0] - w * 0.9)} ${f1(c[1] + h * 0.35)} Q${f1(c[0])} ${f1(c[1] - h * 0.9)} ${f1(c[0] + w * 0.9)} ${f1(c[1] + h * 0.35)}" ${THIN} stroke-width="${LW * 1.9}"/></g></g>`;
+      `<g class="eyes eyes-happy"><path d="M${f1(c[0] - w * 0.9)} ${f1(c[1] + h * 0.35)} Q${f1(c[0])} ${f1(c[1] - h * 0.9)} ${f1(c[0] + w * 0.9)} ${f1(c[1] + h * 0.35)}" ${THIN} stroke-width="${LW * 1.9}"/></g>` +
+      // sparkle: a big catch-light up and back and a small one low and forward, as he gazes at a Chocobi (Bandai's ad, 9.3 s)
+      `<g class="eyes eyes-sparkle"><path d="${path(e, view)}" fill="${C.ink}" stroke="${C.ink}" stroke-width="1.5"/><circle class="hl" cx="${f1(c[0] - w * 0.28)}" cy="${f1(c[1] - h * 0.3)}" r="${f1(w * 0.4)}" fill="${C.white}"/>` +
+      `<circle class="hl" cx="${f1(c[0] + w * 0.36)}" cy="${f1(c[1] + h * 0.38)}" r="${f1(w * 0.17)}" fill="${C.white}"/></g></g>`;
   }).join('');
   const blushSet = (D, view, rx, ry) => { const g = ID(); return `<radialGradient id="${g}"><stop offset="0" stop-color="${C.blush}" stop-opacity="0.95"/><stop offset="1" stop-color="${C.blush}" stop-opacity="0"/></radialGradient>` +
     D.blush.map(([x, y]) => { const c = pt(view, x, y); return `<ellipse cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${rx}" ry="${ry}" fill="url(#${g})"/>` +
@@ -149,8 +152,29 @@ function drawing() {
       grin: `<path d="M${f1(x - 30 * s)} ${f1(y - 10 * s)} Q${f1(x - 6 * s)} ${f1(y + 13 * s)} ${f1(x + 17 * s)} ${f1(y - 12 * s)}" ${THIN} stroke-width="${LW}"/><path d="M${f1(x + 13 * s)} ${f1(y - 17 * s)} L${f1(x + 19 * s)} ${f1(y - 8 * s)}" ${THIN}/>`,
       wavy: `<path d="M${f1(x - 24 * s)} ${f1(y - 6 * s)} q6,6 12,0 t12,0 t12,0 t8,-2" ${THIN} stroke-width="${LW}"/>`,
       a: open(18, 14, 15, id), laugh: open(28, 20, 30, id2),
+      // gape: wide open and round to catch the snack (Bandai's Chocobi ad, 6.58 s), big enough to read at 2.5 m
+      gape: (() => { const id4 = ID(), ge = `cx="${f1(x)}" cy="${f1(y + 6 * s)}" rx="${f1(28 * s)}" ry="${f1(26 * s)}" transform="rotate(-15 ${f1(x)} ${f1(y)})"`;
+        return `<clipPath id="${id4}"><ellipse ${ge}/></clipPath><ellipse ${ge} fill="${C.deep}"/><ellipse cx="${f1(x - 2 * s)}" cy="${f1(y + 28 * s)}" rx="${f1(20 * s)}" ry="${f1(12 * s)}" fill="${C.mouth}" clip-path="url(#${id4})"/><ellipse ${ge} fill="none" ${LINE}/>`; })(),
+      // chewing with a full cheek: a squiggle that changes every drawing (Bandai's Chocobi ad, 0.5-0.9 s)
+      chew0: `<path d="M${f1(x - 15 * s)} ${f1(y + 1 * s)} q${f1(4 * s)},${f1(-6 * s)} ${f1(8 * s)},${f1(-1 * s)} t${f1(9 * s)},${f1(2 * s)} t${f1(9 * s)},${f1(-3 * s)}" ${THIN} stroke-width="${LW}"/>`,
+      chew1: `<path d="M${f1(x - 14 * s)} ${f1(y)} q${f1(5 * s)},${f1(5 * s)} ${f1(9 * s)},0 t${f1(9 * s)},${f1(-1 * s)} t${f1(8 * s)},${f1(2 * s)}" ${THIN} stroke-width="${LW}"/>`,
+      chew2: `<path d="M${f1(x - 13 * s)} ${f1(y - 2 * s)} q${f1(3 * s)},${f1(-5 * s)} ${f1(7 * s)},0 t${f1(8 * s)},${f1(1 * s)} t${f1(9 * s)},${f1(-2 * s)}" ${THIN} stroke-width="${LW}"/>`,
+      // smirk: clenched teeth in a small tilted mouth, his film tough-guy face (2026 trailer, 87.4-87.75 s)
+      smirk: `<g transform="rotate(-12 ${f1(x)} ${f1(y)}) translate(${f1(x)} ${f1(y)}) scale(1.4) translate(${f1(-x)} ${f1(-y)})"><path d="M${f1(x - 13 * s)} ${f1(y - 3 * s)} Q${f1(x - 7 * s)} ${f1(y - 9 * s)} ${f1(x)} ${f1(y - 6 * s)} Q${f1(x + 8 * s)} ${f1(y - 9 * s)} ${f1(x + 14 * s)} ${f1(y - 4 * s)} Q${f1(x + 16 * s)} ${f1(y + 3 * s)} ${f1(x + 10 * s)} ${f1(y + 6 * s)} Q${f1(x)} ${f1(y + 9 * s)} ${f1(x - 9 * s)} ${f1(y + 6 * s)} Q${f1(x - 15 * s)} ${f1(y + 3 * s)} ${f1(x - 13 * s)} ${f1(y - 3 * s)} Z" fill="${C.white}" ${LINE}/>` +
+        `<path d="M${f1(x - 11 * s)} ${f1(y + 1 * s)} q${f1(6 * s)},${f1(3 * s)} ${f1(12 * s)},0 t${f1(11 * s)},${f1(-1 * s)} M${f1(x - 6 * s)} ${f1(y - 5 * s)} L${f1(x - 6 * s)} ${f1(y - 1 * s)}" ${THIN}/></g>`,
     };
   };
+  // A star-shaped Chocobi snack, r across its points, its tips rounded: brown with a darker edge and a light glint.
+  const snack = (x, y, r) => { const P = (k, rr) => { const a = (-90 + k * 36) * Math.PI / 180; return [x + rr * Math.cos(a), y + rr * Math.sin(a)]; };
+    let d = `M${P(9, r * 0.55).map(f1).join(' ')}`; for (let k = 0; k < 10; k += 2) d += ` Q${P(k, r * 1.08).map(f1).join(' ')} ${P(k + 1, r * 0.55).map(f1).join(' ')}`;
+    return `<path d="${d} Z" fill="#8B5236" stroke="#3A2116" stroke-width="${LW * 0.8}" stroke-linejoin="round"/><ellipse cx="${f1(x - r * 0.2)}" cy="${f1(y - r * 0.25)}" rx="${f1(r * 0.22)}" ry="${f1(r * 0.13)}" fill="#C08860"/>`; };
+  // A puffed cheek round the mouth while he chews (the face line bulges out, its inner edge a crease).
+  // The face line bulges out round the mouth (skin over the old line, ink only on the outer edge) with a short crease above.
+  const puff = (M, rx, ry) => { const cx = M[0] + rx * 0.55, cy = M[1] + 4, at = (deg) => { const a = deg * Math.PI / 180; return `${f1(cx + rx * Math.cos(a))} ${f1(cy + ry * Math.sin(a))}`; };
+    return `<g class="puff"><ellipse cx="${f1(cx)}" cy="${f1(cy)}" rx="${rx}" ry="${ry}" fill="${C.skin}"/>` +
+      `<path d="M${at(-112)} A${rx} ${ry} 0 0 1 ${at(96)}" fill="none" ${LINE}/><path d="M${at(-150)} Q${f1(cx - rx * 0.55)} ${f1(cy - ry * 0.55)} ${at(-120)}" ${THIN}/></g>`; };
+  // The snack in his mouth, at the mouth of each head view.
+  const inMouth = (M) => `<g class="mouthSnack">${snack(M[0] + 2, M[1] + 10, 22)}</g>`;
   const mouthEls = (M, big) => { const m = mouthSet(M, big); return Object.keys(m).map((k) => `<g class="mouth mouth-${k}">${m[k]}</g>`).join(''); };
   const brows = (D, view) => D.brow.map((b, i) => `<g class="brow brow${i}"><path d="${path(b, view)}" fill="${C.ink}" stroke="${C.ink}" stroke-width="1.6" stroke-linejoin="round"/></g>`).join('');
 
@@ -158,14 +182,14 @@ function drawing() {
     return `<g class="eyes eyes-open"><ellipse cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${f1(w)}" ry="${f1(h)}" fill="${C.ink}"/><circle cx="${f1(c[0] - w * 0.2)}" cy="${f1(c[1] - h * 0.15)}" r="${f1(w * 0.42)}" fill="${C.white}"/></g>` +
       `<g class="eyes eyes-half"><clipPath id="${clip}"><rect x="${f1(c[0] - w * 2)}" y="${f1(c[1] - h * 0.1)}" width="${f1(w * 4)}" height="${f1(h * 2)}"/></clipPath><ellipse cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${f1(w)}" ry="${f1(h)}" fill="${C.ink}" clip-path="url(#${clip})"/><path d="M${f1(c[0] - w * 1.5)} ${f1(c[1] - h * 0.1)} L${f1(c[0] + w * 1.4)} ${f1(c[1] - h * 0.18)}" ${THIN} stroke-width="${LW * 1.3}"/></g>` +
       `<g class="eyes eyes-closed eyes-happy"><path d="M${f1(c[0] - w * 1.3)} ${f1(c[1])} Q${f1(c[0])} ${f1(c[1] + h * 0.5)} ${f1(c[0] + w * 1.2)} ${f1(c[1])}" ${THIN} stroke-width="${LW * 1.4}"/></g>`; };
-  const headF = `<g class="hv hv-F"><path d="${path(FRONT.head, VF)}" fill="${C.skin}" ${LINE}/>` +
+  const headF = `<g class="hv hv-F"><path d="${path(FRONT.head, VF)}" fill="${C.skin}" ${LINE}/>` + puff(pt(VF, ...FRONT.mouth), 34, 30) +
     `<g class="blush">${blushSet(FRONT, VF, 30, 15)}</g>` + FRONT.lid.map((l) => `<path d="${path(l, VF, false)}" ${THIN}/>`).join('') +
     eyeSet(FRONT, VF) + `<path d="${path(FRONT.hair, VF)}" fill="${C.ink}" stroke="${C.ink}" stroke-width="1.6"/><path d="${path(FRONT.side, VF)}" fill="${C.ink}"/>` +
-    brows(FRONT, VF) + mouthEls(pt(VF, ...FRONT.mouth), false) + '</g>';
-  const headQ = `<g class="hv hv-Q"><path d="${path(QH.head, VQ)}" fill="${C.skin}" ${LINE}/><path d="${path(QH.ear, VQ, false)}" ${THIN}/>` +
+    brows(FRONT, VF) + mouthEls(pt(VF, ...FRONT.mouth), false) + inMouth(pt(VF, ...FRONT.mouth)) + '</g>';
+  const headQ = `<g class="hv hv-Q"><path d="${path(QH.head, VQ)}" fill="${C.skin}" ${LINE}/>${puff(pt(VQ, ...QH.mouth), 38, 34)}<path d="${path(QH.ear, VQ, false)}" ${THIN}/>` +
     `<g class="blush">${blushSet(QH, VQ, 26, 13)}</g>` + QH.lid.map((l) => `<path d="${path(l, VQ, false)}" ${THIN}/>`).join('') +
     eyeSet(QH, VQ) + `<path d="${path(QH.hair, VQ)}" fill="${C.ink}" stroke="${C.ink}" stroke-width="1.6"/>` +
-    brows(QH, VQ) + mouthEls(pt(VQ, ...QH.mouth), true) + '</g>';
+    brows(QH, VQ) + mouthEls(pt(VQ, ...QH.mouth), true) + inMouth(pt(VQ, ...QH.mouth)) + '</g>';
   const headB = `<g class="hv hv-B"><path d="${path(BK.head, VB)}" fill="${C.skin}" ${LINE}/>` +
     `<path d="${path(BK.ear, VB, false)}" ${THIN}/><path d="${path(BK.earIn, VB, false)}" ${THIN}/>` +
     `<path d="${path(BK.mouth, VB)}" fill="${C.mouth}" ${LINE}/><path d="${path(BK.hair, VB)}" fill="${C.ink}" stroke="${C.ink}" stroke-width="1.6"/>` +
@@ -192,6 +216,18 @@ function drawing() {
     back: `<path d="M-17 -2 C-21 6 -21 18 -15 22 C-7 26 7 26 15 22 C21 18 21 6 17 -2 C9 -7 -9 -7 -17 -2 Z" fill="${C.shoe}" ${LINE}/>`,
   };
   const leg = (side) => `<g class="leg leg${side}">${tubeEls('shin')}${tubeEls('sock')}<g class="shoe">${Object.keys(SHOES).map((k) => `<g class="sh sh-${k}">${SHOES[k]}</g>`).join('')}</g></g>`;
+  // The Chocobi box (Bandai's TV ad): a light green carton torn open at a slant with star snacks inside, チョコビ in brown, the
+  // pink crocodile mascot grinning, yellow dots. Bottom centre at 0,0, about a quarter of his height.
+  const kana = 'M3 3 L13 1 M1 8 L15 8 M8 2 L8 12 Q7 17 3 18 M20 9 L27 9 L27 17 L20 17 M21 13 L27 13 M33 3 L45 3 L45 16 L33 16 M51 1 L51 15 Q51 17 54 17 L62 17 M51 8 L59 6 M61 0 L62 3 M64 -1 L65 2';   // チョコビ
+  const box = `<path d="M-42 0 L42 0 L44 -114 Q18 -124 -44 -98 Z" fill="#A0D868" ${LINE}/>` +
+    `<path d="M-41 -97 Q12 -121 43 -113 L43 -105 Q8 -110 -41 -90 Z" fill="#5E3422"/>` +
+    snack(-24, -98, 9) + snack(-4, -106, 10) + snack(20, -112, 9) +
+    `<path d="M-42 0 L42 0 L44 -114 Q18 -124 -44 -98 Z" fill="none" ${LINE}/>` +
+    `<path d="${kana}" transform="translate(-35 -84) scale(1.05)" fill="none" stroke="#9C5A3A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<g transform="translate(0 -32)"><path d="M-27 2 Q-28 -20 -8 -24 Q16 -27 26 -13 Q31 3 12 9 L-18 9 Q-27 8 -27 2 Z" fill="#E87C88" ${LINE}/>` +
+    `<path d="M-19 0 L-12 -6 L-5 0 L2 -6 L9 0 L16 -6" fill="none" stroke="${C.white}" stroke-width="3.2" stroke-linejoin="round"/>` +
+    `<circle cx="-12" cy="-16" r="3" fill="${C.ink}"/><circle cx="6" cy="-18" r="3" fill="${C.ink}"/></g>` +
+    [[-30, -50, 5], [30, -46, 4], [-31, -16, 4], [31, -10, 5], [24, -70, 3.5]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#FFE04A"/>`).join('');
   const wig = [0, 1].map((i) => `<g class="wig wig${i}" fill="none" stroke="${C.ink}" stroke-width="2.6" stroke-linecap="round">` +
     [0, 1, 2].map((j) => { const x = i ? 336 + 10 * j : 64 - 10 * j, y = 380 + 22 * j, s = i ? 1 : -1; return `<path d="M${x} ${y - 14} Q${x + 10 * s} ${y} ${x} ${y + 14}"/>`; }).join('') + '</g>').join('');
   const laugh = `<g class="laughFx" fill="none" stroke="${C.ink}" stroke-width="3" stroke-linecap="round">` +
@@ -212,6 +248,8 @@ function drawing() {
     ${arm('L', 'mid')}${arm('R', 'mid')}
     <g class="head">${headB}${headF}${headQ}</g>
     ${arm('L', 'front')}${arm('R', 'front')}
+    <g class="box">${box}</g>
+    <g class="snackFree">${snack(0, 0, 21)}</g>
     ${wig}${laugh}
     <g class="spark spark0">${star(46, 86, 18)}${star(372, 30, 13)}${star(390, 210, 10)}</g>
     <g class="spark spark1">${star(24, 190, 12)}${star(360, 92, 18)}${star(70, 12, 10)}</g>
@@ -227,7 +265,10 @@ function drawing() {
 // or [turn, dx, dy, toe] about a point on the sole. lean / bend / hip / hipRot pose his body.
 const REST = { x: 0, y: 0, sx: 1, sy: 1, rot: 0, dir: 1, view: 'F', headView: '', headFlip: 0, head: 0, headX: 0, headY: 0,
   lean: 0, bend: 0, hip: 0, hipRot: 0, armL: [0, 0, 0], armR: [0, 0, 0], handL: 'fist', handR: 'fist', wristL: 0, wristR: 0, front: '', back: '',
-  legL: [0, 0, 0], legR: [0, 0, 0], eyes: 'open', look: [0, 0], brows: [0, 0, 0, 0], mouth: 'o', blush: 0, shadow: 1, wig: -1, spark: 0, laughFx: 0, spin: 0, peek: 0 };
+  legL: [0, 0, 0], legR: [0, 0, 0], eyes: 'open', look: [0, 0], brows: [0, 0, 0, 0], mouth: 'o', blush: 0, shadow: 1, wig: -1, spark: 0, laughFx: 0, spin: 0, peek: 0,
+  box: null, snack: null, snackIn: 0, puff: 0 };
+// box: [hand 'L' | 'R', dx, dy, turn] holds the Chocobi box with its bottom centre that far from the wrist. snack: [x, y] in the
+// drawing, or [hand, dx, dy] from a wrist (pinched in his fingers). snackIn: one in his mouth. puff: a full cheek while chewing.
 const show = (els, on) => els.forEach((g) => { g.style.display = on ? '' : 'none'; });
 const rotV = ([x, y], deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [x * c - y * s, x * s + y * c]; };
 const M = () => new DOMMatrix();
@@ -253,10 +294,12 @@ function apply(svg, p) {
   q('.head').setAttribute('transform', mStr(hM));
   all('.hv').forEach((g) => { g.style.display = g.classList.contains('hv-' + hv) ? '' : 'none'; });
   // Arms: shoulder (carried by the shirt) to elbow to wrist; the hand turns with the forearm.
+  const wrist = {};
   for (const [side, i, v] of [['L', 0, p.armL], ['R', 1, p.armR]]) {
     const [a = 0, b = 0, reach = 0] = Array.isArray(v) ? v : [v], S = tp(torM, R.sh[i]), H0 = R.hand[i];
     const d0 = [H0[0] - R.sh[i][0], H0[1] - R.sh[i][1]], n0 = Math.hypot(...d0), du = rotV([d0[0] / n0, d0[1] / n0], a), df = rotV(du, b);
     const E = [S[0] + du[0] * (UPPER + reach / 2), S[1] + du[1] * (UPPER + reach / 2)], W = [E[0] + df[0] * (FORE + reach / 2), E[1] + df[1] * (FORE + reach / 2)];
+    wrist[side] = W;
     const ang = Math.atan2(-df[0], df[1]) * 180 / Math.PI + (side === 'L' ? p.wristL : p.wristR), hang = Math.max(0, du[1]) ** 1.5, cl = lerp(40, 84, hang) + reach / 2, cuff = [S[0] + du[0] * cl, S[1] + du[1] * cl];
     all('.arm' + side).forEach((g) => {
       setD(g, '.upr', seg(S, E), 20, C.skin);
@@ -289,6 +332,12 @@ function apply(svg, p) {
   all('.mouth').forEach((g) => { g.style.display = g.classList.contains('mouth-' + p.mouth) ? '' : 'none'; });
   all('.blush').forEach((g) => { g.style.opacity = p.blush; });
   show(all('.peek'), p.peek);
+  // The Chocobi box and snacks (added 18 Oct).
+  const bx = q('.box'); show([bx], !!p.box);
+  if (p.box) { const [hs, dx = 0, dy = 0, r = 0] = p.box, W = wrist[hs]; bx.setAttribute('transform', `translate(${f1(W[0] + dx)} ${f1(W[1] + dy)}) rotate(${r}) scale(${p.dir} 1)`); }   // its print never mirrors
+  const sf = q('.snackFree'); show([sf], !!p.snack);
+  if (p.snack) { const at = typeof p.snack[0] === 'string' ? [wrist[p.snack[0]][0] + p.snack[1], wrist[p.snack[0]][1] + p.snack[2]] : p.snack; sf.setAttribute('transform', `translate(${f1(at[0])} ${f1(at[1])})`); }
+  show(all('.mouthSnack'), p.snackIn); show(all('.puff'), p.puff);
   all('.wig').forEach((g, i) => { g.style.display = p.wig === i ? '' : 'none'; });
   q('.laughFx').style.display = p.laughFx ? '' : 'none';
   all('.spark').forEach((g) => { g.style.display = p.spark && g.classList.contains('spark' + (p.spin % 2)) ? '' : 'none'; });
@@ -403,6 +452,56 @@ function yay(t, p = idle(t)) {
   else { const j = spinAt(t) % 4; p.y = j < 2 ? -6 : 0; p.armL = [j < 2 ? 140 : 128, 10, 0]; p.armR = [j < 2 ? -140 : -128, -10, 0]; p.handL = p.handR = 'open'; p.front = 'LR'; p.eyes = 'happy'; p.mouth = 'a'; p.blush = 0.8; }
   return p;
 }
+// ---- Funny clips for his spot at German Bakery (18 Oct), timed frame by frame from official footage (funny/shinchan/report.md).
+// The far shoulder sits under his mouth, so the far hand feeds him (elbow down, forearm folded up); the near hand holds the box.
+const CHIN_R = [44, 180, 0], MOUTH_R = [66, 165, 36], DIP_R = [70, 0, 40], BOX_L = [-14, -30, 4], HIP_L = [4, 0, 0], HUG = [-8, -69, 0];
+// Chocobi time (Bandai's Chocobi ad, 9.1-10.0 s, then 0-0.96 s): the box held up, a blush, a Chocobi pinched out and gazed at
+// with sparkly eyes; to his chin, mouth snaps open, in it goes, head tipped back; then munching eyes shut, cheek puffed, the mouth
+// a squiggle changing every drawing, the head rocking every 2; bliss; the box tucked away behind him.
+function chocobi(t, p = idle(t)) {
+  const k = spinAt(t);
+  Object.assign(p, { view: 'Q', dir: -1, box: ['L', -26, 52, 0], armL: BOX_L });
+  if (t < 0.17) return p;
+  p.front = 'R';
+  if (t < 0.25) return Object.assign(p, { blush: 0.9, armR: DIP_R, handR: 'open', mouth: 'o' });
+  if (t < 0.42) return Object.assign(p, { blush: 0.9, eyes: 'sparkle', armR: MOUTH_R, handR: 'fist', snack: ['R', 0, -22], mouth: 'closed' });
+  if (t < 1.25) return Object.assign(p, { blush: 0.9, eyes: 'sparkle', armR: MOUTH_R, handR: 'fist', snack: ['R', 0, -22], mouth: 'closed', look: [5, -2], head: -4 });
+  if (t < 1.42) return Object.assign(p, { blush: 0.7, armR: CHIN_R, handR: 'fist', snack: ['R', 2, -18], mouth: 'o', look: [4, 4] });
+  if (t < 1.67) return Object.assign(p, { blush: 0.7, armR: CHIN_R, handR: 'fist', snackIn: 1, mouth: 'gape', head: t < 1.5 ? -10 : -20 });
+  if (t < 3.0) return Object.assign(p, { blush: 0.7, eyes: 'happy', puff: 1, mouth: ['chew0', 'chew1', 'chew2'][k % 3], head: Math.floor(k / 2) % 2 ? -2 : -18,
+    armR: CHIN_R, handR: 'fist' });
+  if (t < 3.42) return Object.assign(p, { front: '', blush: 0.9, eyes: 'happy', mouth: 'grin', head: -4, x: k % 2 ? 1.5 : -1.5 });
+  return Object.assign(p, { front: '' }, t < 3.58 ? { armL: HIP_L, box: ['L', -30, 64, 0], eyes: 'happy', mouth: 'grin' } : { box: null, armL: [-30, 0, 0], back: 'L', eyes: 'happy', mouth: 'grin' });
+}
+// Toss & catch (Bandai's Chocobi ad, 5.17-6.75 s): swaying and singing with the box at his hip; hugs it to his chest; shakes a
+// Chocobi into his palm, flicks it up; head snaps back, mouth wide, and it drops in; the other arm flung up, fingers spread;
+// munches, blushing; then the smug grin, and the box goes behind his back.
+function toss(t, p = idle(t)) {
+  const k = spinAt(t);
+  Object.assign(p, { view: 'Q', dir: -1, box: ['R', 30, 70, 0] });
+  if (t < 0.75) { const sw = Math.floor(k / 3) % 2 ? 12 : -10; return Object.assign(p, { eyes: 'closed', mouth: k % 2 ? 'a' : 'o', head: sw, rot: sw * 0.2 }); }
+  if (t < 1.15) return Object.assign(p, { eyes: 'closed', mouth: 'closed', head: 10, armL: [-40, -60, 10], armR: HUG, front: 'LR', box: ['R', 12, 40, 0] });   // (1.15: the palm drawing below is the one at 14/12 s)
+  if (t < 1.25) return Object.assign(p, { mouth: 'o', head: 4, armL: BOX_L, box: ['L', -26, 52, -25], armR: DIP_R, handR: 'open', front: 'R', snack: ['R', 0, -8] });
+  const CATCH = { armR: [-160, 20, 12], handR: 'five', armL: HIP_L, box: ['L', -30, 64, 0], lean: -10 };
+  if (t < 1.33) return Object.assign(p, CATCH, { armR: [-120, 10, 10], eyes: 'open', mouth: 'gape', head: -20, lean: -4, snack: [262, 30] });
+  if (t < 1.67) return Object.assign(p, CATCH, { eyes: 'closed', mouth: 'gape', head: -40, snackIn: 1, y: t < 1.42 ? -6 : 0 });
+  if (t < 2.08) return Object.assign(p, { box: ['L', -30, 64, 0], armL: HIP_L, eyes: 'happy', puff: 1, mouth: ['chew0', 'chew1', 'chew2'][k % 3], blush: 0.8,
+    head: lerp(-30, 0, (t - 1.67) / 0.41) });
+  if (t < 3.0) return Object.assign(p, { box: ['L', -30, 64, 0], armL: HIP_L, eyes: 'half', mouth: 'grin', blush: 0.6, head: -6,
+    brows: Math.floor(k / 2) % 2 ? [0, 0, 0, 0] : [-10, -3, -10, 3] });
+  return Object.assign(p, t < 3.17 ? { box: ['L', -30, 64, 0], armL: [20, 0, 0], eyes: 'half', mouth: 'grin' } : { box: null, armL: [-30, 0, 0], back: 'L', eyes: 'half', mouth: 'grin' });
+}
+// "Hmm... which cake?" (2026 film trailer, 85.9-87.75 s): his film tough-guy look, chin on his fist, brows down, lids half shut,
+// frozen for 23 drawings while only his mouth moves (closed, "o", closed, "o", a bigger "a"), then the clenched-teeth smirk.
+function hmm(t, p = idle(t)) {
+  const k = spinAt(t), mouths = ['closed', 'closed', 'o', 'o', 'o', 'closed', 'closed', 'closed', 'closed', 'o', 'a', 'a', 'a', 'a', 'a', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed', 'closed'];
+  Object.assign(p, { view: 'Q', dir: 1, armR: CHIN_R, front: 'R', handR: 'fist', eyes: 'half', brows: [16, 14, 14, -14], look: [7, 2], head: 2 });
+  if (t < 0.25) return Object.assign(p, { armR: mixArm([0, 0, 0], CHIN_R, (k + 1) / 3), mouth: 'closed' });
+  if (t < 2.17) return Object.assign(p, { mouth: mouths[Math.min(mouths.length - 1, k - 3)] });
+  if (t < 2.5) return Object.assign(p, { mouth: 'smirk' });
+  const u = Math.min(1, (t - 2.5) / 0.33);
+  return Object.assign(p, { armR: mixArm(CHIN_R, [0, 0, 0], u), front: u < 0.5 ? 'R' : '', eyes: u < 0.5 ? 'half' : 'open', mouth: 'grin', brows: [0, 0, 0, 0], look: [0, 0], blush: 0.3 });
+}
 const CLIPS = [
   ['Idle', 'blinks, brows hop, mouth an "o"', idle, 4],
   ['Walk', 'three-quarter on, 3 steps a second', walk, 4],
@@ -410,12 +509,16 @@ const CLIPS = [
   ['Buri-buri', 'butt dance, 3 drawings a wiggle', buri, 3.2],
   ['Action Kamen', 'hero pose, then "Wa-ha-ha!"', kamen, 3.6],
   ['Yay!', 'springs into his official pose', yay, 2],
+  ['Chocobi', 'sparkly eyes, pops a Chocobi in, munches', chocobi, 3.8],
+  ['Toss & catch', 'flicks a Chocobi up, catches it', toss, 3.6],
+  ['Which cake?', 'chin on fist, then the tough-guy smirk', hmm, 3.4],
 ];
 
 // ---- Pages ------------------------------------------------------------------------------------
 const P = new URLSearchParams('mode=ar&capture=1');
 const mode = P.get('mode') || 'sheet';
-const make = (holder) => { holder.setAttribute('viewBox', '-60 -60 520 600'); holder.innerHTML = drawing(); return holder; };
+const FRAME = [-90, -130, 580, 670];   // the AR card: room for Yay!'s jump, Hi!'s wave and Buri-buri's swing (framecheck, 18 Oct)
+const make = (holder) => { holder.setAttribute('viewBox', FRAME.join(' ')); holder.innerHTML = drawing(); return holder; };
 let render, loopLen = 1e9;
 if (mode === 'ar') {
 // The camera mode that scripts/build-rigs.mjs pastes into each approved rig page, in front of the
@@ -444,6 +547,16 @@ const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
 svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
 Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
 document.body.appendChild(svg);
+// Rigs that draw their lines with CSS (Goku: classes in this page's <style>, widths in --lw from ink()) keep both
+// inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
+// page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
+if (typeof ink === 'function') {
+  const probe = document.createElementNS(NS, 'svg'), own = document.createElementNS(NS, 'style');
+  ink(probe, 400 / A.tall);
+  svg.setAttribute('data-ink', '');
+  own.textContent = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n') + '\nsvg[data-ink]{' + probe.style.cssText + '}';
+  svg.prepend(own);
+}
 const q = document.createElement('div'); q.textContent = '?';
 Object.assign(q.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -50%)', color: '#F9BC4D',
   fontFamily: 'system-ui, Roboto, sans-serif', fontWeight: '900', textShadow: '0 0 0.12em rgba(249,188,77,.95), 0 0 0.3em rgba(249,188,77,.6)' });
@@ -458,6 +571,8 @@ const idx = (name) => { const i = CLIPS.findIndex((c) => c[0] === name); if (i <
 const R = { idle: idx(A.roles.idle), hi: idx(A.roles.hi), arrive: idx(A.roles.arrive), extras: A.roles.extras.map(idx) };
 const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.idle ? 'idle' : 'extra');
 let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
+// Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
+let faceOn = {}, afterTalk = null;
 
 // The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
 // S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.
@@ -634,6 +749,25 @@ const floorFrame = (t) => {
 
 window.saath = {
   play: (roles) => { queue = roles.map((r) => R[r]).filter((i) => typeof i === 'number'); begin(queue.length ? queue.shift() : R.idle, clock); shown = ''; },
+  // Talking: a face laid over whatever clip plays, from his next drawing. f = {mouth: 'closed'|'half'|'open', mood}
+  // in the shared names, which SAATH_AR.mouths and .moods turn into this rig's own parts (a mood's `closed` replaces
+  // his usual closed mouth). Unknown names are ignored, as a wrong part name blanks every mouth or eye. null ends it
+  // and starts any clip held for later; false (he was cut off, or the reply failed) ends it and drops that clip.
+  face: (f) => {
+    const { closed, ...mood } = f && Object.hasOwn(A.moods, f.mood) ? A.moods[f.mood] : {};
+    const mouth = f && (f.mouth === 'closed' && closed ? closed : Object.hasOwn(A.mouths, f.mouth) ? A.mouths[f.mouth] : null);
+    faceOn = f ? { ...mood, ...(mouth ? { mouth } : {}) } : {};
+    if (f === false) afterTalk = null;
+    else if (!f && afterTalk !== null) { queue = []; begin(afterTalk, clock); afterTalk = null; shown = ''; }
+  },
+  // A gesture from the reply, by its word (SAATH_AR.actions). One that hides or shuts his face (SAATH_AR.later)
+  // waits until he stops talking.
+  act: (word) => {
+    if (!Object.hasOwn(A.actions, word)) return;
+    if (A.later.includes(word) && faceOn.mouth) { afterTalk = idx(A.actions[word]); return; }
+    queue = []; begin(idx(A.actions[word]), clock); shown = '';
+  },
+  now: () => ({ clip: CLIPS[cur][0], face: faceOn }),   // for tests
   // Not met yet: a dark silhouette with a glowing "?", still breathing.
   mystery: (on) => { mystery = !!on; svg.style.filter = on ? 'brightness(0)' : ''; svg.style.opacity = on ? '0.86' : ''; q.style.display = mystery && !quiet && at ? 'block' : 'none'; shown = ''; },
   quiet: (on) => { quiet = !!on; q.style.display = mystery && !quiet && at ? 'block' : 'none'; },
@@ -674,12 +808,12 @@ const draw = (t) => {
   if (cur !== R.idle && t - since >= len) {
     if (fl.on && fl.state === 'greet' && cur === R.hi) { fl.state = 'stay'; begin(R.idle, t); }   // said hi: he stays
     else begin(queue.length ? queue.shift() : R.idle, t);
-  } else if (cur === R.idle && !mystery && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
+  } else if (cur === R.idle && !mystery && !faceOn.mouth && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
   const loop = cur === R.idle;
   const lt = loop ? (t - since) % CLIPS[cur][3] : t - since, s = step(lt), key = cur + ':' + s;
   if (key === shown) return;   // a new drawing only every 1/12 s
   shown = key;
-  apply(svg, CLIPS[cur][2](s));
+  apply(svg, Object.assign(CLIPS[cur][2](s), faceOn));   // the clip poses him; a talking face wins
   if (mystery && !quiet && at) mark();
 };
 addEventListener('resize', layout);
@@ -721,8 +855,8 @@ post({ type: 'ready' });
   const place = ([X, d], pose) => {
     const [u, v] = ground(X, d), px = f * 1.0 / d, unit = px / 484;
     const x = (u - crop[0]) * k, y = (v - crop[1]) * k;
-    svg.setAttribute('width', 520); svg.setAttribute('height', 600);
-    svg.style.transform = `translate(${x}px, ${y}px) scale(${unit * k}) translate(-260px, -572px)`;
+    svg.setAttribute('width', FRAME[2]); svg.setAttribute('height', FRAME[3]);
+    svg.style.transform = `translate(${x}px, ${y}px) scale(${unit * k}) translate(${-(200 - FRAME[0])}px, ${-(512 - FRAME[1])}px)`;
     svg.querySelector('.contact').setAttribute('ry', 24); svg.querySelector('.contact').setAttribute('fill', 'rgba(25,20,16,0.34)');
     apply(svg, pose);
     return [x, y - px * k];

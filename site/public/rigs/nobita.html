@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#F4EEE3;font-family:sy
 <div class="sheet" id="sheet"></div>
 <div id="street"><img id="photo"><svg class="char" id="streetChar"></svg><div id="bubble"></div><div id="hint">Move your phone slowly to find the ground</div><canvas class="grain" id="grain"></canvas></div>
 <div id="trace"></div>
-<script>window.SAATH_AR = {"ground":[200,512],"tall":483,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Nap","extras":["Bang!","Yatta!","Doraemon~!"]}};</script>
+<script>window.SAATH_AR = {"ground":[200,512],"tall":483,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Nap","extras":["Bang!","Yatta!","Doraemon~!","Bappa, please!","Splat!","Lazy lawn","Dog!"]},"mouths":{"closed":"smile","half":"talk","open":"open"},"moods":{"neutral":{},"happy":{"eyes":"happy"},"excited":{"eyes":"happy"},"surprised":{"eyes":"small"},"curious":{"look":[5,0]},"sad":{"eyes":"cry","brows":"worried","closed":"wavy"},"worried":{"brows":"worried","sweat":1,"closed":"wavy"},"sleepy":{"eyes":"half"},"thinking":{"look":[5,-3]}},"actions":{"wave":"Hi!","late":"Late!","call":"Doraemon~!","nap":"Nap","aim":"Bang!","cheer":"Yatta!","pray":"Bappa, please!","splat":"Splat!","lazy":"Lazy lawn","dog":"Dog!"},"later":["nap","late","pray","splat","lazy","dog"]};</script>
 <script>
 // ---------------------------------------------------------------------------------------------
 // Nobita as a cut-out rig, drawn the way the 2005 anime draws him (TV Asahi model art): thin even
@@ -62,6 +62,10 @@ const HANDS = {
   gun: `<path d="M-14 -2 C-21 6 -21 24 -13 30 C-6 35 9 35 14 29 C20 22 20 6 14 -2 Z" fill="${C.skin}" ${LINE}/>` +
     `<path d="M2 27 C3 40 3 50 4 58 C5 63 12 63 12 58 L13 28" fill="${C.skin}" ${LINE}/>` +
     `<path d="M-14 8 C-24 4 -30 -4 -26 -9 C-23 -12 -18 -8 -12 0" fill="${C.skin}" ${LINE}/><path d="M-8 27 Q-4 22 0 27" fill="none" ${THIN}/>`,
+  // both hands clasped, fingers laced, pleading (Disney India qsf69ginMYE 33.25 s): drawn on one arm, the other's hand hidden
+  clasp: `<path d="M-13 -3 C-21 4 -23 20 -20 32 C-17 44 -8 52 2 52 C12 52 20 44 21 32 C22 18 19 4 13 -3 C8 -6 -8 -6 -13 -3 Z" fill="${C.skin}" ${LINE}/>` +
+    `<path d="M-20 14 Q-6 10 6 16 M-20 25 Q-5 21 9 28 M-19 36 Q-5 33 10 40 M-14 46 Q-3 44 8 49" fill="none" ${THIN}/>` +
+    `<path d="M-17 6 C-27 12 -28 26 -20 31" fill="${C.skin}" ${LINE}/>`,
 };
 const handSet = (side) => `<g class="handFlip" transform="scale(${side === 'L' ? -1.35 : 1.35} 1.35)">` +
   Object.keys(HANDS).map((k) => `<g class="hs hs-${k}">${HANDS[k]}</g>`).join('') + '</g>';
@@ -186,6 +190,8 @@ function headSVG(K, p, LINE, THIN, C) {
   const facePts = pts(K.face);
   const inside = ([x, y]) => { let c = false; for (let i = 0, j = facePts.length - 1; i < facePts.length; j = i++) { const [xi, yi] = facePts[i], [xj, yj] = facePts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
   for (const s of 'LR') { const E = pts(K['ear' + s]); if (E.every(inside)) continue; shape(E, C.skin); line(K['earIn' + s], true); }
+  // the back of his head, all hair (the bow, Disney India qsf69ginMYE 48.25 s)
+  if (p.back) { shape(facePts, C.hair); return out.join(''); }
   out.push(`<path d="${dPoly(pts(K.face))}" fill="${C.skin}" stroke="none"/>`);
   for (const run of faceRuns(K)) line(run);
   line(K.templeL); line(K.templeR);
@@ -303,6 +309,70 @@ const TORSO = {   // shorts, shirt, collar: the same commands in both views, so 
 const SHIFT_3Q = 12;
 const mixD = (a, b, k) => { const nb = b.match(/-?\d*\.?\d+/g); let i = 0; return a.replace(/-?\d*\.?\d+/g, (m) => (+m + (nb[i++] - m) * k).toFixed(1)); };
 const mirD = (d) => d.replace(/(-?\d*\.?\d+) (-?\d*\.?\d+)/g, (m, x, y) => `${(400 - x).toFixed(1)} ${y}`);
+
+// ---- The park dog (Disney India cYjC_QbJ4Lc 5.4-7.7 s): a brown bulldog in a blue studded collar, snarling. Traced on a
+// grid over the official frames (funny/nobita/dog/), in Nobita's units, facing right, paws on the ground at y = 0. Its legs are
+// tubes that swing at the shoulder and hip, like his own limbs; the head turns about the neck; two mouths (open, gritted).
+const DOG = { fur: '#8E5B3D', far: '#734630', muzzle: '#D8AC80', collar: '#2E5F92', stud: '#A8DAF5', mouth: '#B5404D', tongue: '#E98E98' };
+const DOG_J = { FN: [78, -90], FF: [42, -88], HN: [-112, -112], HF: [-88, -104] };   // shoulders and hips
+const DOG_L = { F: [42, 40], H: [52, 52] };                                              // upper and lower leg lengths
+function dogSVG() {
+  const leg = (k) => { const far = k[1] === 'F', w = k[0] === 'F' ? 28 : 32, fill = far ? DOG.far : DOG.fur;
+    return `<g class="dleg dleg${k}">${tube('dl', w, fill)}<g class="dpaw"><path d="M-14 -7 C-16 4 -6 9 6 9 C16 9 22 5 20 -2 C18 -8 4 -10 -14 -7 Z" fill="${fill}" ${LINE}/>` +
+      `<path d="M8 2 L9 8 M14 1 L15 7" fill="none" ${THIN}/></g></g>`; };
+  const tooth = (x, y, h) => `<path d="M${x - 5} ${y} L${x} ${y + h} L${x + 5} ${y} Z" fill="#fff" ${THIN}/>`;
+  const teeth = (top, bot, h) => [84, 98, 112, 126, 138].map((x) => tooth(x, top, h)).join('') + [91, 105, 119, 132].map((x) => tooth(x, bot, -h)).join('');
+  return `<ellipse class="dshadow" cx="-20" cy="0" rx="140" ry="12" fill="rgba(30,24,20,0.22)"/>` +
+    `<g class="dlegsFar">${leg('HF')}${leg('FF')}</g>` +
+    `<path class="dtail" fill="none" stroke="${C.ink}" stroke-width="${11 + 2 * LW}" stroke-linecap="round"/><path class="dtail" fill="none" stroke="${DOG.fur}" stroke-width="11" stroke-linecap="round"/>` +
+    `<g class="dbody"><path d="M36 -176 C10 -170 -30 -168 -70 -170 C-100 -172 -122 -172 -130 -164 C-140 -150 -140 -120 -134 -100 C-126 -84 -100 -76 -70 -76 C-30 -74 0 -70 20 -68 C40 -62 60 -70 70 -90 C80 -110 76 -140 60 -160 C52 -170 44 -176 36 -176 Z" fill="${DOG.fur}" ${LINE}/>` +
+    `<path d="M40 -70 L44 -58 L48 -68 L53 -55 L57 -67 L63 -58" fill="none" ${THIN}/><path d="M-122 -146 Q-108 -122 -104 -92" fill="none" ${THIN}/></g>` +
+    `<g class="dlegsNear">${leg('HN')}${leg('FN')}</g>` +
+    `<g class="dbody"><path d="M40 -176 C44 -146 62 -116 94 -102" fill="none" stroke="${C.ink}" stroke-width="${13 + 2 * LW}" stroke-linecap="round"/>` +
+    `<path d="M40 -176 C44 -146 62 -116 94 -102" fill="none" stroke="${DOG.collar}" stroke-width="13" stroke-linecap="round"/>` +
+    [[42, -164], [47, -144], [57, -126], [71, -112], [87, -104]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3" fill="${DOG.stud}" ${THIN}/>`).join('') + `</g>` +
+    `<g class="dhead">` +
+      `<path d="M46 -196 C50 -214 78 -222 104 -219 C128 -218 146 -206 150 -190 C152 -180 146 -170 136 -166 L62 -146 C50 -160 45 -180 46 -196 Z" fill="${DOG.fur}" ${LINE}/>` +
+      `<path d="M108 -172 C124 -176 148 -170 164 -164 C174 -160 176 -148 170 -140 C168 -134 164 -130 158 -130 C150 -136 140 -142 128 -144 L84 -146 C92 -160 98 -170 108 -172 Z" fill="${DOG.muzzle}" ${LINE}/>` +
+      `<g class="dm dm-open"><path d="M72 -142 C92 -148 124 -148 146 -142 C148 -132 146 -124 142 -120 C120 -116 92 -118 74 -128 Z" fill="${DOG.mouth}" ${LINE}/>` +
+        `<path d="M84 -124 C100 -119 124 -118 138 -122 C126 -127 100 -128 84 -124 Z" fill="${DOG.tongue}"/>${teeth(-145, -120, 11)}` +
+        `<path d="M70 -128 C86 -116 116 -112 140 -118 C150 -120 156 -114 154 -108 C140 -102 110 -102 90 -108 C80 -112 72 -118 70 -128 Z" fill="${DOG.muzzle}" ${LINE}/></g>` +
+      `<g class="dm dm-grit"><path d="M72 -142 C92 -148 124 -148 146 -142 C146 -136 144 -132 140 -130 C120 -128 92 -130 74 -136 Z" fill="${DOG.mouth}" ${LINE}/>${teeth(-145, -130, 7)}` +
+        `<path d="M70 -136 C86 -126 116 -122 140 -128 C150 -130 156 -124 154 -118 C140 -112 110 -112 90 -118 C80 -122 72 -128 70 -136 Z" fill="${DOG.muzzle}" ${LINE}/></g>` +
+      `<ellipse cx="152" cy="-160" rx="15" ry="9.5" fill="${C.ink}"/><ellipse cx="147" cy="-164" rx="4" ry="2.2" fill="#fff" opacity="0.8"/>` +
+      `<ellipse cx="100" cy="-178" rx="8.5" ry="6" fill="#fff" ${THIN}/><circle cx="104" cy="-177" r="3.2" fill="${C.ink}"/>` +
+      `<ellipse cx="134" cy="-182" rx="8.5" ry="6" fill="#fff" ${THIN}/><circle cx="137.5" cy="-181" r="3.2" fill="${C.ink}"/>` +
+      `<path d="M86 -191 L110 -183 M122 -195 L146 -188" fill="none" stroke="${C.ink}" stroke-width="4.2" stroke-linecap="round"/>` +
+      `<path d="M112 -199 Q116 -194 120 -198 M114 -190 L118 -186" fill="none" ${THIN}/>` +
+      `<path d="M80 -214 C64 -222 46 -210 44 -194 C43 -182 52 -172 62 -168 C64 -184 70 -200 80 -214 Z" fill="${DOG.far}" ${LINE}/>` +
+      `<path d="M122 -212 C132 -222 148 -220 154 -206 C158 -196 156 -186 152 -182 C146 -192 136 -202 122 -212 Z" fill="${DOG.fur}" ${LINE}/><path d="M134 -210 Q146 -206 150 -192" fill="none" ${THIN}/>` +
+    `</g>`;
+}
+// dog pose: { x, y (from his rest spot), dir (1 faces right; between -1 and 1 while it spins), s (scale), o (opacity), front (over Nobita), legs: { FN, FF, HN, HF: [a, b] } (deg from
+// straight down, + towards its nose; b bends the lower leg), bob (body up), head (deg), mouth ('open' | 'grit'), tail (deg) }
+const DOG_STAND = { FN: [12, 0], FF: [10, -30], HN: [15, -40], HF: [32, -2] };
+function applyDog(svg, d) {
+  const g = svg.querySelector('.dog'); g.style.display = d ? '' : 'none';
+  if (!d) return;
+  const root = svg.querySelector('.root'); if (d.front) root.after(g); else root.before(g);
+  const ds = d.s ?? 1;
+  g.setAttribute('transform', `translate(${(200 + (d.x || 0)).toFixed(1)} ${(512 + (d.y || 0)).toFixed(1)}) scale(${((d.dir || 1) * ds).toFixed(3)} ${ds})`);
+  g.setAttribute('opacity', d.o ?? 1);
+  const bob = d.bob || 0, legs = { ...DOG_STAND, ...(d.legs || {}) };
+  for (const k of ['FN', 'FF', 'HN', 'HF']) {
+    const [a, b] = legs[k], [l1, l2] = DOG_L[k[0]], J = [DOG_J[k][0], DOG_J[k][1] - bob];
+    const K = add(J, dirv(a), l1), P = add(K, dirv(a + b), l2), el = g.querySelector('.dleg' + k);
+    el.querySelectorAll('.dl').forEach((e) => e.setAttribute('d', `M${fmt(J)} L${fmt(K)} L${fmt(add(K, dirv(a + b), l2 - 9))}`));   // the round end stays inside the paw
+    el.querySelector('.dpaw').setAttribute('transform', `translate(${fmt(P)}) rotate(${((a + b) * 0.25).toFixed(1)})`);
+  }
+  const body = `translate(0 ${-bob})`;
+  g.querySelectorAll('.dbody').forEach((e) => e.setAttribute('transform', body));
+  const t = d.tail ?? 0, c = Math.cos(t * R), s = Math.sin(t * R), T = (x, y) => fmt([-112 + (x + 112) * c - (y + 172) * s, -172 - bob + (x + 112) * s + (y + 172) * c]);
+  g.querySelectorAll('.dtail').forEach((e) => e.setAttribute('d', `M${T(-112, -172)} C${T(-138, -204)} ${T(-178, -212)} ${T(-198, -190)} S${T(-214, -140)} ${T(-206, -124)}`));
+  g.querySelector('.dhead').setAttribute('transform', `translate(0 ${-bob}) rotate(${d.head || 0} 70 -160)`);
+  g.querySelectorAll('.dm').forEach((e) => { e.style.display = e.classList.contains('dm-' + (d.mouth || 'open')) ? '' : 'none'; });
+  g.querySelector('.dshadow').setAttribute('transform', `translate(0 ${-(d.y || 0)})`);
+}
 function drawing() {
   const leg = (s) => `<g class="leg leg${s}"><path class="legInk" fill="none" stroke="${C.ink}" stroke-width="${LEG_W + 2 * LW}" stroke-linecap="butt" stroke-linejoin="round"/>` +
     `<path class="sockInk" fill="none" stroke="${C.ink}" stroke-width="${SOCK_W + 2 * LW}" stroke-linecap="butt"/><path class="sock" fill="none" stroke="${C.white}" stroke-width="${SOCK_W}" stroke-linecap="butt"/>` +
@@ -311,6 +381,7 @@ function drawing() {
   const arm = (s, layer) => `<g class="arm arm${s} ${layer}">${tube('limb', 28, C.shirt)}<g class="hand">${handSet(s)}</g><g class="bang"><path d="${Array.from({ length: 24 }, (_, i) => { const r = i % 2 ? 22 : 44, a = Math.PI * i / 12; return (i ? 'L' : 'M') + (r * Math.cos(a)).toFixed(1) + ' ' + (r * Math.sin(a)).toFixed(1); }).join(' ')} Z" fill="#FFE45C" ${LINE}/>` +
     `<text x="0" y="7" text-anchor="middle" font-family="system-ui, Roboto, sans-serif" font-weight="900" font-size="21" fill="#E0262B" stroke="${C.ink}" stroke-width="1.2" transform="rotate(-8)">BANG!</text></g></g>`;
   return `
+  <g class="dog" style="display:none">${dogSVG()}</g>
   <g class="root">
     <ellipse class="contact" cx="200" cy="512" rx="96" ry="13" fill="rgba(30,24,20,0.22)"/>
     <g class="armL back">${arm('L', 'back')}</g><g class="armR back">${arm('R', 'back')}</g>
@@ -347,7 +418,7 @@ const upperPt = (pt, p) => { const c = Math.cos(p.lean * R), s = Math.sin(p.lean
 // slide a little), past it the three-quarter drawing. front ('L', 'R') draws that arm over his body.
 const REST = { x: 0, y: 0, sx: 1, sy: 1, rot: 0, lean: 0, bodyY: 0, head: 0, headY: 0, turn: 0,
   armL: [-7, 5], armR: [7, -5], legL: [0, 0, 0], legR: [0, 0, 0], eyes: 'open', look: [0, 0], mouth: 'smile', brows: '',
-  shadow: 1, front: null, tears: 0, sweat: 0, zzz: 0, bubble: 0, bang: 0, glint: 0, pop: 0, k: 0 };
+  shadow: 1, front: null, tears: 0, sweat: 0, zzz: 0, bubble: 0, bang: 0, glint: 0, pop: 0, k: 0, back: 0, hx: 0, hy: 0, dog: null, hturn: null, popAt: null };
 const show = (els, on) => els.forEach((e) => { e.style.display = on ? '' : 'none'; });
 // Leg, sock and ankle sizes from the model art: legs 35.8 wide with their ink, socks 37.8 wide, the sock top 44 above the ankle.
 const ARM = [50, 48], LEG = [74, 74], ANKLE_Y = 461.6, LEG_W = 31, SOCK_W = 33, SOCK_LEN = 44;
@@ -362,8 +433,12 @@ function apply(svg, p) {
   const sh = SHIFT_3Q * w;
   ['tShorts', 'tShirt', 'tCollar'].forEach((k, i) => { const d = mixD(TORSO.F[i], TORSO.T[i], w); q('.' + k).setAttribute('d', dir > 0 ? d : mirD(d)); });
   q('.torso').setAttribute('transform', `translate(${(-sh * dir).toFixed(1)} 0)`);
-  q('.head').setAttribute('transform', `translate(${(-sh * dir).toFixed(1)} ${p.headY}) rotate(${p.head} 200 182)`);
-  q('.head').innerHTML = headSVG(keyAt(p.turn), p, LINE, THIN, C);
+  // hx, hy: a head shift in his upright frame whatever his lean (lying poses put his cheek on the floor)
+  const lr = p.lean * R, hx = p.hx * Math.cos(lr) + p.hy * Math.sin(lr), hy = p.hy * Math.cos(lr) - p.hx * Math.sin(lr);
+  q('.head').setAttribute('transform', `translate(${(-sh * dir + hx).toFixed(1)} ${p.headY + hy}) rotate(${p.head} 200 182)`);
+  // hturn: the head turned apart from the body (looking back over his shoulder as he runs)
+  const ht = p.hturn ?? p.turn;
+  q('.head').innerHTML = headSVG(keyAt(ht), ht === p.turn ? p : { ...p, turn: ht }, LINE, THIN, C);
   // Shoulders and hips come in as he turns.
   const L2 = (a, b) => [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w];
   // three-quarter joints, measured on the still and moved with the body (-12 to the torso's own coordinates' 24-unit lead)
@@ -408,6 +483,8 @@ function apply(svg, p) {
   const up = q('.upper'), lL = q('.legL'), lR = q('.legR');
   if (three && dir > 0) { up.before(lR); up.before(lL); } else if (three) { up.before(lL); up.before(lR); } else { up.before(lL); up.before(lR); }
   show(all('.pop'), p.pop);
+  q('.pop').setAttribute('transform', p.popAt ? `translate(${p.popAt[0] - 206} ${p.popAt[1] - 120})` : '');   // the stars burst round his head wherever it is
+  applyDog(svg, p.dog);
 }
 const lerp = (a, b, k) => a + (b - a) * k;
 const ease = (k) => k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
@@ -526,6 +603,148 @@ function yatta(t, p = idle(t)) {
   else { const j = Math.floor((t - 0.92) * 6) % 2; p.armL = [-145 + (j ? 10 : 0), -10, 'fist']; p.armR = [145 - (j ? 0 : 10), 10, 'fist']; p.eyes = 'happy'; p.mouth = 'open'; p.y = j ? -8 : 0; p.head = j ? -6 : -3; }
   return p;
 }
+// ---- Funny clips for his spot at Sarasbaug (18 Oct): the Ganpati temple garden. Timing from official footage, frame by
+// frame (funny/nobita/report.md); positions are on 2s like everything else (clips are only ever drawn at step(t)).
+// On his knees, three-quarter to the right: knees forward on the grass, shins tucked under his thighs, soles showing behind
+// (qsf69ginMYE 33.25 s). The knee is 45 in front of the hip, so the thigh drops 59 and the shin lies flat back to the ankle.
+const KNEEL = { turn: 30, y: 119, legL: [-29, -85, 150], legR: [-29, -85, 150] };
+const CLASP = { armR: [14, -119.5, 'clasp', -66], armL: [-4.7, 114.3, 'none', 0], front: 'LR' };
+const BOW = { turn: 30, y: 80, lean: 105, back: 1, front: '', legL: [-60, -52, 160], legR: [-60, -52, 160], armL: [70, 0, 'open', 20, 0.35], armR: [84, 0, 'open', 6, 0.35], x: -40 };
+const PLEA = ['open', 'talk', 'o', 'talk', 'open', 'open', 'talk', 'o', 'o', 'talk', 'open', 'talk'];   // babbling, a mouth every 1/6 s
+// Bappa, please! (Disney India qsf69ginMYE 32.75-48.5 s): the laziest boy in class begs the god of learning for marks. He drops
+// to his knees, hands clasped under his chin, pleading up at the sky and babbling; hides his face; throws both arms up, trembling
+// ("I give up"); dives into a flat bow, forehead to the ground; then pops up with a sheepish grin.
+function bappa(t, p = idle(t)) {
+  const k = tick(t);
+  if (t < 0.17) return Object.assign(p, { turn: 18, y: 30, legL: [-24, -30, 0], legR: [-24, -30, 0], armL: [10, -30], armR: [20, -40], mouth: 'o', head: 0 });
+  if (t < 0.33) return Object.assign(p, KNEEL, { sy: 0.94, sx: 1.03, armL: [-4, 10], armR: [10, -10], mouth: 'o', head: 0 });
+  if (t < 2.5) { const j = Math.floor(k / 2) % 2;   // pumping the clasped hands as he pleads
+    return Object.assign(p, KNEEL, CLASP, { armR: [14 + (j ? 4 : 0), -119.5, 'clasp', -66], armL: [-4.7 + (j ? 3 : 0), 114.3, 'none', 0], brows: 'worried', look: [4, -6],
+      mouth: PLEA[Math.floor((t - 0.33) * 6) % PLEA.length], head: -8 - (j ? 2 : 0), y: KNEEL.y + (j ? -2 : 0), sy: 1, sx: 1 }); }
+  if (t < 2.67) return Object.assign(p, KNEEL, { armR: [-20, -140, 'clasp', -40], armL: [-10, 140, 'none', 0], front: 'LR', brows: 'worried', mouth: 'wavy', look: [4, -6], head: -10 });
+  if (t < 2.83) return Object.assign(p, KNEEL, { armR: [-160, 10, 'open', 0], armL: [165, -10, 'open', 0], front: 'LR', mouth: 'wail', head: -12 });
+  if (t < 2.92) return Object.assign(p, KNEEL, { armR: [170, 4, 'open', 0, 0.3], armL: [-172, -4, 'open', 0, 0.3], eyes: 'small', mouth: 'open', head: -6, y: KNEEL.y - 6 });
+  if (t < 4.75) { const j = k % 3;   // "I give up": arms up, palms out, trembling (three drawings on 2s)
+    return Object.assign(p, KNEEL, { armR: [150 + [0, 5, 2][j], [12, 6, 9][j], 'open', 0, 0.3], armL: [-154 - [0, 3, 6][j], [-12, -18, -8][j], 'open', 0, 0.3],
+      brows: 'worried', eyes: 'small', mouth: 'o', head: -4, x: [0, 2, -1][j] }); }
+  if (t < 4.92) return Object.assign(p, KNEEL, { lean: 50, y: KNEEL.y - 4, armL: [100, 0, 'open', 0, 0.3], armR: [110, 0, 'open', 0, 0.3], front: '', eyes: 'shut', mouth: 'wail', head: 10, x: -16 });
+  if (t < 5.92) return Object.assign(p, BOW, { y: BOW.y + (k % 4 < 2 ? 0 : -2) });   // flat bow, held, a little tremble
+  if (t < 6.25) return Object.assign(p, KNEEL, { armR: [-30, -70, 'relax', 0], armL: [-150, -30, 'relax', 0], front: 'R', eyes: 'happy', mouth: 'grin', head: 6, look: [0, 0] });
+  if (t < 6.42) return Object.assign(p, { turn: 18, y: 30, legL: [-24, -30, 0], legR: [-24, -30, 0], armR: [-30, -70, 'relax', 0], front: 'R', eyes: 'happy', mouth: 'grin', head: 4 });
+  return Object.assign(p, { eyes: 'happy', mouth: 'grin', armR: [150, -150, 'relax', 0], front: 'R', head: 4 });   // scratches his head
+}
+// Sets x, y so that his middle (200, 270, half his height up) lands at mx, my for the pose's rot and scale (sx = sy).
+const middleAt = (p, mx, my) => { const r = p.rot * R, s = p.sx; p.x = mx - 200 - 242 * s * Math.sin(r); p.y = my - 512 + 242 * s * Math.cos(r); return p; };
+// Face down, bottom up, cheek on the grass (the face-plant's end, Disney India odUgW-XMY1A 173.8-175.3 s), facing left.
+const SPLAT = { turn: -30, y: 104, lean: -110, head: 100, hx: -50, hy: 70, front: '', legL: [74, -76, -160], legR: [74, -76, -160],
+  armR: [-90, -10, 'open', 0], armL: [-80, -20, 'open', 0], eyes: 'shut', mouth: 'wail', x: 60 };
+// Splat! (Disney India odUgW-XMY1A 171.67-175.25 s): a bold leap across the lawn. He steps in, strikes a heroic wind-up on one leg
+// (held 1.3 s), dives - and lands flat on his face, bottom in the air, groaning with his eyes squeezed shut. Then he wobbles up.
+function splat(t, p = idle(t)) {
+  const k = tick(t);
+  if (t < 0.17) return Object.assign(p, { turn: -24, armR: [-70, -10, 'open', 0], armL: [-20, 10], legR: [-12, 0, 0], eyes: 'open', mouth: 'o', head: 2 });
+  if (t < 1.5) return Object.assign(p, { turn: -30, lean: -25, legL: [70, -96, 40], legR: [-6, 0, 0], armL: [-140, -10, 'open', 0, 0.25], armR: [-40, -10, 'open', 0, 0.1],
+    eyes: 'cool', brows: 'cool', mouth: 'o', head: 8, rot: k % 4 < 2 ? 0 : -1 });   // the wind-up, wobbling a little on one leg
+  if (t < 1.58) return middleAt(Object.assign(p, { turn: -30, rot: -70, legL: [40, -40, 0], legR: [20, -20, 0], armR: [-160, 0, 'open', 0, 0.2], armL: [-150, 0, 'open', 0, 0.2],
+    eyes: 'shut', mouth: 'wail', head: 0 }), 150, 300);
+  if (t < 1.67) return middleAt(Object.assign(p, { turn: -30, rot: -165, legL: [20, -60, 0], legR: [-10, -40, 0], armR: [-120, 20, 'open', 0], armL: [-100, 30, 'open', 0],
+    eyes: 'shut', mouth: 'wail', head: 0, sy: 0.92, sx: 0.92 }), 110, 296);
+  if (t < 1.83) return Object.assign(p, SPLAT, { lean: -125, y: 70, legL: [40, -120, -120], legR: [50, -110, -120], sy: 0.95 });   // folding down, knees up
+  if (t < 3.33) { const j = k % 2;   // groaning on 2s, a twitch now and then
+    return Object.assign(p, SPLAT, { mouth: j ? 'wail' : 'wavy', pop: t < 2.33 ? k % 2 : 0, popAt: [-20, 330], y: SPLAT.y + (k % 6 === 0 ? -3 : 0) }); }
+  if (t < 3.5) return Object.assign(p, KNEEL, { turn: -30, legL: [29, -85, -150], legR: [29, -85, -150], x: 50, eyes: 'cry', mouth: 'wavy', armL: [-20, 10], armR: [20, -10], head: -6 });
+  if (t < 3.67) return Object.assign(p, { turn: -14, x: 24, y: 20, legL: [10, -20, 0], legR: [10, -20, 0], eyes: 'small', mouth: 'wavy', head: 6, rot: 3 });
+  return Object.assign(p, { eyes: 'small', mouth: 'wavy', head: k % 2 ? 5 : -5, rot: k % 2 ? 2 : -2, sweat: 1 });   // dazed wobble
+}
+// Lazy on the lawn (Disney India odUgW-XMY1A 109.75-113.25 s): flops down on the grass, lies back with his hands on his belly and
+// his ankles crossed, gazing up at the clouds, top foot wiggling; nods off into the nose-bubble nap; the bubble pops, he sits up.
+const LOUNGE = { turn: 30, rot: -82, y: -24, x: 200, head: 35, legL: [16, 0, 0], legR: [-16, -6, 0], armR: [10, -50, 'clasp', -30], armL: [20, -40, 'none', 0], front: 'LR' };
+const SIT = { turn: 30, y: 144, legL: [140, -128, -90], legR: [100, -128, -90], armR: [30, -20, 'relax', 0], armL: [-30, 10, 'relax', 0] };
+function lazy(t, p = idle(t)) {
+  const k = tick(t);
+  if (t < 0.17) return Object.assign(p, { turn: 18, y: 40, legL: [10, -40, 0], legR: [10, -40, 0], armL: [-30, 10], armR: [30, -10], eyes: 'happy', mouth: 'smile' });
+  if (t < 0.42) return Object.assign(p, SIT, { eyes: 'happy', mouth: 'smile', sy: t < 0.25 ? 0.95 : 1 });
+  if (t < 0.58) return Object.assign(p, SIT, { lean: -40, y: 134, eyes: 'happy', mouth: 'smile', armR: [-60, 0, 'relax', 0], armL: [-70, 0, 'relax', 0] });
+  if (t < 3.0) { const wig = Math.floor(t * 6) % 2;   // gazing up, the top foot wiggling on 2s, a blink
+    return Object.assign(p, LOUNGE, { legR: [-16, -6, wig ? 18 : -6], look: [6, -6], eyes: t > 1.9 && t < 2.05 ? 'closed' : 'open', mouth: t > 1.2 && t < 1.7 ? 'o' : 'smile' }); }
+  if (t < 3.5) return Object.assign(p, LOUNGE, { look: [6, -6], eyes: t < 3.25 ? 'half' : 'sleep', mouth: t < 3.2 ? 'yawn' : 'smile' });
+  if (t < 5.25) { const b = Math.sin(2 * Math.PI * (t - 3.5) / 1.4);
+    return Object.assign(p, LOUNGE, { eyes: 'sleep', mouth: 'snore', bubble: 0.9 + 0.7 * (0.5 + 0.5 * b), zzz: t, sy: 1 + 0.012 * b }); }
+  if (t < 5.42) return Object.assign(p, LOUNGE, { eyes: 'small', mouth: 'o', pop: 1, sweat: 1 });   // the bubble pops
+  if (t < 5.75) return Object.assign(p, SIT, { eyes: 'small', mouth: 'o', sweat: 1, look: [Math.floor(t * 6) % 2 ? 4 : -4, 0] });   // bolt upright, looking round
+  if (t < 5.92) return Object.assign(p, { turn: 18, y: 40, legL: [10, -40, 0], legR: [10, -40, 0], eyes: 'half', mouth: 'smile' });
+  return Object.assign(p, { eyes: 'happy', mouth: 'smile', armR: [150, -150, 'relax', 0], front: 'R', head: 4 });
+}
+// The dog's gallop, four drawings on 2s (Disney India cYjC_QbJ4Lc 6.8-7.7 s): gathered, pushing off, stretched out, landing.
+const GALLOP = [
+  { head: 6, tail: 10, legs: { FN: [-30, 40], FF: [-14, 30], HN: [48, -50], HF: [60, -60] } },
+  { head: 10, tail: -10, legs: { FN: [30, 40], FF: [10, 10], HN: [-20, 0], HF: [-30, 10] } },
+  { y: -16, bob: -40, head: 16, tail: 30, legs: { FN: [76, 6], FF: [62, 12], HN: [-72, 6], HF: [-60, 0] } },
+  { head: 12, tail: -14, mouth: 'grit', legs: { FN: [20, -10], FF: [40, 0], HN: [-40, 20], HF: [-50, 30] } }];
+const DOG_S = 0.8;   // a park dog: a little smaller than the official one, so the chase fits his AR card
+const gallop = (k, d) => ({ s: DOG_S, mouth: 'open', ...GALLOP[Math.floor(k / 2) % 4], ...d });
+// The lap round his spot: out along the near side, back along the far side (drawn behind, a little smaller), and round to his
+// spot again. Rows: [seconds since he set off, x on the card (rig units), facing (1 right), far side (1)].
+const LAP = [[0, -150, 1, 0], [0.58, 330, 1, 0], [0.75, 330, -1, 1], [1.33, -120, -1, 1], [1.5, -120, 1, 0], [2.0, 200, 1, 0]];
+const lapAt = (u) => {
+  for (let i = 1; i < LAP.length; i++) if (u < LAP[i][0]) {
+    const [t0, x0, d0, f0] = LAP[i - 1], [t1, x1, d1, f1] = LAP[i], k = (u - t0) / (t1 - t0);
+    return { x: lerp(x0, x1, k), dir: d0 === d1 ? d0 : (k < 0.5 ? d0 : d1), far: f0 === f1 ? f0 : (k < 0.5 ? f0 : f1), turning: d0 !== d1 };
+  }
+  const L = LAP[LAP.length - 1]; return { x: L[1], dir: L[2], far: L[3], turning: false };
+};
+// Running in a panic as the official chase draws him: legs flying, both arms flung up, fingers spread, looking back at the dog.
+function flee(t, k, dir) {
+  const p = run(t * 1.5, { ...REST }, 60 * dir);
+  const j = k % 2;
+  p.armL = [dir * -(150 + (j ? 12 : 0)), dir * -10, 'open', 0, 0.15]; p.armR = [dir * -(128 - (j ? 0 : 12)), dir * -20, 'open', 0, 0.15];
+  p.hturn = -30 * dir; p.eyes = j ? 'shut' : 'small'; p.mouth = 'wail'; p.sweat = 1;
+  return p;
+}
+// Chased by a dog (Disney India cYjC_QbJ4Lc 5.4-7.7 s): a park dog trots up and snarls at him. He jumps, freezes on one leg,
+// trembling, leaps clean over it - and runs a panicked lap round his spot with the dog at his heels, looking back, arms flung up.
+// Back on his spot he freezes again... and the dog wags its tail, barks once and trots off. He peeks, and sags with relief.
+function dogChase(t, p = idle(t)) {
+  const k = tick(t), DX = -30, BARK = k % 4 < 2 ? 'open' : 'grit';
+  // the dog
+  let d;
+  if (t < 0.5) d = gallop(k, { x: lerp(-380, DX - 200, Math.min(1, t / 0.42)) , dir: 1, o: Math.min(1, (k + 1) / 3) });
+  if (t >= 0.42 && t < 0.5) d = { s: DOG_S, x: DX - 200, dir: 1, mouth: 'grit', head: 6 };
+  else if (t >= 0.5 && t < 1.25) d = { s: DOG_S, x: DX - 200, dir: 1, mouth: BARK, head: k % 4 < 2 ? -8 : 0, bob: k % 4 < 2 ? 2 : 0, tail: -10 };
+  else if (t >= 1.25 && t < 1.42) d = { s: DOG_S, x: DX - 200 + 16, dir: 1, mouth: 'open', head: -10, legs: { FN: [30, 0], FF: [24, -10] } };
+  else if (t >= 1.42 && t < 1.83) d = { s: DOG_S, x: DX - 184, dir: 1, mouth: 'grit', head: t < 1.62 ? 18 : -14 };
+  else if (t >= 1.83 && t < 2.0) d = { s: DOG_S, x: DX - 184, dir: t < 1.92 ? 0.3 : -1, mouth: 'open', head: -6 };   // spins to face him
+  else if (t >= 2.0 && t < 2.33) d = { s: DOG_S, x: DX - 184, dir: t < 2.17 ? 0.3 : 1, mouth: 'grit', head: 0 };   // he dashes past: spins back
+  else if (t >= 2.33 && t < 3.85) { const L = lapAt(t - 2.0 - 0.19), far = L.far ? 0.92 : 1;
+    d = L.turning ? { s: DOG_S * far, x: L.x - 200, dir: L.dir * 0.3, mouth: 'open', head: -6 } : gallop(k, { s: DOG_S * far, x: Math.min(L.x, L.far ? 1e9 : (t > 3.5 ? -21 : 1e9)) - 200, dir: L.dir, far: L.far }); }
+  else if (t >= 3.85 && t < 4.58) { const wag = k % 2 ? 26 : -18;   // skids up behind him... and wags its tail, barks once, happily
+    d = { s: DOG_S, x: -221, dir: 1, mouth: t < 4.25 ? 'grit' : (t < 4.42 ? 'open' : 'grit'), head: t >= 4.25 && t < 4.42 ? -14 : 0, tail: t < 4.0 ? -10 : wag }; }
+  else if (t >= 4.58 && t < 4.75) d = { s: DOG_S, x: -221, dir: 0.3, mouth: 'grit', tail: 20 };
+  else if (t >= 4.75 && t < 5.25) d = gallop(k, { x: lerp(-221, -340, (t - 4.75) / 0.5), dir: -1, o: Math.max(0, 1 - (t - 4.75) / 0.42), tail: 24 });
+  p.dog = d || null;
+  // Nobita
+  if (t < 0.33) return p;
+  if (t < 0.5) return Object.assign(p, { turn: t < 0.42 ? -15 : -30, eyes: 'open', look: [-4, 2], mouth: 'smile' });
+  if (t < 0.67) return Object.assign(p, { turn: -30, y: -30, armR: [-140, -20, 'open', 0], armL: [-120, -30, 'open', 0], eyes: 'small', mouth: 'o', sweat: 1, head: 6 });
+  if (t < 1.25) return Object.assign(p, { turn: -30, lean: 18, legR: [-10, -70, 0], armL: [-160, -10, 'open', 0], armR: [40, 20, 'fist', 0], eyes: 'shut', mouth: 'wavy',
+    sweat: 1, x: k % 2 ? 1.5 : -1.5, head: 8 });   // frozen on one leg, trembling
+  if (t < 1.42) return Object.assign(p, { turn: -30, sy: 0.88, sx: 1.05, legL: [0, -20, 0], legR: [0, -20, 0], armL: [30, 30], armR: [40, 20], eyes: 'small', mouth: 'o', sweat: 1 });
+  if (t < 1.83) { const u = (t - 1.42) / 0.42, h = 4 * u * (1 - u);   // the leap: over the dog's head, landing past its tail
+    return Object.assign(p, { turn: -30, x: -350 * u, y: -165 * h, armL: [-110, -20, 'open', 0, 0.15], armR: [-70, -40, 'open', 0, 0.15], legL: [60, -60, 30], legR: [-30, -40, 0],
+      eyes: 'small', mouth: 'shout', sweat: 1, shadow: 1 - 0.5 * h }); }
+  if (t < 2.0) return Object.assign(p, { turn: -30, hturn: 30, x: -350, sy: 0.9, sx: 1.05, legL: [10, -16, 0], legR: [-20, -10, 0], armL: [-60, 30, 'open', 0], armR: [60, -20, 'open', 0],
+    eyes: 'small', mouth: 'wail', sweat: 1 });
+  if (t < 4.0) { const L = lapAt(t - 2.0), q2 = flee(t, k, L.dir);
+    q2.x = L.x - 200; if (L.far) { q2.sx = q2.sy = 0.92; }
+    if (L.turning) Object.assign(q2, { turn: 0, hturn: null, legL: [0, 0, 0], legR: [0, 0, 0], y: -10 });
+    q2.dog = d; if (d) d.front = !!(L.far && !d.far);
+    return q2; }
+  if (t < 4.75) return Object.assign(p, { turn: -30, lean: 18, legR: [-10, -70, 0], armL: [-160, -10, 'open', 0], armR: [40, 20, 'fist', 0], eyes: 'shut', mouth: 'wavy',
+    sweat: 1, x: k % 2 ? 1.5 : -1.5, head: 8 });   // frozen again, eyes shut
+  if (t < 5.0) return Object.assign(p, { turn: -30, lean: 10, eyes: 'aim', mouth: 'wavy', sweat: 1, head: 4 });   // peeks with one eye
+  if (t < 5.33) return Object.assign(p, { turn: -10, sy: 0.95, eyes: 'cry', mouth: 'pant', sweat: 1, head: 8, headY: 4, armL: [-4, 2], armR: [4, -2] });   // sags with relief
+  return Object.assign(p, { armR: [150, -150, 'relax', 0], front: 'R', eyes: 'happy', mouth: 'open', head: 2 });   // wipes his brow: phew
+}
 const CLIPS = [
   ['Idle', 'breathes, blinks, glances', idle, 4.4],
   ['Walk', 'three-quarter on, 1.7 steps a second', walk, 7 / 3],
@@ -535,12 +754,17 @@ const CLIPS = [
   ['Nap', 'asleep in 0.93 s, nose bubble', nap, 4],
   ['Bang!', 'the sharpshooter', bang, 3],
   ['Yatta!', 'jumps for joy', yatta, 2],
+  ['Bappa, please!', 'kneels, pleads, gives up, bows flat', bappa, 6.6],
+  ['Splat!', 'a heroic leap, flat on his face', splat, 4.0],
+  ['Lazy lawn', 'lies back, gazes up, dozes off', lazy, 6.2],
+  ['Dog!', 'chased round his spot by a park dog', dogChase, 5.8],
 ];
 
 // ---- Pages ------------------------------------------------------------------------------------
 const P = new URLSearchParams('mode=ar&capture=1');
 const mode = P.get('mode') || 'sheet';
-const make = (holder) => { holder.setAttribute('viewBox', '-60 -60 520 600'); holder.innerHTML = drawing(); return holder; };
+const VB = [-360, -200, 860, 740];   // the AR card: room for him lying flat, the dog and the chase
+const make = (holder) => { holder.setAttribute('viewBox', VB.join(' ')); holder.innerHTML = drawing(); return holder; };
 let render, loopLen = 1e9;
 if (mode === 'ar') {
 // The camera mode that scripts/build-rigs.mjs pastes into each approved rig page, in front of the
@@ -569,6 +793,16 @@ const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
 svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
 Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
 document.body.appendChild(svg);
+// Rigs that draw their lines with CSS (Goku: classes in this page's <style>, widths in --lw from ink()) keep both
+// inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
+// page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
+if (typeof ink === 'function') {
+  const probe = document.createElementNS(NS, 'svg'), own = document.createElementNS(NS, 'style');
+  ink(probe, 400 / A.tall);
+  svg.setAttribute('data-ink', '');
+  own.textContent = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n') + '\nsvg[data-ink]{' + probe.style.cssText + '}';
+  svg.prepend(own);
+}
 const q = document.createElement('div'); q.textContent = '?';
 Object.assign(q.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -50%)', color: '#F9BC4D',
   fontFamily: 'system-ui, Roboto, sans-serif', fontWeight: '900', textShadow: '0 0 0.12em rgba(249,188,77,.95), 0 0 0.3em rgba(249,188,77,.6)' });
@@ -583,6 +817,8 @@ const idx = (name) => { const i = CLIPS.findIndex((c) => c[0] === name); if (i <
 const R = { idle: idx(A.roles.idle), hi: idx(A.roles.hi), arrive: idx(A.roles.arrive), extras: A.roles.extras.map(idx) };
 const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.idle ? 'idle' : 'extra');
 let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
+// Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
+let faceOn = {}, afterTalk = null;
 
 // The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
 // S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.
@@ -759,6 +995,25 @@ const floorFrame = (t) => {
 
 window.saath = {
   play: (roles) => { queue = roles.map((r) => R[r]).filter((i) => typeof i === 'number'); begin(queue.length ? queue.shift() : R.idle, clock); shown = ''; },
+  // Talking: a face laid over whatever clip plays, from his next drawing. f = {mouth: 'closed'|'half'|'open', mood}
+  // in the shared names, which SAATH_AR.mouths and .moods turn into this rig's own parts (a mood's `closed` replaces
+  // his usual closed mouth). Unknown names are ignored, as a wrong part name blanks every mouth or eye. null ends it
+  // and starts any clip held for later; false (he was cut off, or the reply failed) ends it and drops that clip.
+  face: (f) => {
+    const { closed, ...mood } = f && Object.hasOwn(A.moods, f.mood) ? A.moods[f.mood] : {};
+    const mouth = f && (f.mouth === 'closed' && closed ? closed : Object.hasOwn(A.mouths, f.mouth) ? A.mouths[f.mouth] : null);
+    faceOn = f ? { ...mood, ...(mouth ? { mouth } : {}) } : {};
+    if (f === false) afterTalk = null;
+    else if (!f && afterTalk !== null) { queue = []; begin(afterTalk, clock); afterTalk = null; shown = ''; }
+  },
+  // A gesture from the reply, by its word (SAATH_AR.actions). One that hides or shuts his face (SAATH_AR.later)
+  // waits until he stops talking.
+  act: (word) => {
+    if (!Object.hasOwn(A.actions, word)) return;
+    if (A.later.includes(word) && faceOn.mouth) { afterTalk = idx(A.actions[word]); return; }
+    queue = []; begin(idx(A.actions[word]), clock); shown = '';
+  },
+  now: () => ({ clip: CLIPS[cur][0], face: faceOn }),   // for tests
   // Not met yet: a dark silhouette with a glowing "?", still breathing.
   mystery: (on) => { mystery = !!on; svg.style.filter = on ? 'brightness(0)' : ''; svg.style.opacity = on ? '0.86' : ''; q.style.display = mystery && !quiet && at ? 'block' : 'none'; shown = ''; },
   quiet: (on) => { quiet = !!on; q.style.display = mystery && !quiet && at ? 'block' : 'none'; },
@@ -799,12 +1054,12 @@ const draw = (t) => {
   if (cur !== R.idle && t - since >= len) {
     if (fl.on && fl.state === 'greet' && cur === R.hi) { fl.state = 'stay'; begin(R.idle, t); }   // said hi: he stays
     else begin(queue.length ? queue.shift() : R.idle, t);
-  } else if (cur === R.idle && !mystery && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
+  } else if (cur === R.idle && !mystery && !faceOn.mouth && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
   const loop = cur === R.idle;
   const lt = loop ? (t - since) % CLIPS[cur][3] : t - since, s = step(lt), key = cur + ':' + s;
   if (key === shown) return;   // a new drawing only every 1/12 s
   shown = key;
-  apply(svg, CLIPS[cur][2](s));
+  apply(svg, Object.assign(CLIPS[cur][2](s), faceOn));   // the clip poses him; a talking face wins
   if (mystery && !quiet && at) mark();
 };
 addEventListener('resize', layout);
@@ -879,8 +1134,8 @@ post({ type: 'ready' });
     const [u, v] = ground(X, d), px = f * 1.40 / d;                       // 1.40 m tall at d metres
     const unit = px / 483;                                                // drawing height (29..512) in units
     const x = (u - crop[0]) * k, y = (v - crop[1]) * k;
-    svg.setAttribute('width', 520); svg.setAttribute('height', 600);
-    svg.style.transform = `translate(${x}px, ${y}px) scale(${unit * k}) translate(-260px, -572px)`;
+    svg.setAttribute('width', VB[2]); svg.setAttribute('height', VB[3]);
+    svg.style.transform = `translate(${x}px, ${y}px) scale(${unit * k}) translate(${-(200 - VB[0])}px, ${-(512 - VB[1])}px)`;
     svg.querySelector('.contact').setAttribute('ry', 22); svg.querySelector('.contact').setAttribute('fill', 'rgba(25,20,16,0.34)');
     apply(svg, pose);
     return [x, y - px * k];
