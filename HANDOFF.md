@@ -495,3 +495,9 @@ adb -s <phone-serial> shell am start -W -a android.intent.action.VIEW -d exp://1
 ```
 - The S24's Play Store Expo Go is 57.x, which is why the project stays on SDK 57.
 - The phone drops off adb when One UI's battery protection stops charging. After replugging, re-run `adb reverse`.
+
+## 8. Website
+
+- Live URL: https://pellakurusumanth4-os-39c4.bolt.host
+- Run it locally with `npm run dev:site` (Vite dev server for the `site/` folder; `npm run build` inside `site/` produces `site/dist/`).
+- The Claude API key lives only in the Supabase secret `ANTHROPIC_API_KEY`, used by the `talk` Edge Function. It is never in `site/` code, `.env` values shipped to the browser, or any `VITE_` variable.
