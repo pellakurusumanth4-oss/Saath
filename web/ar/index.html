@@ -119,6 +119,33 @@ const artTex = new THREE.CanvasTexture(art); artTex.colorSpace = THREE.SRGBColor
 let dirty = true, drawing = null;
 const changes = new MutationObserver(() => (dirty = true));
 changes.observe(svg, { attributes: true, childList: true, subtree: true });
+// His idle loop, already pictured: standing idle he shows the same drawings again every 4-10 s, and turning SVG into
+// pixels is most of his cost. A drawing of his idle clip with no talking face is kept the first time, by its SVG text: a
+// copy of the canvas cut to his pixels (an eighth to under half of it), until PICS_B bytes, keys counted, one at a time.
+// Where his pixels are, a worker finds in the same SVG pictured on the CPU (reading back the GPU's copy waits for the GPU
+// to catch up, seconds when it lags), give or take EDGE px where the two rasterisers' edges differ. Nothing is pushed
+// out: LRU would push out each one just before it came round again. His hi, a gesture or a talking mouth seldom repeats.
+const pics = new Map(), PICS_B = 60 << 20, EDGE = 2;
+let picsB = 0, picsFull = false, cutting = null;
+const cutter = new Worker(URL.createObjectURL(new Blob([`onmessage = ({ data: bmp }) => {
+  const { width: w, height: h } = bmp, g = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true });
+  g.drawImage(bmp, 0, 0); bmp.close();
+  const px = new Uint32Array(g.getImageData(0, 0, w, h).data.buffer);   // 0 exactly where alpha is 0
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) if (px[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y; }
+  postMessage([x0, y0, x1, y1]);
+}`], { type: 'text/javascript' })));
+const drop = () => { cutting?.full.then((f) => f.close(), () => {}); cutting = null; };
+cutter.onerror = drop;
+cutter.onmessage = async ({ data: [x0, y0, x1, y1] }) => {
+  const { text, full } = cutting, x = Math.max(0, x0 - EDGE), y = Math.max(0, y0 - EDGE);
+  const bmp = x1 < 0 ? null : await full.then((f) => createImageBitmap(f, x, y, Math.min(PX_W, x1 + 1 + EDGE) - x, Math.min(PX_H, y1 + 1 + EDGE) - y)).catch(() => null);
+  drop();
+  const b = bmp && bmp.width * bmp.height * 4 + text.length;
+  if (!bmp || pics.has(text)) bmp?.close();
+  else if (picsB + b > PICS_B) { bmp.close(); picsFull = true; }   // no more copies
+  else { pics.set(text, { bmp, x, y }); picsB += b; }
+};
 const rasterise = () => {
   // A drawing made this frame is pictured this frame: the observer's own callback only runs after the frame, which
   // put every mouth a frame late (about 60 ms).
@@ -130,10 +157,20 @@ const rasterise = () => {
   // His hidden parts (spare hands, Nobita's dog) stay out of the copy: the same picture, less to parse and draw. Not
   // one holding an id: a gradient or clip in a hidden part can still be used by a shown one.
   for (const e of c.querySelectorAll(':is([style*="display:none"], [style*="display: none"]):not([id], :has([id]))')) e.remove();
-  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)], { type: 'image/svg+xml' }));
+  // A part hidden and shown again keeps an empty style="": no effect on the picture, but it made one drawing two texts.
+  for (const e of c.querySelectorAll('[style=""]')) e.removeAttribute('style');
+  const text = new XMLSerializer().serializeToString(c), pic = pics.get(text);
+  if (pic) { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(pic.bmp, pic.x, pic.y); artTex.needsUpdate = true; return Promise.resolve(); }
+  const { clip, face } = rig.saath.now(), idle = !picsFull && clip === A.roles.idle && !Object.keys(face).length;
+  const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
   const img = new Image();
   drawing = new Promise((done) => {
-    img.onload = () => { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(img, 0, 0, PX_W, PX_H); artTex.needsUpdate = true; done(); };
+    img.onload = () => { artG.clearRect(0, 0, PX_W, PX_H); artG.drawImage(img, 0, 0, PX_W, PX_H); artTex.needsUpdate = true; done();
+      if (idle && !cutting) {   // the canvas is copied now, as drawn
+        cutting = { text, full: createImageBitmap(art) };
+        createImageBitmap(img).then((cpu) => cutter.postMessage(cpu, [cpu]), drop);
+      }
+    };
     img.onerror = done;
     img.src = url;
   }).finally(() => { URL.revokeObjectURL(url); drawing = null; });
