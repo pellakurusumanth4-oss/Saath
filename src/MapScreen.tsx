@@ -37,6 +37,9 @@ type Props = {
   /** The home and office you set (App.tsx keeps them on this phone): friends stand round them. */
   places: Places;
   onSetPlace: (which: keyof Places, at: LatLng | null) => void;
+  /** Friends' random spots the map should look round for paths and roads (src/mapWalk.ts); it answers onWalkable. */
+  look: LatLng[];
+  onWalkable: (found: unknown) => void;
 };
 
 export function MapScreen(props: Props) {
@@ -91,6 +94,12 @@ export function MapScreen(props: Props) {
     if (booted) run(`window.saath.setTarget(${line})`);
   }, [booted, line]);
 
+  // New random spots: the map looks round them in its own tiles for somewhere to walk.
+  const look = JSON.stringify(props.look);
+  useEffect(() => {
+    if (booted && look !== '[]') run(`window.saath.walkable(${look})`);
+  }, [booted, look]);
+
   // The cone shows which way you face. Send it when it turns by a degree or more; the map
   // animates in between.
   useEffect(() => {
@@ -114,6 +123,7 @@ export function MapScreen(props: Props) {
     else if (msg.type === 'friend') props.onSelect(msg.id);
     else if (msg.type === 'mode') setMode(msg.mode);
     else if (msg.type === 'error') setMapError(msg.msg);
+    else if (msg.type === 'walkable') props.onWalkable(msg.found);
     else if (msg.type === 'log') console.log('[map]', msg.msg);
   };
 

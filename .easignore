@@ -1,0 +1,19 @@
+# What EAS Build uploads (this file replaces .gitignore for that): the app only.
+node_modules/
+.expo/
+dist/
+web-build/
+/ios
+/android
+*.log
+.env*
+# not part of the app build
+spikes/
+tools/
+web/
+site/
+supabase/
+notes/
+scripts/
+*.mp4
+*.mov

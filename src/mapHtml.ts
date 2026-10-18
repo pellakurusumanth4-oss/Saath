@@ -1,12 +1,13 @@
 import { FIGURES_CSS, FIGURES_JS } from './mapFigures';
 import { NAV_CSS, NAV_JS } from './mapNav';
 import { MAP_STYLE, STYLE_CSS, STYLE_JS } from './mapStyle';
+import { WALK_JS } from './mapWalk';
 
 // The live map runs MapLibre GL JS inside a WebView. Tiles come from OpenFreeMap
 // (OpenStreetMap data, no API key), with real 3D buildings once you zoom in.
 // If those vector tiles can't load, it falls back to OpenStreetMap raster tiles.
-// The map's look, the guide to your friend and the friends themselves each live in their own
-// file (mapStyle, mapNav, mapFigures) and are pasted into the page here.
+// The map's look, the guide to your friend, the friends themselves and finding them somewhere to
+// walk each live in their own file (mapStyle, mapNav, mapFigures, mapWalk) and are pasted in here.
 export const MAP_HTML = `<!doctype html>
 <html>
 <head>
@@ -41,6 +42,7 @@ ${FIGURES_CSS}
 ${STYLE_JS}
 ${NAV_JS}
 ${FIGURES_JS}
+${WALK_JS}
   var VECTOR = ${JSON.stringify(MAP_STYLE)};
   // CARTO's keyless tiles now only show "API KEY REQUIRED", so the fallback uses OpenStreetMap's own.
   var RASTER = {
@@ -187,7 +189,9 @@ ${FIGURES_JS}
     },
     focus: function (lat, lng) { focus(lng, lat); },
     setTarget: function (t) { nav.setTarget(t ? [t.lng, t.lat] : null); },
-    setFriends: function (list) { figures.setFriends(list); }
+    setFriends: function (list) { figures.setFriends(list); },
+    // Friends' random spots ([{lat, lng}]) to look round for paths and roads; the answers come back as 'walkable'.
+    walkable: createWalk(VECTOR.sources.openmaptiles.url, post)
   };
 
   post({ type: 'boot' });
