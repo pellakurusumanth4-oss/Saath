@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { FACES } from '../../src/faces';
 import { distanceM, formatDistance, type LatLng } from '../../src/geo';
-import { hostOf, sectionOf, STATUS_LABEL, walkMinutes, type Shop } from './shops';
+import { hostOf, portraitOf, sectionOf, STATUS_LABEL, walkMinutes, type Shop } from './shops';
 
 /** The shops, closest first once we know where you are; a tap opens the shop's page. */
 export default function ShopsList({ shops, me, expanded, onPick, onToggle }: {
@@ -35,7 +34,7 @@ export default function ShopsList({ shops, me, expanded, onPick, onToggle }: {
           return (
             <article key={shop.id} className="card" style={{ ['--friend-color' as string]: section.color }}>
               <a className="card-hit" href={`#/shop/${shop.slug}`} onClick={() => onPick(shop)}>
-                <img className="card-face" src={FACES[hostOf(shop).character].met} alt="" width={52} height={52} />
+                <img className="card-face" src={portraitOf(hostOf(shop))} alt="" width={52} height={52} />
                 <div className="card-text">
                   <h3>{shop.name}</h3>
                   <p>{section.icon} {section.label} · <span className={`shop-status is-${shop.status}`}>{STATUS_LABEL[shop.status]}</span></p>

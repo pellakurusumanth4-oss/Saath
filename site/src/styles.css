@@ -1005,6 +1005,20 @@ body {
   border-top: 8px solid var(--ink);
 }
 
+/* The mascot's own section pin (a teardrop whose point is its bottom edge). */
+.shop-marker-pin.is-art {
+  width: 30px;
+  height: 36px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.shop-marker:has(.is-art) {
+  padding-bottom: 0;
+}
+
 /* Below the point, out of the marker's box, so the point (the box's bottom) sits on the spot. */
 .shop-marker-name {
   position: absolute;

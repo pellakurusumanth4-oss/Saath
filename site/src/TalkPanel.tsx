@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Friend } from '../../src/friends';
 import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref, speechVoicesReady, VOICES } from './voices';
@@ -9,30 +8,7 @@ type PanelMessage = ChatMessage & { replayable?: boolean };
 
 type Chip = { label: string; send: string };
 
-const STARTERS: Record<string, Chip[]> = {
-  doraemon: [
-    { label: 'Show me a gadget!', send: 'Show me a gadget from your pocket!' },
-    { label: 'Want a dorayaki?', send: 'Want a dorayaki?' },
-    { label: "What's in Pune?", send: 'What do you like about Pune?' },
-  ],
-  nobita: [
-    { label: 'How was the test?', send: 'How did your test go?' },
-    { label: 'Good nap?', send: 'Did you have a good nap?' },
-    { label: 'Temple stories?', send: 'What do you like about Sarasbaug temple?' },
-  ],
-  shinchan: [
-    { label: 'Action Kamen!', send: 'Do you like Action Kamen?' },
-    { label: 'Chocobi time?', send: 'Want to share some Chocobi?' },
-    { label: 'Do the dance!', send: 'Do your cheeky dance for me!' },
-  ],
-  goku: [
-    { label: 'Train with me!', send: 'Can we train together?' },
-    { label: 'Hungry?', send: 'Are you hungry? Want some food?' },
-    { label: 'Strong opponent?', send: 'Who is the strongest opponent you want to fight?' },
-  ],
-};
-
-// At a shop, the host answers about the shop: its menu, prices, special and how busy it is.
+// The mascot answers about its shop: the menu, prices, today's special and how busy it is.
 const SHOP_STARTERS: Chip[] = [
   { label: 'What’s good today?', send: 'What’s good here today?' },
   { label: 'Is it busy?', send: 'Is it busy right now?' },
@@ -40,9 +16,9 @@ const SHOP_STARTERS: Chip[] = [
 ];
 
 export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
-  friend: Friend;
-  /** Talking to the host at this shop. */
-  shop?: { slug: string; name: string };
+  /** The shop's mascot; its id picks its voice. */
+  friend: { id: string; name: string };
+  shop: { slug: string; name: string };
   onClose: () => void;
   onReplySpoken?: () => void;
 }) {
@@ -125,7 +101,7 @@ export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
   const speak = async (text: string) => {
     currentSpeak.current?.cancel();
     currentSpeak.current = null;
-    const handle = await speakReply(friend.character, text);
+    const handle = await speakReply(friend.id, text);
     currentSpeak.current = handle;
   };
 
@@ -147,7 +123,7 @@ export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
     currentSpeak.current?.cancel();
     currentSpeak.current = null;
     try {
-      const answer = await askFriend(friend.id, next.slice(-12), shop?.slug);
+      const answer = await askFriend(friend.id, next.slice(-12), shop.slug);
       reply(answer);
     } catch (err) {
       if (err instanceof RateLimitError) {
@@ -193,7 +169,7 @@ export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
     }
   };
 
-  const starters = shop ? SHOP_STARTERS : STARTERS[friend.character] ?? [];
+  const starters = SHOP_STARTERS;
   const firstName = friend.name.split(' ')[0];
   const loadingVoice = voiceLoading && kokoroState === 'loading';
 
@@ -201,7 +177,7 @@ export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
     <div className="watch talk" role="dialog" aria-label={`Talking with ${friend.name}`}>
       <div className="talk-head">
         <h3 className="talk-title">
-          Talk to {friend.name}{shop && ` at ${shop.name}`}
+          Talk to {friend.name} at {shop.name}
           {loadingVoice && <span className="talk-voice-loading"> Loading voice…</span>}
         </h3>
         <button
@@ -222,7 +198,7 @@ export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
       </div>
       <div className="talk-scroll" ref={scroller}>
         {messages.length === 0 && !waiting && (
-          <p className="talk-empty">{shop ? `Ask ${firstName} about ${shop.name}!` : `Say hello to ${firstName}!`}</p>
+          <p className="talk-empty">Ask {firstName} about {shop.name}!</p>
         )}
         {messages.map((message, index) => (
           message.role === 'user' ? (

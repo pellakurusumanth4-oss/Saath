@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { Session } from '@supabase/supabase-js';
-import { FRIENDS } from '../../src/friends';
 import { MAP_STYLE } from '../../src/mapStyle';
 import type { LatLng } from '../../src/geo';
 import MapBoundary from './MapBoundary';
+import { MASCOTS } from './mascots';
 import { db, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type Status } from './shops';
 
 const PUNE: LatLng = { lat: 18.5204, lng: 73.8567 };
@@ -12,7 +12,7 @@ const PUNE: LatLng = { lat: 18.5204, lng: 73.8567 };
 const sectionOptions = Object.entries(SECTIONS).map(([id, section]) => (
   <option key={id} value={id}>{section.icon} {section.label}</option>
 ));
-const hostOptions = FRIENDS.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}</option>);
+const mascotOptions = MASCOTS.map((mascot) => <option key={mascot.id} value={mascot.id}>{mascot.name}</option>);
 
 /** A slug for the shop's link from its name: lowercase letters, digits and dashes, 3 to 40 of them. */
 const slugify = (name: string) =>
@@ -263,8 +263,8 @@ function ShopEditor({ shop }: { shop: Shop }) {
           <select defaultValue={shop.section} onChange={(event) => saveShop({ section: event.target.value })}>{sectionOptions}</select>
         </label>
         <label>
-          Host
-          <select defaultValue={shop.friend} onChange={(event) => saveShop({ friend: event.target.value })}>{hostOptions}</select>
+          Mascot
+          <select defaultValue={shop.friend} onChange={(event) => saveShop({ friend: event.target.value })}>{mascotOptions}</select>
         </label>
       </div>
 
@@ -330,6 +330,7 @@ function ShopEditor({ shop }: { shop: Shop }) {
 
 function NewShop({ onDone }: { onDone: (id: string | null) => void }) {
   const [spot, setSpot] = useState<LatLng | null>(null);
+  const [section, setSection] = useState('restaurant');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -346,7 +347,7 @@ function NewShop({ onDone }: { onDone: (id: string | null) => void }) {
     setBusy(true);
     const { data, error: insertError } = await db
       .from('shops')
-      .insert({ slug, name, section: form.get('section'), friend: form.get('friend'), lat: spot.lat, lng: spot.lng })
+      .insert({ slug, name, section, friend: form.get('friend'), lat: spot.lat, lng: spot.lng })
       .select('id')
       .single();
     setBusy(false);
@@ -369,11 +370,12 @@ function NewShop({ onDone }: { onDone: (id: string | null) => void }) {
       <div className="owner-grid">
         <label>
           Section
-          <select name="section" defaultValue="restaurant">{sectionOptions}</select>
+          <select value={section} onChange={(event) => setSection(event.target.value)}>{sectionOptions}</select>
         </label>
         <label>
-          Host
-          <select name="friend" defaultValue="nobita">{hostOptions}</select>
+          Mascot
+          {/* Re-mounted per section so it starts on that section's mascot. */}
+          <select key={section} name="friend" defaultValue={MASCOTS.find((mascot) => mascot.section === section)?.id ?? 'juno'}>{mascotOptions}</select>
         </label>
       </div>
       <p className="owner-help">Tap the map where your shop is.</p>

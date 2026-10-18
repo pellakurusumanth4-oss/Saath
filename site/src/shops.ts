@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { FRIENDS, type Friend } from '../../src/friends';
 import { distanceM, type LatLng } from '../../src/geo';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './talk';
+import { MASCOTS, type Mascot } from './mascots';
 
 /** Shops, live menus and owner sign-in. Anyone may read; owners write only their own shop (row level security). */
 export const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -14,7 +14,7 @@ export type Shop = LatLng & {
   slug: string;
   name: string;
   section: string;
-  /** The host at the door: a website friend's id for now. */
+  /** The mascot at the door (a MASCOTS id). */
   friend: string;
   story: string;
   special: string;
@@ -38,21 +38,22 @@ export type MenuItem = {
 
 export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,story,special,status,status_note,owner,claimable';
 
-/** The business sections, by the database's ids: what a pin shows and its colour. */
+/** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon for those
+ * without a mascot's pin yet. */
 export const SECTIONS: Record<string, { label: string; icon: string; color: string }> = {
-  restaurant: { label: 'Restaurant', icon: '🍛', color: '#E96633' },
-  cafe: { label: 'Café', icon: '☕', color: '#A0663B' },
-  juice: { label: 'Juice bar', icon: '🧃', color: '#5FAD32' },
-  bakery: { label: 'Bakery', icon: '🥐', color: '#E8A33D' },
-  grocery: { label: 'Grocery', icon: '🛒', color: '#2F9E58' },
-  streetfood: { label: 'Street food', icon: '🌯', color: '#E5484D' },
-  boutique: { label: 'Boutique', icon: '👗', color: '#D25FA8' },
-  mall: { label: 'Mall', icon: '🏬', color: '#6C5CE7' },
-  realestate: { label: 'Real estate', icon: '🏠', color: '#2E7CF6' },
-  salon: { label: 'Salon', icon: '💇', color: '#E86A92' },
-  pharmacy: { label: 'Pharmacy', icon: '💊', color: '#1FA59A' },
-  bookstore: { label: 'Bookshop', icon: '📚', color: '#8E6B3E' },
-  electronics: { label: 'Electronics', icon: '📱', color: '#3F4A5A' },
+  restaurant: { label: 'Restaurant', icon: '🍛', color: '#E5533D' },
+  cafe: { label: 'Café & Chai', icon: '☕', color: '#14897C' },
+  juice: { label: 'Juice & Smoothies', icon: '🧃', color: '#7CB82F' },
+  bakery: { label: 'Bakery & Sweets', icon: '🥐', color: '#8C5A3C' },
+  grocery: { label: 'Grocery & Kirana', icon: '🛒', color: '#2E8B57' },
+  streetfood: { label: 'Street Food', icon: '🌯', color: '#E8A317' },
+  boutique: { label: 'Fashion Boutique', icon: '👗', color: '#7B4BA8' },
+  mall: { label: 'Shopping Mall', icon: '🏬', color: '#F28C28' },
+  realestate: { label: 'Real Estate', icon: '🏠', color: '#23395B' },
+  salon: { label: 'Salon & Spa', icon: '💇', color: '#E35D9A' },
+  pharmacy: { label: 'Pharmacy', icon: '💊', color: '#1AA3C2' },
+  books: { label: 'Bookshop', icon: '📚', color: '#8E6B3E' },
+  electronics: { label: 'Electronics & Mobile', icon: '📱', color: '#3D5AFE' },
   gym: { label: 'Gym', icon: '🏋️', color: '#D9480F' },
   hotel: { label: 'Hotel', icon: '🏨', color: '#0B7285' },
 };
@@ -60,9 +61,25 @@ export const sectionOf = (shop: Pick<Shop, 'section'>) => SECTIONS[shop.section]
 
 export const STATUS_LABEL: Record<Status, string> = { open: 'Open now', busy: 'Busy right now', closed: 'Closed now' };
 
-/** The host at a shop's door: its face, name, voice and AR rig are the website friend's (Nobita if unknown). */
-export const hostOf = (shop: Pick<Shop, 'friend'>): Friend =>
-  FRIENDS.find((friend) => friend.id === shop.friend) ?? FRIENDS.find((friend) => friend.id === 'nobita')!;
+const sectionMascot = (section: string) => MASCOTS.find((mascot) => mascot.section === section);
+
+/** The mascot at a shop's door: its own, else its section's, else Juno. */
+export const hostOf = (shop: Pick<Shop, 'friend' | 'section'>): Mascot =>
+  MASCOTS.find((mascot) => mascot.id === shop.friend) ?? sectionMascot(shop.section) ?? MASCOTS.find((mascot) => mascot.id === 'juno')!;
+
+export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png`;
+
+/** Mascots whose AR rig is in the site's /ar/rigs/ (the AR page's), so "Meet in AR" shows. */
+export const AR_READY = new Set<string>([]);
+
+// shortcut: Talk stays hidden until the talk function answers as the mascots (the persona session's prompts).
+export const TALK_READY = false;
+
+/** The section's map pin, drawn with its mascot; null for the sections without a mascot yet. */
+export const pinOf = (shop: Pick<Shop, 'section'>) => {
+  const mascot = sectionMascot(shop.section);
+  return mascot ? `/mascots/pins/${mascot.id}.svg` : null;
+};
 
 /** Minutes on foot at an easy 80 m a minute (straight line, so a little optimistic). */
 export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round(distanceM(me, shop) / 80));

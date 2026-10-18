@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type Map as MapLibreMap, type MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection, Point } from 'geojson';
-import { FACES } from '../../src/faces';
 import { MAP_STYLE } from '../../src/mapStyle';
 import type { LatLng } from '../../src/geo';
-import { hostOf, sectionOf, type Shop } from './shops';
+import { hostOf, pinOf, portraitOf, sectionOf, type Shop } from './shops';
 
 const PUNE: [number, number] = [73.8567, 18.5204];
 
-/** A shop on the map: its host's round face bobbing over a pin in the section's colour, and its name. */
+/** A shop on the map: its mascot's round portrait bobbing over its section's pin, and its name. */
 function shopMarker(shop: Shop, index: number, onPick: (shop: Shop) => void): HTMLElement {
   const section = sectionOf(shop);
   const marker = document.createElement('button');
@@ -19,11 +18,17 @@ function shopMarker(shop: Shop, index: number, onPick: (shop: Shop) => void): HT
   marker.style.setProperty('--bob-delay', `${(index * 0.37) % 2}s`);
   const face = document.createElement('img');
   face.className = 'shop-marker-face';
-  face.src = FACES[hostOf(shop).character].met;
+  face.src = portraitOf(hostOf(shop));
   face.alt = '';
-  const pin = document.createElement('span');
-  pin.className = 'shop-marker-pin';
-  pin.textContent = section.icon;
+  const pinSrc = pinOf(shop);
+  const pin = document.createElement(pinSrc ? 'img' : 'span');
+  pin.className = pinSrc ? 'shop-marker-pin is-art' : 'shop-marker-pin';
+  if (pin instanceof HTMLImageElement) {
+    pin.src = pinSrc!;
+    pin.alt = '';
+  } else {
+    pin.textContent = section.icon;
+  }
   const name = document.createElement('span');
   name.className = 'shop-marker-name';
   name.textContent = shop.name; // the owner's words: text, never HTML

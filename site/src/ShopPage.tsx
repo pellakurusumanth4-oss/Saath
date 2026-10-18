@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { FACES } from '../../src/faces';
 import type { LatLng } from '../../src/geo';
 import TalkPanel from './TalkPanel';
-import { ago, bestSaving, hostOf, rupees, sectionOf, STATUS_LABEL, useShop, walkMinutes } from './shops';
+import { ago, AR_READY, bestSaving, TALK_READY, hostOf, portraitOf, rupees, sectionOf, STATUS_LABEL, useShop, walkMinutes } from './shops';
 
-/** A shop's own page (#/shop/<slug>): live status, today's special and menu, the walk and the saving, and its host. */
+/** A shop's own page (#/shop/<slug>): live status, today's special and menu, the walk and the saving, and its mascot. */
 export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null }) {
   const { shop, menu, missing } = useShop(slug);
   const [now, setNow] = useState(() => Date.now());
@@ -31,7 +30,7 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
   const saving = bestSaving(menu);
   const updated = menu.reduce((newest, item) => (item.updated_at > newest ? item.updated_at : newest), '');
   const walk = me ? walkMinutes(me, shop) : null;
-  const ar = `/ar/?${new URLSearchParams({ shop: shop.slug, friend: host.id, name: host.name, tall: String(host.height) })}`;
+  const ar = `/ar/?${new URLSearchParams({ shop: shop.slug, friend: host.id, name: host.name, tall: String(host.tall) })}`;
 
   return (
     <div className="shop-page" role="dialog" aria-label={shop.name}>
@@ -39,7 +38,7 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
         <a className="shop-back" href="#/">← Map</a>
 
         <header className="shop-head">
-          <img className="shop-host" src={FACES[host.character].met} alt={`${host.name}, the host`} width={84} height={84} />
+          <img className="shop-host" src={portraitOf(host)} alt={`${host.name}, the mascot`} width={84} height={84} />
           <div>
             <p className="shop-section">{section.icon} {section.label}</p>
             <h2 className="shop-name">{shop.name}</h2>
@@ -68,10 +67,10 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
         )}
 
         <div className="shop-actions">
-          <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>
-          <a className="btn btn-plain" href={ar}>Meet {host.name} in AR</a>
+          {TALK_READY && <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>}
+          {AR_READY.has(host.id) && <a className="btn btn-plain" href={ar}>Meet {host.name} in AR</a>}
         </div>
-        <p className="shop-hint">AR works in Chrome on Android.</p>
+        {AR_READY.has(host.id) && <p className="shop-hint">AR works in Chrome on Android.</p>}
 
         <section className="shop-menu">
           <div className="shop-menu-head">

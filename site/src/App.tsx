@@ -4,7 +4,6 @@ import MapBoundary from './MapBoundary';
 import ShopsList from './ShopsList';
 import ShopPage from './ShopPage';
 import OwnerPage from './OwnerPage';
-import HangoutPanel from './HangoutPanel';
 import { useMe } from './hooks';
 import { useShops, walkMinutes, type Shop } from './shops';
 import { distanceM } from '../../src/geo';
@@ -28,7 +27,6 @@ export default function App() {
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const [hangout, setHangout] = useState(false);
 
   const shopSlug = /^#\/shop\/([a-z0-9-]{3,40})$/.exec(hash)?.[1] ?? null;
   const owner = hash === '#/owner';
@@ -90,14 +88,6 @@ export default function App() {
         <p className="tagline">Walk there, save money</p>
       </header>
 
-      <button
-        className="btn btn-yellow hangout-btn"
-        onClick={() => setHangout(true)}
-        aria-label="Open the hangout"
-      >
-        Hangout
-      </button>
-
       <div className="controls">
         <button className="btn btn-yellow" onClick={onWhereAmI} disabled={locating}>
           {locating ? 'Finding you…' : 'Where am I'}
@@ -123,7 +113,6 @@ export default function App() {
         onToggle={() => setExpanded((value) => !value)}
       />
 
-      {hangout && <HangoutPanel onClose={() => setHangout(false)} />}
       {shopSlug && <ShopPage key={shopSlug} slug={shopSlug} me={me} />}
       {owner && <OwnerPage />}
     </div>
