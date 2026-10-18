@@ -12,6 +12,12 @@
 //   lip: seconds added to the audio clock, to line the mouth up by hand (e.g. Bluetooth earbuds).
 import { MOUTH, closures, loudness, mouthAt } from './mouth.mjs';
 
+// Where /api/talk and /api/hear live: this page's own server (the laptop's web/serve.mjs), unless a hosted page names
+// one in <meta name="saath-api" content="https://…/functions/v1/ar" data-key="…">; the key is a public one, sent as
+// the bearer token the host asks for.
+const API_META = globalThis.document?.querySelector('meta[name="saath-api"]');
+const API = API_META?.content ?? '', AUTH = API_META?.dataset.key ? { authorization: `Bearer ${API_META.dataset.key}` } : {};
+
 export const NOT_HEARD = 'Didn’t catch that. Hold and try again.';
 const OOPS = 'Oops, I can’t talk right now. Try again?', NOT_ALLOWED = 'Allow the microphone to talk.';
 const KEEP = 8, FORGET_MS = 10 * 60 * 1000, HOLD_S = 1.5, RATE = 24000;
@@ -75,7 +81,7 @@ export function createTalk({ friend, onEvent, lip = 0 }) {
     ac = new AbortController(); hush(); emotion = 'neutral'; sounded = false; finished = false; cut = false; lateError = '';
     set('thinking');
     try {
-      const res = await fetch('/api/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ friend, text, history }), signal: ac.signal });
+      const res = await fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ friend, text, history }), signal: ac.signal });
       if (!res.ok) { if (res.status === 400) history = []; throw new Error(OOPS); }   // history it turns down is forgotten
       for await (const line of lines(res.body)) {
         if (my !== turn) return;   // interrupted: a late chunk of an old reply
@@ -152,7 +158,7 @@ export function createTalk({ friend, onEvent, lip = 0 }) {
       set('thinking');
       const type = r.mimeType.split(';')[0];
       let out = { error: OOPS };
-      try { out = await (await fetch('/api/hear', { method: 'POST', headers: { 'content-type': type }, body: new Blob(parts, { type }) })).json(); } catch {}
+      try { out = await (await fetch(`${API}/api/hear`, { method: 'POST', headers: { 'content-type': type, ...AUTH }, body: new Blob(parts, { type }) })).json(); } catch {}
       if (my !== turn) return;
       const said = out.text?.trim();
       if (said) ask(said); else { onEvent('error', out.error || NOT_HEARD); set('idle'); }
@@ -166,7 +172,7 @@ export function createTalk({ friend, onEvent, lip = 0 }) {
     warm() {
       if (performance.now() - warmedAt < 3000) return;
       warmedAt = performance.now();
-      fetch('/api/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ friend, warm: true }) }).catch(() => {});
+      fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ friend, warm: true }) }).catch(() => {});
     },
     // Press: listen, cutting off anything he is saying.
     listen() {

@@ -14,7 +14,7 @@ const RATE_LIMIT_MESSAGE = "Too many messages, try again in a minute";
  * then loaded into the owner's ElevenLabs account. Override with ELEVENLABS_VOICE_<FRIEND> secrets.
  */
 const ELEVEN_VOICES: Record<string, string> = {
-  doraemon: "J0lJebHBcbJXRg92zRzT",
+  doraemon: "LFWwdLzOs2fj7AQXGqNp", // "Saath Doraemon Bright": ElevenLabs Voice Design, picked by the owner 18 Oct (high, bright, slightly nasal)
   nobita: "LasN4GAs8M2H8gKwsin9",
   shinchan: "70cqcJftET6PVzXmUJyh",
   goku: "6UA5cRqz08Jse4Dnzk3C",

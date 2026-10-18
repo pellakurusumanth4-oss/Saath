@@ -1,5 +1,28 @@
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
+
+// The phone's AR camera page (web/ar) and its talk client (web/talk) ride along at /ar/ and /talk/, so the app can
+// open them over HTTPS without the laptop. The hosted page alone gets a <meta name="saath-api"> pointing talk.js at
+// the Supabase `ar` function (key: the public anon key); the copies exist only in dist/, never in the repo.
+function arPage(url: string, anonKey: string): Plugin {
+  const web = fileURLToPath(new URL('../web/', import.meta.url));
+  return {
+    name: 'saath-ar-page',
+    apply: 'build',
+    generateBundle() {
+      const meta = url ? `<head>\n<meta name="saath-api" content="${url}/functions/v1/ar" data-key="${anonKey}">` : '<head>';
+      this.emitFile({ type: 'asset', fileName: 'ar/index.html', source: fs.readFileSync(`${web}ar/index.html`, 'utf8').replace('<head>', meta) });
+      for (const rig of fs.readdirSync(`${web}ar/rigs`).filter((f) => f.endsWith('.html'))) {
+        this.emitFile({ type: 'asset', fileName: `ar/rigs/${rig}`, source: fs.readFileSync(`${web}ar/rigs/${rig}`) });
+      }
+      for (const file of ['talk.js', 'mouth.mjs', 'cloud.js']) {
+        this.emitFile({ type: 'asset', fileName: `talk/${file}`, source: fs.readFileSync(`${web}talk/${file}`) });
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   // The root .env uses EXPO_PUBLIC_ names; expose the same values to the site as VITE_ vars.
@@ -7,7 +30,7 @@ export default defineConfig(({ mode }) => {
   const url = env.EXPO_PUBLIC_SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '';
   const anonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY ?? '';
   return {
-    plugins: [react()],
+    plugins: [react(), arPage(url, anonKey)],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(url),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(anonKey),

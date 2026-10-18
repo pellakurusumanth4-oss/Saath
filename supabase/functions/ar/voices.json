@@ -1,0 +1,10 @@
+{
+  "_note": "ElevenLabs voice ids (not secret). Saath's own character voices (18 Oct): each designed from a written description of the character with the open-source Qwen3-TTS (no real person, no actor), then loaded with Instant Voice Cloning on the Starter plan. notes/talking-voices.md has how.",
+  "doraemon": "J0lJebHBcbJXRg92zRzT",
+  "nobita": "LasN4GAs8M2H8gKwsin9",
+  "shinchan": "70cqcJftET6PVzXmUJyh",
+  "goku": "6UA5cRqz08Jse4Dnzk3C",
+  "michael": "BSIj4idYWz8MfrO70NSy",
+  "dwight": "8L4AWSlOXZMZkVohnLPD",
+  "holt": "I59ldginkfPbpyLmWbV5"
+}
