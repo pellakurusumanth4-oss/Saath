@@ -17,12 +17,15 @@ const POLL_MS = 100;
 const POLL_MAX_MS = 5000;
 
 /** Place + play a clip for a character, adjusting for Goku's taller rig. */
-function placeAndPlay(saath: Saath, character: Character, clip: string) {
+function placeAndPlay(saath: Saath, character: Character, clip: string, frame: HTMLIFrameElement | null) {
+  // The numbers are tuned for a 300x450 frame; scale them to the frame's real size (e.g. small hangout tiles).
+  const width = frame?.clientWidth || FOOT_X * 2;
+  const k = (frame?.clientHeight || 450) / 450;
   saath.mystery(false);
   saath.place(
-    FOOT_X,
-    character === 'goku' ? GOKU_FOOT_Y : FOOT_Y,
-    character === 'goku' ? GOKU_HEIGHT_PX : HEIGHT_PX,
+    width / 2,
+    (character === 'goku' ? GOKU_FOOT_Y : FOOT_Y) * k,
+    (character === 'goku' ? GOKU_HEIGHT_PX : HEIGHT_PX) * k,
     0,
   );
   saath.play([clip]);
@@ -49,7 +52,7 @@ export function useSaathRig(character: Character, initialClip: string) {
       const saath = win?.saath;
       if (saath) {
         saathRef.current = saath;
-        placeAndPlay(saath, character, initialClip);
+        placeAndPlay(saath, character, initialClip, frame.current);
         setReady(true);
         return;
       }

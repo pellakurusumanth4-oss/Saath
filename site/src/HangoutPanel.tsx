@@ -43,7 +43,7 @@ function RigTile({ friend, speaking, clip }: {
   const { frame, ready, timedOut, wave } = useSaathRig(friend.character, 'arrive');
 
   useEffect(() => {
-    if (ready && clip) wave(clip);
+    if (ready && clip === 'hi') wave(clip);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clip, ready]);
 
@@ -73,6 +73,8 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [waitingPrompt, setWaitingPrompt] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
+  // Source of truth for async callbacks; appendMessage keeps it in step with state.
+  const messagesRef = useRef<HangoutMessage[]>([]);
   const recognition = useRef<RecognitionHandle | null>(null);
   const currentSpeak = useRef<SpeakHandle | null>(null);
   const msgId = useRef(0);
@@ -107,6 +109,12 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
       stopAllSpeaking();
       window.clearTimeout(banterTimer.current);
     };
+  }, []);
+
+  // Start the friends chatting once the user has been quiet for a while.
+  useEffect(() => {
+    scheduleBanter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pause banter while the tab is hidden.
@@ -150,9 +158,7 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
       currentSpeak.current?.cancel();
       const handle = await speakReply(speakerId, text);
       currentSpeak.current = handle;
-      // Wait for speech to finish. For Kokoro, the handle resolves when playback ends.
-      // For fallback speechSynthesis, we poll until done.
-      await waitForSpeechEnd();
+      await handle.done;
     } else {
       // No voice — just pause briefly so the bubble is readable.
       await new Promise<void>((resolve) => setTimeout(resolve, 1200));
@@ -160,28 +166,11 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
     setSpeakingId(null);
   }, [soundOn]);
 
-  const waitForSpeechEnd = useCallback(async () => {
-    const synth = window.speechSynthesis;
-    if (!synth || synth.speaking === undefined) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
-      return;
-    }
-    // Wait for speechSynthesis to finish (fallback path).
-    // For Kokoro, the audio element handles its own timing; we just wait a bit.
-    const started = Date.now();
-    while (synth.speaking && Date.now() - started < 20_000) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 200));
-    }
-  }, []);
-
   /** Append a message and return the updated list. */
   const appendMessage = useCallback((speaker: GroupSpeaker, text: string): HangoutMessage[] => {
-    const msg: HangoutMessage = { id: nextId(), speaker, text };
-    const updated: HangoutMessage[] = [];
-    setMessages((prev) => {
-      updated.push(...prev, msg);
-      return updated;
-    });
+    const updated = [...messagesRef.current, { id: nextId(), speaker, text }];
+    messagesRef.current = updated;
+    setMessages(updated);
     return updated;
   }, []);
 
@@ -219,18 +208,14 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
     banterCount.current += 1;
     // Build history from current messages.
     const history: GroupMessage[] = messagesRef.current.map((m) => ({ speaker: m.speaker, text: m.text }));
+    // The function needs at least one line; open an empty hangout with a scene cue (not shown in the log).
+    if (history.length === 0) history.push({ speaker: 'user', text: '(You four are hanging out together in Pune. Someone starts chatting.)' });
     await requestAndSpeak(history, null);
     if (banterCount.current < MAX_BANTER_IN_A_ROW) {
       scheduleBanter();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestAndSpeak, scheduleBanter]);
-
-  // Keep a ref of messages for use in async callbacks.
-  const messagesRef = useRef<HangoutMessage[]>([]);
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
 
   /** User sends a message (typed or mic). */
   const send = useCallback(async (text: string) => {
@@ -358,7 +343,9 @@ export default function HangoutPanel({ onClose }: { onClose: () => void }) {
           event.preventDefault();
           recognition.current?.stop();
           setMicHint(null);
-          void send(draft);
+          const text = draft;
+          setDraft('');
+          void send(text);
         }}
       >
         <input
