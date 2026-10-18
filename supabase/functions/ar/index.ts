@@ -6,8 +6,10 @@
 import process from "node:process";
 import { createHash } from "node:crypto";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { MASCOTS } from "./prompts.mjs";
 import { ACTIONS, checkInput } from "./reply.mjs";
 import { hear, talk, warm } from "./server.mjs";
+import { loadShop } from "./shop.mjs";
 
 // server.mjs reads its keys from process.env (only reading: Supabase can't set env vars at run time).
 (globalThis as { process?: unknown }).process ??= process;
@@ -15,6 +17,7 @@ import { hear, talk, warm } from "./server.mjs";
 const ORIGINS = new Set(["https://pellakurusumanth4-os-39c4.bolt.host"]);
 // Shared with the website's talk function (same table): a question is two or three calls (warm, hear, talk).
 const PER_MINUTE = 30, PER_DAY = 1000;
+const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
 function corsFor(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
@@ -32,7 +35,6 @@ const json = (status: number, body: unknown, headers: Record<string, string>) =>
 
 // Per-IP limits, as the website's talk function does them (an IP hash, counted over a minute and a day).
 async function overLimit(req: Request): Promise<boolean> {
-  const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
   const ip = createHash("sha256").update((req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown").digest("hex");
   const since = (ms: number) => new Date(Date.now() - ms).toISOString();
   const [minute, day] = await Promise.all([
@@ -63,18 +65,22 @@ Deno.serve(async (req: Request) => {
     return json(out.error ? 502 : 200, out, cors);
   }
 
-  // A friend's reply as NDJSON lines; {friend, warm: true} only warms the connections up.
+  // A friend's or a shop mascot's reply as NDJSON lines; {friend | shop, warm: true} only warms the connections up.
+  // A shop comes as its slug; its data is loaded here (after the limit, so floods never reach the database).
   if (type !== "application/json") return json(415, { error: "send JSON" }, cors);
   const raw = await req.text();
   if (raw.length > 20_000) return new Response(null, { status: 413, headers: cors });
-  let input;
+  // checkInput (reply.mjs) checked it: a friend's id or a shop's slug, the words and the history.
+  // deno-lint-ignore no-explicit-any
+  let input: any;
   try {
     const data = JSON.parse(raw);
     if (data?.warm === true) {
-      if (!Object.hasOwn(ACTIONS, data.friend ?? "")) throw new Error("unknown friend");
+      const friend = data.friend ?? "";
+      if (data.shop === undefined && !Object.hasOwn(ACTIONS, friend) && !Object.hasOwn(MASCOTS, friend)) throw new Error("unknown friend");
       if (await overLimit(req)) return json(429, { error: "Too many messages, try again in a minute" }, cors);
-      const warming = warm(data.friend);
-      (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(warming);
+      const who = data.shop === undefined ? friend : await loadShop(db, data.shop);
+      if (who) (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(warm(who));
       return new Response(null, { status: 204, headers: cors });
     }
     input = checkInput(data);
@@ -82,6 +88,11 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: e instanceof Error ? e.message : "bad request" }, cors);
   }
   if (await overLimit(req)) return json(429, { error: "Too many messages, try again in a minute" }, cors);
+  if (input.shop !== undefined) {
+    const shop = await loadShop(db, input.shop);
+    if (!shop) return json(404, { error: "unknown shop" }, cors);
+    input = { ...input, shop };
+  }
 
   const enc = new TextEncoder();
   const body = new ReadableStream({

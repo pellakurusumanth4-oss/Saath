@@ -1,31 +1,45 @@
-// The talk server: a friend's reply from Claude, streamed, then spoken by ElevenLabs one sentence at a time with the
-// time of each character, sent on as one JSON object per line (notes/talking-design.md, "The protocol"):
-//   {type:'cue', emotion, action} · {type:'audio', s, text, pcm, chars, starts, ends}… · {type:'done', reply} | {type:'error', message}
+// The talk server: a friend's reply from Claude, or a shop's mascot's, streamed, then spoken by ElevenLabs one sentence
+// at a time with the time of each character, sent on as one JSON object per line (notes/talking-design.md, "The protocol"):
+//   {type:'cue', emotion, action, long?, menu?} · {type:'audio', s, text, pcm, chars, starts, ends}… · {type:'done', reply} | {type:'error', message}
+// (menu: the reply names items or prices from the shop's list, so a page can show it)
+// (long: a listening turn, [emotion|action|long] in the reply, up to about a minute of talk on its own; a listening
+// question such as "tell me a story" gets the same room even when the reply forgot the tag)
 // (text: the sentence as written, for the cloud over his head; chars: as spoken, so "129.3" may be spelled out)
 // hear() writes down a recording, for browsers that can't turn speech into words themselves (Brave, Firefox).
 // talk() and hear() use only fetch, the Anthropic SDK and imports, so a Bolt server function can wrap them the way
 // web/serve.mjs does. Keys come from the environment and are never logged; nor is anything anyone says.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.135.0';
 import VOICES from './voices.json' with { type: 'json' };
-import { PERSONAS, RULES } from './prompts.mjs';
-import { replyParser } from './reply.mjs';
+import { MASCOT_RULES, PERSONAS, RULES, mascotAlone, mascotOf, mascotPrompt, shopData } from './prompts.mjs';
+import { replyParser, wantsToListen } from './reply.mjs';
 
 const VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: false, speed: 1 };
 const OOPS = 'Oops, I can’t talk right now. Try again?', NOTHING = 'Hmm… ask me something else!';
+// A listening turn runs to about 170 words, so Claude may write 400 tokens (a short reply uses about 60), and once the
+// cue says long the deadline is four times as long (80 s); the voice is still made one sentence at a time.
+const MAX_TOKENS = 400, LONG_DEADLINES = 4;
 const voiceBase = () => process.env.ELEVEN_LABS_URL || 'https://api.elevenlabs.io';
-// Everything in Claude's request before the messages: identical for warm() and talk(), or the cache misses.
-const prompt = (friend) => ({
+// Everything in Claude's request before the messages: identical for warm() and talk(), or the cache misses. A shop's
+// mascot gets the mascot rules and its shop's cached block, then the shop's live SHOP DATA uncached (a new status or
+// price never misses the cache); mascotPrompt and shopData throw on bad shop data.
+const CACHE = { type: 'ephemeral', ttl: '1h' };
+const prompt = ({ friend, shop = mascotAlone(friend) }) => ({
   model: 'claude-haiku-5-5', thinking: { type: 'disabled' }, output_config: { effort: 'low' },
-  system: [{ type: 'text', text: RULES }, { type: 'text', text: PERSONAS[friend], cache_control: { type: 'ephemeral', ttl: '1h' } }],
+  system: shop
+    ? [{ type: 'text', text: MASCOT_RULES }, { type: 'text', text: mascotPrompt(shop), cache_control: CACHE }, { type: 'text', text: shopData(shop) }]
+    : [{ type: 'text', text: RULES }, { type: 'text', text: PERSONAS[friend], cache_control: CACHE }],
 });
 
-// Warming up while the child is still talking (on a mic press): opens both connections and refreshes the cached
-// prompt, so the reply that follows starts sooner. Never throws.
-export async function warm(friend) {
+// Warming up while they are still talking (on a mic press): opens both connections and refreshes the cached prompt,
+// so the reply that follows starts sooner. who: a friend's id, or a shop's data (a shop's id alone has nothing to warm).
+// Never throws.
+export async function warm(who) {
   const claude = (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY), voice = (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY);
-  if (!claude || !voice || !PERSONAS[friend]) return;
+  let request;
+  try { request = prompt(typeof who === 'string' ? { friend: who } : { shop: who }); } catch { return; }
+  if (!claude || !voice || !request.system[1].text) return;
   await Promise.allSettled([
-    new Anthropic({ apiKey: claude, maxRetries: 0, timeout: 10_000 }).messages.create({ ...prompt(friend), max_tokens: 0, messages: [{ role: 'user', content: 'hi' }] }),
+    new Anthropic({ apiKey: claude, maxRetries: 0, timeout: 10_000 }).messages.create({ ...request, max_tokens: 0, messages: [{ role: 'user', content: 'hi' }] }),
     fetch(`${voiceBase()}/v1/models`, { headers: { 'xi-api-key': voice } }).then((r) => r.arrayBuffer()),
   ]);
 }
@@ -74,23 +88,32 @@ export async function hear(audio, type, signal) {
   }
 }
 
-// input: already checked by checkInput (web/talk/reply.mjs). send(obj) writes one line; signal ends it all early.
-export async function talk({ friend, text, history }, send, signal) {
-  const key = { claude: (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY), voice: (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY) }, voice = VOICES[friend];
+// input: already checked by checkInput (web/talk/reply.mjs), with a shop's data in place of its id for a mascot.
+// send(obj) writes one line; signal ends it all early. Bad shop data gives one error line and calls nothing. A shop's
+// mascot is its own agent: its prompt, its stock voice and its gestures come from mascotOf (web/talk/prompts.mjs).
+export async function talk({ friend, shop = mascotAlone(friend), text, history }, send, signal) {
+  let request, mascot;
+  try { request = prompt({ friend, shop }); mascot = shop && mascotOf(shop); } catch (e) { console.log(`talk: ${e.message}`); return send({ type: 'error', message: OOPS }); }
+  const key = { claude: (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY), voice: (process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY) }, voice = mascot ? mascot.voice : VOICES[friend];
   if (!key.claude || !key.voice || !voice) return send({ type: 'error', message: 'Talking isn’t set up on the laptop yet.' });
   const t0 = performance.now(), ms = () => Math.round(performance.now() - t0), times = {};
   const ac = new AbortController(), stop = () => ac.abort();
   signal?.addEventListener('abort', stop, { once: true });
   // Nothing may hang: the SDK's timeout stops once its headers arrive, and the voice's fetches have none.
-  const deadline = setTimeout(stop, Number(process.env.TALK_DEADLINE_MS) || 20_000);
+  const deadlineMs = Number(process.env.TALK_DEADLINE_MS) || 20_000, listening = wantsToListen(text);
+  let deadline = setTimeout(stop, deadlineMs * (listening ? LONG_DEADLINES : 1));
 
   // Each sentence is spoken as soon as it is complete, in order, while Claude is still writing the next.
   const said = [];
-  let wake = () => {}, ended = false, failed = null;
-  const parser = replyParser(friend, {
-    onCue: (cue) => { times.cue = ms(); send({ type: 'cue', ...cue }); },
+  let wake = () => {}, ended = false, failed = null, long = false;
+  const parser = replyParser(mascot ? mascot.actions : friend, {
+    onCue: (cue) => {
+      times.cue = ms();
+      if (cue.long) { long = true; clearTimeout(deadline); deadline = setTimeout(stop, deadlineMs * LONG_DEADLINES); }
+      send({ type: 'cue', ...cue });
+    },
     onSentence: (sentence) => { said.push(sentence); wake(); },
-  });
+  }, { listening });
   const speaking = (async () => {
     for (let i = 0; ; i++) {
       while (i >= said.length && !ended) await new Promise((r) => (wake = r));
@@ -103,7 +126,7 @@ export async function talk({ friend, text, history }, send, signal) {
   let reply = null;
   try {
     const stream = new Anthropic({ apiKey: key.claude, maxRetries: 1, timeout: 15_000 }).messages.stream({
-      ...prompt(friend), max_tokens: 200, messages: [...history, { role: 'user', content: text }],
+      ...request, max_tokens: MAX_TOKENS, messages: [...history, { role: 'user', content: text }],
     }, { signal: ac.signal });
     for await (const ev of stream) if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') parser.push(ev.delta.text);
     times.cached = (await stream.finalMessage()).usage?.cache_read_input_tokens ?? 0;
@@ -114,7 +137,7 @@ export async function talk({ friend, text, history }, send, signal) {
   clearTimeout(deadline);
   signal?.removeEventListener('abort', stop);
   if (signal?.aborted) return;   // the page went away: nobody to tell
-  console.log(`talk ${friend}: cue ${times.cue ?? '-'} ms, first audio ${times.audio ?? '-'} ms, all ${ms()} ms, cached ${times.cached ?? '-'} tokens${failed ? `, failed: ${failed.message}` : ''}`);
+  console.log(`talk ${shop ? `shop ${shop.id ?? friend ?? '-'}` : friend}${long || listening ? ' (long)' : ''}: cue ${times.cue ?? '-'} ms, first audio ${times.audio ?? '-'} ms, all ${ms()} ms, cached ${times.cached ?? '-'} tokens${failed ? `, failed: ${failed.message}` : ''}`);
   if (failed) return send({ type: 'error', message: OOPS });
   if (!said.length) return send({ type: 'error', message: NOTHING });
   send({ type: 'done', reply });

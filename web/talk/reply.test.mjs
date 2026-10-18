@@ -1,7 +1,7 @@
 // Run: node --test web/talk/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ACTIONS, EMOTIONS, checkInput, clean, redact, replyParser, safe } from './reply.mjs';
+import { ACTIONS, EMOTIONS, checkInput, clean, redact, replyParser, safe, wantsToListen } from './reply.mjs';
 
 // Feeds a reply to the parser in pieces, as Claude streams it, and records what comes out in order.
 const run = (friend, pieces) => {
@@ -135,4 +135,93 @@ test('checkInput: history holds at most 8 messages, alternating, user first, 400
   assert.throws(() => checkInput({ friend: 'nobita', text: 'a', history: [{ role: 'system', content: 'x' }, pair[1]] }), /history/);
   assert.throws(() => checkInput({ friend: 'nobita', text: 'a', history: [{ role: 'user', content: 'x'.repeat(401) }, pair[1]] }), /history/);
   assert.equal(checkInput({ friend: 'nobita', text: 'a', history: [{ role: 'user', content: 'call 9876543210' }, pair[1]] }).history[0].content, 'call private');
+});
+
+test('a listening turn: [emotion|action|long] puts long in the cue and keeps it in the history reply; only the word long counts', () => {
+  const { out, reply } = run('nobita', ['[sleepy|la', 'zy|long] Okay. This one is true.']);
+  assert.deepEqual(out[0], ['cue', { emotion: 'sleepy', action: 'lazy', long: true }]);
+  assert.equal(reply, '[sleepy|lazy|long] Okay. This one is true.');
+  assert.deepEqual(run('nobita', ['[happy|wave|LONG] Hi.']).out[0][1], { emotion: 'happy', action: 'wave', long: true });
+  for (const tag of ['[happy|wave|short]', '[happy|wave|]', '[happy|wave]']) assert.deepEqual(run('nobita', [`${tag} Hi.`]).out[0][1], { emotion: 'happy', action: 'wave' }, tag);
+  assert.deepEqual(run('nobita', ['[happy|wave|long Hi there! Nice day.']).said, ['Hi there!', 'Nice day.']);   // unclosed: the tag is never spoken
+});
+
+test('a listening turn speaks up to about 170 words, sentence by sentence in order, then stops; without long, 5 sentences is still the cap', () => {
+  const sentences = Array.from({ length: 30 }, (_, i) => `Sentence number ${i + 1} has eight words in it.`);   // 8 words each
+  const long = run('nobita', ['[sleepy|idle|long] ', ...sentences.map((s) => s + ' ')]);
+  assert.equal(long.said.length, 22, `${long.said.length} sentences spoken`);   // 21 x 8 = 168 < 170, so a 22nd is spoken, then no more
+  assert.deepEqual(long.said.slice(0, 2), sentences.slice(0, 2));
+  assert.equal(run('nobita', ['[sleepy|idle] ', ...sentences.map((s) => s + ' ')]).said.length, 5);
+});
+
+test('checkInput: a reply in history may be 1200 characters (a listening turn); a user message still 400', () => {
+  const story = '[sleepy|idle|long] ' + 'x'.repeat(1100);
+  const pair = [{ role: 'user', content: 'tell me a story' }, { role: 'assistant', content: story }];
+  assert.equal(checkInput({ friend: 'nobita', text: 'and then?', history: pair }).history[1].content, story);
+  assert.throws(() => checkInput({ friend: 'nobita', text: 'a', history: [pair[0], { role: 'assistant', content: 'x'.repeat(1201) }] }), /history/);
+  assert.throws(() => checkInput({ friend: 'nobita', text: 'a', history: [{ role: 'user', content: 'x'.repeat(401) }, pair[1]] }), /history/);
+});
+
+test('a listening question lifts the cap even when the reply forgot the long tag (Haiku did on "tell me a story", 18 Oct), so a story is never cut mid-way', () => {
+  for (const q of ['tell me a story', 'Talk to me for a bit', 'just talk', 'what happened today?', 'keep talking', 'tell me about your day']) assert.equal(wantsToListen(q), true, q);
+  for (const q of ['what are you doing?', 'tell me about Shizuka', 'I talked to my boss today', 'what happened to your ears?']) assert.equal(wantsToListen(q), false, q);
+  const sentences = Array.from({ length: 30 }, (_, i) => `Sentence number ${i + 1} has eight words in it.`);
+  const out = [];
+  const p = replyParser('nobita', { onCue: (c) => out.push(c), onSentence: (s) => out.push(s) }, { listening: true });
+  for (const s of sentences) p.push(s + ' ');
+  p.end();
+  assert.deepEqual(out[0], { emotion: 'neutral', action: 'idle' });   // the cue is still what the reply said
+  assert.equal(out.length - 1, 22);
+});
+
+test('the tag may also say menu, with or without long, in any order; the cue and the history reply keep it', () => {
+  const menu = run('nobita', ['[happy|idle|me', 'nu] Try the chai.']);
+  assert.deepEqual(menu.out[0], ['cue', { emotion: 'happy', action: 'idle', menu: true }]);
+  assert.equal(menu.reply, '[happy|idle|menu] Try the chai.');
+  for (const tag of ['[happy|idle|menu|long]', '[happy|idle|LONG|Menu]']) {
+    const both = run('nobita', [`${tag} Okay.`]);
+    assert.deepEqual(both.out[0][1], { emotion: 'happy', action: 'idle', long: true, menu: true }, tag);
+    assert.equal(both.reply, '[happy|idle|long|menu] Okay.', tag);
+  }
+  assert.deepEqual(run('nobita', ['[happy|idle|long|menu Hi there! Nice day.']).said, ['Hi there!', 'Nice day.']);   // unclosed: never spoken
+});
+
+test('a shop\'s mascot has its own action words: the parser takes the list', () => {
+  const out = [];
+  const p = replyParser(['wave', 'cheer'], { onCue: (c) => out.push(c), onSentence: () => {} });
+  p.push('[happy|cheer] Hello.'); p.end();
+  assert.deepEqual(out[0], { emotion: 'happy', action: 'cheer' });
+  const other = [];
+  const q = replyParser(['wave'], { onCue: (c) => other.push(c), onSentence: () => {} });
+  q.push('[happy|gadget] Hello.'); q.end();
+  assert.equal(other[0].action, 'idle');
+});
+
+test('checkInput: a shop\'s mascot is asked by the shop\'s id (its data comes from the server, never the page)', () => {
+  assert.deepEqual(checkInput({ shop: 'kettle-and-kulhad', text: ' hi ' }), { shop: 'kettle-and-kulhad', text: 'hi', history: [] });
+  for (const shop of ['bad id!', 'x'.repeat(65), '', { name: 'Fake shop', menu: [] }, 42]) assert.throws(() => checkInput({ shop, text: 'hi' }), /shop/, JSON.stringify(shop));
+  assert.throws(() => checkInput({ friend: 'nobita', shop: 'kettle-and-kulhad', text: 'hi' }), /friend or a shop/);
+  assert.equal(checkInput({ shop: 'kettle-and-kulhad', text: 'call 9876543210' }).text, 'call private');
+});
+
+test('any question asking someone\'s name is dropped (a mascot asked a seven-year-old "Could you tell me your first name?", 19 Oct)', () => {
+  for (const s of ['Could you tell me your first name?', 'May I know your name, friend?', 'And what should I call you?', 'So, your name is?']) assert.equal(safe(s), false, s);
+  for (const s of ['My name is Kiran.', 'Your name sounds lovely.', 'What a nice name.']) assert.equal(safe(s), true, s);
+});
+
+test('a sentence naming a delivery app is dropped (the contest\'s IP rule: say "delivery apps")', () => {
+  for (const s of ['It is cheaper than on Swiggy.', 'Zomato has it for more.', 'Not on Blinkit or Zepto, sorry.', 'Order on Uber Eats.']) assert.equal(safe(s), false, s);
+  for (const s of ['It costs more on delivery apps.', 'Our own app has it for thirty-five rupees.']) assert.equal(safe(s), true, s);
+  assert.deepEqual(run('nobita', ['[happy|idle|menu] Walk in and save. It is fifteen here and thirty-five on Swiggy. Enjoy it.']).said, ['Walk in and save.', 'Enjoy it.']);
+});
+
+test('asking for the shop\'s story is a listening question too', () => {
+  for (const q of ['tell me about this place', "What's the story here?", 'how did this all start?', 'tell me about your shop', 'tell me the story of this cafe'])
+    assert.equal(wantsToListen(q), true, q);
+  for (const q of ["what's on the menu?", 'tell me about the chai', 'how much is the 2 BHK?']) assert.equal(wantsToListen(q), false, q);
+});
+
+test('checkInput: a business mascot can be asked by its own id, like a friend (the AR and talk pages without a shop)', () => {
+  assert.deepEqual(checkInput({ friend: 'juno', text: 'hi' }), { friend: 'juno', text: 'hi', history: [] });
+  assert.throws(() => checkInput({ friend: 'constructor', text: 'hi' }), /friend/);
 });

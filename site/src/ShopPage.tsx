@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { LatLng } from '../../src/geo';
 import TalkPanel from './TalkPanel';
-import { ago, AR_READY, bestSaving, TALK_READY, hostOf, portraitOf, rupees, sectionOf, STATUS_LABEL, useShop, walkMinutes } from './shops';
+import { ago, AR_READY, bestSaving, hostOf, portraitOf, rupees, sectionOf, STATUS_LABEL, useShop, walkMinutes } from './shops';
 
 /** A shop's own page (#/shop/<slug>): live status, today's special and menu, the walk and the saving, and its mascot. */
 export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null }) {
@@ -67,7 +67,7 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
         )}
 
         <div className="shop-actions">
-          {TALK_READY && <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>}
+          <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>
           {AR_READY.has(host.id) && <a className="btn btn-plain" href={ar}>Meet {host.name} in AR</a>}
         </div>
         {AR_READY.has(host.id) && <p className="shop-hint">AR works in Chrome on Android.</p>}

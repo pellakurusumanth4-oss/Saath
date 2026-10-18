@@ -1,0 +1,173 @@
+{
+  "_note": "Made-up shops (no real business) in the shape talk() takes as `shop` (web/talk/server.mjs, notes/talking-personas.md, \"Business mascots\"): bolt.one's loader fills id, name, section, story, special, status, statusNote, menu [{name, price, appPrice, available}] and mascot {name, voice} from its database (appPrice: about what delivery apps charge for it; nulls count as not given); the rest is optional. The tests and smoke.mjs --shop=<id> use them.",
+  "cafe": {
+    "id": "kettle-and-kulhad",
+    "name": "Kettle and Kulhad",
+    "section": "cafe",
+    "status": "busy",
+    "statusNote": "about a 10 min wait",
+    "area": "a quiet lane behind the bus stop",
+    "hours": "7 am to 10 pm, every day",
+    "story": "Meera opened Kettle and Kulhad in 2019 with one kettle, a borrowed table and her grandmother's masala recipe. The cardamom is still crushed by hand every morning. Office regulars come for the four o'clock chai break, and the back wall is covered in notes they have left over the years.",
+    "special": "Kulhad masala chai with a warm bun maska, 60 rupees",
+    "offers": [
+      "Saath walkers get 10 percent off any chai before 11 am"
+    ],
+    "menu": [
+      {
+        "name": "Cutting chai",
+        "price": 20,
+        "unit": "small glass",
+        "appPrice": 28
+      },
+      {
+        "name": "Kulhad masala chai",
+        "price": 35,
+        "unit": "clay cup",
+        "note": "the house favourite",
+        "appPrice": 49
+      },
+      {
+        "name": "Ginger lemon tea",
+        "price": 30,
+        "note": "no milk"
+      },
+      {
+        "name": "Filter coffee",
+        "price": 40
+      },
+      {
+        "name": "Bun maska",
+        "price": 30,
+        "appPrice": 42
+      },
+      {
+        "name": "Kanda poha",
+        "price": 45,
+        "note": "contains peanuts"
+      },
+      {
+        "name": "Walnut brownie",
+        "price": 80,
+        "note": "contains nuts and egg",
+        "appPrice": 110
+      },
+      {
+        "name": "Kokum sharbat",
+        "price": 40,
+        "available": false
+      }
+    ],
+    "mascot": {
+      "id": "kiran"
+    }
+  },
+  "realestate": {
+    "id": "banyan-grove",
+    "name": "Banyan Grove Residences, site office",
+    "section": "realestate",
+    "status": "open",
+    "statusNote": "the agent is in until 7 pm",
+    "area": "the site office at the project gate",
+    "hours": "10 am to 7 pm; site visits with the agent",
+    "story": "Banyan Grove is three towers built around a hundred-year-old banyan tree that the builder, Tulsi Developers, chose to keep. Work began in 2024. Tower A is ready to move into; the builder's plan has Towers B and C finishing in 2027.",
+    "special": "The sample flat in Tower A is open for walk-in visits today",
+    "offers": [
+      "A free covered parking slot with bookings made this month (the builder's offer; the agent has the terms)"
+    ],
+    "menu": [
+      {
+        "name": "1 BHK, 620 square feet carpet, Tower A, ready to move in",
+        "price": 4800000
+      },
+      {
+        "name": "2 BHK, 950 square feet carpet, Tower A, ready to move in",
+        "price": 7600000
+      },
+      {
+        "name": "2 BHK, 1010 square feet carpet, Tower B, under construction",
+        "price": 7900000
+      },
+      {
+        "name": "3 BHK, 1350 square feet carpet, Tower C, under construction",
+        "price": 11500000
+      },
+      {
+        "name": "Clubhouse, pool and children's play area",
+        "note": "for all residents"
+      },
+      {
+        "name": "Maintenance",
+        "price": "4 rupees a square foot a month"
+      }
+    ],
+    "mascot": {
+      "id": "omar"
+    }
+  },
+  "pharmacy": {
+    "id": "tulsi-leaf",
+    "name": "Tulsi Leaf Pharmacy",
+    "section": "pharmacy",
+    "status": "closed",
+    "statusNote": "opens again at 8 am",
+    "hours": "8 am to 11 pm; the pharmacist is in until 10 pm",
+    "story": "A family pharmacy, open since 2008.",
+    "menu": [
+      {
+        "name": "Free blood pressure check",
+        "price": 0
+      },
+      {
+        "name": "Home delivery within two kilometres",
+        "price": "free on orders over 300 rupees"
+      },
+      {
+        "name": "Prescription medicines",
+        "note": "with a doctor's prescription"
+      },
+      {
+        "name": "Baby care, first aid and diabetes care products"
+      }
+    ],
+    "mascot": {
+      "id": "sana"
+    }
+  },
+  "juice": {
+    "id": "green-glass",
+    "name": "The Green Glass",
+    "section": "juice",
+    "status": "open",
+    "statusNote": "",
+    "story": "Two cousins started The Green Glass from a cart in 2021 and moved into this little shop a year later. The fruit comes from the morning market, and nothing is squeezed before you order.",
+    "special": "Watermelon and mint cooler, 60 rupees",
+    "menu": [
+      {
+        "name": "Mango shake",
+        "price": 70,
+        "appPrice": 110,
+        "available": true
+      },
+      {
+        "name": "Watermelon and mint cooler",
+        "price": 60,
+        "appPrice": 95,
+        "available": true
+      },
+      {
+        "name": "Green apple and spinach juice",
+        "price": 80,
+        "available": true
+      },
+      {
+        "name": "Sugarcane juice",
+        "price": 30,
+        "available": false
+      }
+    ],
+    "mascot": {
+      "id": "juno"
+    }
+  }
+}

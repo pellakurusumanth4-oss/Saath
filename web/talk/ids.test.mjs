@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { PERSONAS } from './prompts.mjs';
+import { MASCOTS, PERSONAS } from './prompts.mjs';
 import { ACTIONS } from './reply.mjs';
 import VOICES from './voices.json' with { type: 'json' };
 
@@ -27,5 +27,6 @@ test('the server knows the same friends in its personas, actions and voices', ()
 test('the rigs, the app, the AR page and the talk page list the same friends, and each talks on the server', () => {
   assert.ok(lists.rigs.length >= 4, lists.rigs);
   for (const [where, list] of Object.entries(lists)) assert.deepEqual(list, lists.rigs, `${where} lists ${list}, the rigs ${lists.rigs}`);
-  for (const id of lists.rigs) assert.ok(Object.hasOwn(PERSONAS, id), `${id} has a rig but no persona`);
+  // A friend talks with its persona; a business mascot's rig talks as its shop's agent (MASCOTS, web/talk/prompts.mjs).
+  for (const id of lists.rigs) assert.ok(Object.hasOwn(PERSONAS, id) || Object.hasOwn(MASCOTS, id), `${id} has a rig but no persona or mascot entry`);
 });

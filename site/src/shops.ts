@@ -72,9 +72,6 @@ export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png`;
 /** Mascots whose AR rig is in the site's /ar/rigs/ (the AR page's), so "Meet in AR" shows. */
 export const AR_READY = new Set<string>([]);
 
-// shortcut: Talk stays hidden until the talk function answers as the mascots (the persona session's prompts).
-export const TALK_READY = false;
-
 /** The section's map pin, drawn with its mascot; null for the sections without a mascot yet. */
 export const pinOf = (shop: Pick<Shop, 'section'>) => {
   const mascot = sectionMascot(shop.section);
