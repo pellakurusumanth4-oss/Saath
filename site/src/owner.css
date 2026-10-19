@@ -122,8 +122,11 @@
 /* ---------- a panel on a computer ---------- */
 
 @media (min-width: 1024px) {
-  .wizard { left: 20px; top: 20px; bottom: auto; right: auto; width: 480px; height: auto; max-height: calc(100dvh - 40px); border-radius: var(--r-panel); box-shadow: 0 20px 60px rgba(16, 40, 60, .2); }
-  .wiz-body { flex: 0 1 auto; }
+  /* Full height, so the button stays put while a step's content loads (the menu arrives after the step opens). */
+  .wizard { left: 20px; top: 20px; bottom: 20px; right: auto; width: 480px; height: auto; border-radius: var(--r-panel); box-shadow: 0 20px 60px rgba(16, 40, 60, .2); }
+  /* The place step loads nothing later, so it hugs its few lines and leaves the map clear. */
+  .wizard.is-place { bottom: auto; }
+  .wizard.is-place .wiz-body { flex: 0 1 auto; }
   .wiz-foot { padding-bottom: 16px; }
 }
 

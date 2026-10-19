@@ -324,7 +324,16 @@ export default function OwnerWizard({ draft, onStage, onExit }: {
     body = <ShopEditor key={`${shop.id}:billboard`} shop={shop} only="billboard" onPatch={(patch) => setShop((s) => s && { ...s, ...patch })} />;
     action = <button type="button" className="btn-go" onClick={() => go('menu')}>Next: menu and prices<Icon name="arrow" size={19} /></button>;
   } else if (step === 'menu' && shop) {
-    body = <ShopEditor key={`${shop.id}:menu`} shop={shop} only="menu" onPatch={(patch) => setShop((s) => s && { ...s, ...patch })} />;
+    body = (
+      <>
+        <label className="wiz-field">
+          <span>Today’s special <em>optional</em></span>
+          <input defaultValue={shop.special} maxLength={140} placeholder="Mango shake with a scoop of ice cream" onChange={(e) => save({ special: e.target.value.trim() })} />
+          <small>Your mascot tells visitors about it. Change it any day from your dashboard.</small>
+        </label>
+        <ShopEditor key={`${shop.id}:menu`} shop={shop} only="menu" onPatch={(patch) => setShop((s) => s && { ...s, ...patch })} />
+      </>
+    );
     action = <button type="button" className="btn-go" onClick={() => void toMeet()}>Next: meet your mascot<Icon name="arrow" size={19} /></button>;
   } else if (step === 'meet' && shop && mascot && agent) {
     const ticks: [boolean, string][] = [
