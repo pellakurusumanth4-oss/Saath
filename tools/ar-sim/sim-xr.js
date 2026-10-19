@@ -310,7 +310,7 @@ onmessage = ({ data: d }) => {
     const row = { t: +t.toFixed(3), ms: +ms.toFixed(1), step: si, lost, cam: [...r3(p.o), +p.yaw.toFixed(1), +p.pitch.toFixed(1)], turn: +turn.toFixed(2),
       planes: faces.filter((x) => x.plane && x.N[1] > 0.9).map((x) => x.name ?? 'floor'), hit: hits[0] ? [...r3(hits[0].p), hits[0].f.name ?? (hits[0].f.N[1] > 0.9 ? 'floor' : 'wall')] : null,
       tip: st?.tip, ring: !!st?.ring, ringAt: S.ring && r3(S.ring), placed: S.placed, at: st?.at,
-      friend: S.friend && r3(S.friend), close: st?.close, talk: st?.talk, hint: st?.hint, menu: st?.menu ?? null, clip: sa?.clip, mouth: sa?.face?.mouth ?? null };
+      friend: S.friend && r3(S.friend), close: st?.close, talk: st?.talk, hint: st?.hint, menu: st?.menu ?? null, save: st?.save ?? null, status: st?.status ?? null, clip: sa?.clip, mouth: sa?.face?.mouth ?? null };
     if (S.art) { row.feet = feet(); S.art = null; }
     row.simMs = +(performance.now() - now - ms).toFixed(1);   // this simulator's own cost on the page's thread, not the page's
     S.log.push(row);

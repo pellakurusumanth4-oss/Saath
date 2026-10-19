@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Saath AR camera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <!--
   Saath's AR camera: a friend standing on your real floor, tracked by ARCore through Chrome's WebXR.
   The app opens it in Chrome at a friend's spot: ?friend=<mascot id: rosa|kiran|juno|otto|sunny|nia|mika|max|omar|lina|sana|kai>&shop=<slug>
@@ -19,7 +22,8 @@
   scripted room; ?debug shows distances; ?gain= scales the light. Rig pages come from scripts/build-rigs.mjs.
 -->
 <style>
-  :root { --ink: #111318; --gold: #FFC83D; }
+  :root { --ink: #111318; --gold: #FFC83D; --go: #5BE38F; --go-lip: #36C46F; --card-ink: #0E1726; --mute: #6B7385; --ink-3: #5B6577;
+          --display: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif; --body: 'Plus Jakarta Sans', system-ui, Roboto, sans-serif; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #111318; color: #fff; font-family: system-ui, Roboto, sans-serif; }
   canvas.gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #rig { position: fixed; left: 0; top: 0; width: 400px; height: 900px; border: 0; opacity: 0; pointer-events: none; z-index: -1; }
@@ -39,28 +43,51 @@
   #home { position: fixed; left: 16px; right: 16px; bottom: 112px; display: none; text-align: center; color: #fff; font: 800 17px system-ui, Roboto, sans-serif; }
   #back { position: absolute; right: 16px; top: 16px; display: none; padding: 10px 14px; border-radius: 99px; border: 2.5px solid var(--ink); background: #fff;
           color: var(--ink); box-shadow: 2px 2px 0 var(--ink); font: 800 15px system-ui, Roboto, sans-serif; text-decoration: none; pointer-events: auto; }
-  /* Talking, kept clean (the user, 18 Oct): you hear his words, and nobody's are shown. Only the approved Golden
-     Hour mic (gold; blue and pulsing while it listens), a hint or what went wrong, and the credit. */
+  /* Talking, kept clean (the user, 18 Oct): you hear his words, and nobody's are shown. City Day (19 Oct, design C06):
+     a 64 px green mic on the right (ink and pulsing while it listens), a hint or what went wrong beside it, the credit. */
   #overlay.talk #tip { bottom: 180px; }
-  #talk { position: absolute; left: 16px; right: 16px; bottom: 22px; display: flex; flex-direction: column; align-items: center; }
+  #talk { position: absolute; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
   #talk[hidden] { display: none; }
-  #mic { width: 84px; height: 84px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; color: #3B2606;
-         background: linear-gradient(#FFC860, #F0A22E); box-shadow: 0 10px 24px rgba(240, 162, 46, .4), inset 0 1px 0 rgba(255, 255, 255, .55);
+  .talk-row { display: flex; align-items: flex-end; gap: 12px; padding: 0 4px; }
+  .talk-words { flex: 1; min-width: 0; padding-bottom: 4px; text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
+  #mic { flex: none; width: 64px; height: 64px; margin: 10px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; color: var(--card-ink);
+         background: var(--go); box-shadow: inset 0 -4px 0 var(--go-lip), 0 0 0 10px rgba(91, 227, 143, .28), 0 8px 20px rgba(0, 0, 0, .25);
          touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; pointer-events: auto; }
-  #mic.on { color: #fff; background: linear-gradient(#4DA3FF, #2F8DF6); animation: listen 1.2s ease-out infinite; }
-  @keyframes listen { from { box-shadow: 0 0 0 0 rgba(47, 141, 246, .4), 0 10px 24px rgba(47, 141, 246, .35); }
-                      to { box-shadow: 0 0 0 26px rgba(47, 141, 246, 0), 0 10px 24px rgba(47, 141, 246, .35); } }
-  #hint { margin-top: 10px; font-size: 13px; font-weight: 700; text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
-  #credit { margin-top: 6px; font-size: 10.5px; font-weight: 600; opacity: .85; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
-  /* The shop's menu card (19 Oct): the items he names, at the shop's own prices; the only words shown while he talks. */
-  #menu { width: min(320px, 100%); box-sizing: border-box; margin-bottom: 12px; padding: 10px 12px 8px; border-radius: 16px; background: #fff;
-          color: var(--ink); border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font: 700 15px system-ui, Roboto, sans-serif; }
-  #menu[hidden] { display: none; }
-  #menu .shop { font-size: 12px; opacity: .6; margin: 0 6px 4px; }
-  #menu .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 6px; border-radius: 8px; }
-  #menu .row.on { background: var(--gold); }
-  #menu .row.out { opacity: .5; }
-  #menu .when { font-size: 11px; font-weight: 600; opacity: .6; margin: 4px 6px 0; }
+  #mic.on { color: var(--go); background: var(--card-ink); animation: listen 1.2s ease-out infinite; }
+  @keyframes listen { from { box-shadow: 0 0 0 0 rgba(91, 227, 143, .55), 0 8px 20px rgba(0, 0, 0, .25); }
+                      to { box-shadow: 0 0 0 24px rgba(91, 227, 143, 0), 0 8px 20px rgba(0, 0, 0, .25); } }
+  #hint { font: 700 13.5px/1.3 var(--body); }
+  #credit { margin-top: 4px; font: 600 10.5px var(--body); opacity: .85; }
+  /* The shop's card (19 Oct, design C06): the shop and how busy it is, three menu rows at the shop's own prices (the one he
+     is naming tinted in the shop's colour), and the usual order's saving. The only words shown while he talks. */
+  #menu { box-sizing: border-box; width: 100%; max-width: 440px; margin: 2px auto 0; padding: 14px 14px 12px; border-radius: 24px; background: #fff;
+          color: var(--card-ink); box-shadow: 0 10px 40px rgba(16, 40, 60, .28); font: 600 14px var(--body); }
+  #menu[hidden], #overlay.close #menu { display: none; }   /* too close: the card makes way for the step-back tip */
+  #menu .head { display: flex; align-items: center; gap: 10px; padding: 0 4px 10px; border-bottom: 1px solid #E3E8EF; }
+  #menu .shop { flex: 1; min-width: 0; font: 800 18px/1.25 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #menu .chip { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 9px; font: 700 13px var(--body); white-space: nowrap; }
+  #menu .chip.open { background: #E8F7EE; color: #15803D; }
+  #menu .chip.open::before { content: ''; width: 8px; height: 8px; border-radius: 4px; background: currentColor; }
+  #menu .chip.busy { background: #FEF3C7; color: #92400E; }
+  #menu .chip.closed { background: #EEF0F4; color: #4B5563; }
+  #menu .row { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px 10px; border-radius: 14px; }
+  #menu .row.on { background: color-mix(in srgb, var(--c) 10%, #fff); box-shadow: inset 0 0 0 2px var(--c); }
+  #menu .row .n { flex: 1; min-width: 0; }
+  #menu .row .n b { display: block; font: 700 15.5px/20px var(--body); }
+  #menu .row .n span { font: 500 12.5px var(--body); color: var(--ink-3); }
+  #menu .row .cut { font: 800 12.5px var(--body); color: #0A7D48; white-space: nowrap; }
+  #menu .row .sold { height: 22px; padding: 0 8px; border-radius: 11px; background: #EEF0F4; color: #4B5563; font: 700 11.5px/22px var(--body); white-space: nowrap; }
+  #menu .row .p { min-width: 56px; text-align: right; }
+  #menu .row .p b { font: 800 19px/20px var(--display); white-space: nowrap; }
+  #menu .row.out .p b { color: var(--mute); text-decoration: line-through; }
+  #menu .row .p s { display: block; font: 600 12px var(--body); color: var(--mute); white-space: nowrap; }
+  #menu .sum { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 16px; background: #EAFBF0; }
+  #menu .sum .t { flex: 1; min-width: 0; }
+  #menu .sum .l { font: 700 11px var(--body); letter-spacing: .05em; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #menu .sum .s { margin-top: 2px; font: 600 13px var(--body); }
+  #menu .sum .s s { color: var(--mute); }
+  #menu .sum .s b { font: 800 17px var(--display); }
+  #menu .save { flex: none; height: 34px; padding: 0 13px; border-radius: 13px; background: var(--go); font: 800 16px/34px var(--body); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -70,11 +97,12 @@
 <a id="home" href="#" role="button">Back to Saath</a>
 <div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div>
   <div id="talk" hidden>
+    <div class="talk-row">
+      <div class="talk-words"><div id="hint" role="status">Hold to talk</div><div id="credit">AI friend · Voices: ElevenLabs</div></div>
+      <button id="mic" type="button" aria-label="Hold to talk"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+    </div>
     <div id="menu" hidden aria-live="polite"></div>
-    <button id="mic" type="button" aria-label="Hold to talk"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.2"
-      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
-    <div id="hint" role="status">Hold to talk</div>
-    <div id="credit">AI friend · Voices: ElevenLabs</div>
   </div>
 </div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
@@ -257,47 +285,95 @@ const place = (pos, now) => {
 };
 
 // ---- The shop's menu (19 Oct): opened as /ar/?shop=<slug> from a shop's page, he answers from that shop's live menu,
-// and when he talks about it a card shows the items he names at the shop's own prices, "updated N min ago". It is read
+// and when he talks about it a card shows the shop, the items he names at the shop's own prices and the usual order's
+// saving (City Day, design C06). It is read
 // with the site's public key from the Supabase project behind the talk API (the <meta name="saath-api"> talk.js uses);
 // on the laptop there is no such meta, and no card. Shop names and items are the owner's text: set as text, never HTML.
 const SHOP = /^[a-z0-9-]{3,40}$/.test(Q.get('shop') ?? '') ? Q.get('shop') : null;
 const apiMeta = document.querySelector('meta[name="saath-api"]');
 const REST = SHOP && apiMeta?.content ? `${new URL(apiMeta.content).origin}/rest/v1` : null;
 const menuEl = document.getElementById('menu');
-let shop = null, named = new Set(), menuUntil = Infinity;
+// naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
+let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;
 // Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
-const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,menu_items(name,price,available,sort,updated_at)`,
+const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
   { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
   .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
 loadShop();
-const rupees = (p) => `₹${Number(p) % 1 ? Number(p).toFixed(2) : Number(p)}`;
-const ago = (t) => {
-  const m = Math.round((Date.now() - Date.parse(t)) / 60000);
-  return m < 1 ? 'updated just now' : m < 60 ? `updated ${m} min ago` : m < 1440 ? `updated ${Math.round(m / 60)} h ago` : `updated ${Math.round(m / 1440)} days ago`;
+// ₹ as people say it, as on the site (site/src/shops.ts rupees): 1,450 and 48 lakh and 1.15 crore.
+const rupees = (p) => (p >= 1e7 ? `₹${+(p / 1e7).toFixed(2)} crore` : p >= 1e5 ? `₹${+(p / 1e5).toFixed(2)} lakh` : `₹${Number(p).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
+// The site's section colours (site/src/shops.ts SECTIONS): the named row is tinted in the shop's.
+const SECTION_COLOURS = { restaurant: '#E5533D', cafe: '#14897C', juice: '#7CB82F', bakery: '#8C5A3C', grocery: '#2E8B57', streetfood: '#E8A317',
+  boutique: '#7B4BA8', mall: '#F28C28', realestate: '#23395B', salon: '#E35D9A', pharmacy: '#1AA3C2', books: '#8E6B3E', electronics: '#3D5AFE', gym: '#D9480F', hotel: '#0B7285' };
+// The one item a sentence names: the longest full name in it, else the only item whose last word (4+ letters) is in it
+// ("the brownie" names Walnut brownie, but "chai" names nothing when two items end in chai). Whole words, in any script.
+const words = (t) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+const namedIn = (text, items) => {
+  const t = words(text), lastWord = (i) => words(i.name.split(',')[0]).trim().split(' ').pop();
+  const full = [...items].sort((a, b) => b.name.length - a.name.length).find((i) => words(i.name).trim() && t.includes(words(i.name)));
+  if (full) return full;
+  const byWord = items.filter((i) => lastWord(i).length >= 4 && t.includes(` ${lastWord(i)} `));
+  return byWord.length === 1 ? byWord[0] : null;
 };
-// An item counts as named by its full name, or by its last word when that word is 4+ letters ("the chai" names Masala Chai).
-const said = (text, name) => { const t = text.toLowerCase(), n = name.toLowerCase(), last = n.split(/\s+/).pop(); return t.includes(n) || (last.length >= 4 && new RegExp(`\\b${last.replace(/[^a-z0-9]/g, '')}\\b`).test(t)); };
-const row = (cls, a, b) => { const d = document.createElement('div'); d.className = cls; d.append(Object.assign(document.createElement('span'), { textContent: a }), Object.assign(document.createElement('span'), { textContent: b })); return d; };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// The usual order's sum, as the site works it out (site/src/shops.ts orderOf): the shop's app prices + typical app fees
+// against its walk-in prices. None when an item is missing, sold out or has no app price, or walking in saves nothing.
+const orderOf = (s) => {
+  const lines = (s.usual_order ?? []).map(({ item, qty }) => ({ i: s.menu_items.find((m) => m.id === item), qty }));
+  if (!lines.length || lines.some(({ i, qty }) => !i?.available || i.price == null || i.app_price == null || !(qty > 0))) return null;
+  const here = lines.reduce((sum, { i, qty }) => sum + i.price * qty, 0), apps = lines.reduce((sum, { i, qty }) => sum + i.app_price * qty, 0) + (s.app_fee ?? 0);
+  return apps > here ? { names: lines.map(({ i, qty }) => `${qty > 1 ? `${qty} ` : ''}${i.name}`).join(' + '), here, apps } : null;
+};
+// "~10 min" from "about a 10 min wait"; else the status in a word.
+const statusWord = (s) => { const wait = /(\d+)\s*min/.exec(s.status_note ?? '')?.[1]; return s.status === 'busy' ? (wait ? `~${wait} min` : 'Busy') : s.status === 'closed' ? 'Closed' : 'Open'; };
+const HOURGLASS = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9s8 4 8 9"/></svg>';
+const rowOf = (i) => {
+  const on = i.name === naming, cut = i.available && i.price != null && i.app_price > i.price ? i.app_price - i.price : 0;
+  const d = el('div', `row${on ? ' on' : ''}${i.available ? '' : ' out'}`), n = el('div', 'n'), p = el('div', 'p');
+  n.append(el('b', '', i.name));
+  if (on) n.append(el('span', '', `${NAME} is naming this one`));
+  if (i.price != null) p.append(el('b', '', +i.price === 0 ? 'Free' : rupees(i.price)));
+  if (cut) p.append(el('s', '', `${rupees(i.app_price)} apps`));
+  d.append(n, ...(i.available ? (cut ? [el('span', 'cut', `−${rupees(cut)}`)] : []) : [el('span', 'sold', 'Sold out today')]), p);
+  return d;
+};
 const drawMenu = () => {
-  const items = shop?.menu_items ?? [], on = items.filter((i) => named.has(i.name)), show = (on.length ? on : items).slice(0, 4);
+  const items = shop?.menu_items ?? [];
+  // Three rows, the one he is naming among them, kept in the menu's order.
+  const show = [...items.filter((i) => i.name === naming), ...items.filter((i) => i.name !== naming)].slice(0, 3).sort((a, b) => a.sort - b.sort);
   if (!show.length) { menuEl.hidden = true; return; }
-  const latest = show.reduce((a, i) => (i.updated_at > a ? i.updated_at : a), '');
-  menuEl.replaceChildren(Object.assign(document.createElement('div'), { className: 'shop', textContent: shop.name }),
-    ...show.map((i) => row(`row${named.has(i.name) ? ' on' : ''}${i.available ? '' : ' out'}`, i.name, i.available ? rupees(i.price) : 'sold out')),
-    Object.assign(document.createElement('div'), { className: 'when', textContent: ago(latest) }));
+  const head = el('div', 'head'), chip = el('span', `chip ${shop.status ?? 'open'}`, statusWord(shop));
+  if (shop.status === 'busy') chip.insertAdjacentHTML('afterbegin', HOURGLASS);   // a fixed icon; the shop's own text is set as text above
+  head.append(el('div', 'shop', shop.name), chip);
+  const order = orderOf(shop), sum = order && el('div', 'sum');
+  if (order) {
+    const t = el('div', 't'), line = el('div', 's');
+    line.append(el('s', '', `${rupees(order.apps)} on apps`), ' → ', el('b', '', `${rupees(order.here)} here`));
+    t.append(el('div', 'l', `USUAL ORDER · ${order.names.toUpperCase()}`), line);
+    sum.append(t, el('span', 'save', `Save ${rupees(order.apps - order.here)}`));
+  }
+  menuEl.style.setProperty('--c', SECTION_COLOURS[shop.section] ?? '#14897C');
+  menuEl.replaceChildren(head, ...show.map(rowOf), ...(sum ? [sum] : []));
+  menuEl.style.visibility = '';
   menuEl.hidden = false;
 };
-const openMenu = () => { if (!REST) return; named = new Set(); menuUntil = Infinity; loadShop().then(drawMenu); };
-// It goes when you ask the next question, or 8 s after he finishes.
-const menuState = (s) => { if (s === 'listening') { menuEl.hidden = true; named = new Set(); } else if (s === 'idle') menuUntil = performance.now() + 8000; };
+// A menu fetch that lands after the mic was pressed draws nothing: the card would show while you talk.
+const openMenu = () => { if (!REST) return; naming = null; menuUntil = Infinity; const turn = ++menuTurn; loadShop().then(() => { if (turn === menuTurn) drawMenu(); }); };
+// It goes when you ask the next question, or 8 s after he finishes. While you hold the mic it only turns invisible, so the
+// mic stays under your thumb; it folds away once you let go.
+const menuState = (s) => {
+  if (s === 'listening') { menuTurn++; naming = null; menuUntil = Infinity; menuEl.style.visibility = 'hidden'; }
+  else if (s === 'thinking') menuEl.hidden = true;
+  else if (s === 'idle') { if (menuEl.style.visibility) menuEl.hidden = true; menuUntil = performance.now() + 8000; }
+};
+const cardShown = () => !menuEl.hidden && !menuEl.style.visibility;
 const menuTick = () => {   // each frame while the card shows: highlight what his current sentence names
   if (menuEl.hidden) return;
   if (performance.now() > menuUntil) { menuEl.hidden = true; return; }
   const text = talk.cloud()?.text;
   if (!text || !shop) return;
-  const before = named.size;
-  for (const i of shop.menu_items) if (said(text, i.name)) named.add(i.name);
-  if (named.size !== before) drawMenu();
+  const item = namedIn(text, shop.menu_items);
+  if (item && item.name !== naming) { naming = item.name; drawMenu(); }
 };
 
 // Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face to his voice. No words
@@ -409,7 +485,8 @@ const aim = (p, cam, now) => {
 window.state = () => ({ placed: placedAt !== null, at: figure.position.toArray().map((v) => +v.toFixed(3)), ring: reticle.visible,
   ringAt: reticle.visible ? new THREE.Vector3().setFromMatrixPosition(reticle.matrix).toArray().map((v) => +v.toFixed(3)) : null, close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
   backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent,
-  menu: menuEl.hidden ? null : [...menuEl.querySelectorAll('.row')].map((r) => (r.classList.contains('on') ? '*' : '') + r.firstChild.textContent) });
+  menu: !cardShown() ? null : [...menuEl.querySelectorAll('.row')].map((r) => (r.classList.contains('on') ? '*' : '') + r.querySelector('.n b').textContent),
+  save: !cardShown() ? null : menuEl.querySelector('.save')?.textContent ?? null, status: !cardShown() ? null : menuEl.querySelector('.chip')?.textContent ?? null });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
