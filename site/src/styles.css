@@ -319,6 +319,9 @@ a { color: inherit; }
 
 .talk-screen { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; padding: 14px 16px 10px; overflow-y: auto;
   background: linear-gradient(180deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, .9) 65%); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+/* Nothing in the column may shrink (the hint row would collapse to a line); the menu card goes below the mic. */
+.talk-screen > * { flex-shrink: 0; }
+.talk-card { order: 1; }
 .talk-top { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; }
 .talk-who { flex: 1; min-width: 0; }
 .talk-who b { display: block; font: 800 20px var(--display); }
@@ -451,7 +454,10 @@ a { color: inherit; }
   /* Room under the buttons for the "Made in Bolt" badge that Bolt's hosting pins to the bottom right. */
   .card .actions, .actions.sticky { padding-bottom: calc(60px + env(safe-area-inset-bottom)); background: #fff; }
   .is-phone .has-selected + .map-fog { display: none; }
-  .business-left { width: 100%; padding: 24px 20px 32px; }
+  .business-left { width: 100%; padding: 24px 20px calc(88px + env(safe-area-inset-bottom)); }
+  .talk-screen { padding-bottom: calc(60px + env(safe-area-inset-bottom)); scroll-padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .saved-back { padding: 12px 0 calc(60px + env(safe-area-inset-bottom)); }
+  .saved { max-height: 100%; }
   .business-title { font-size: 40px; line-height: 44px; }
   .page-sheet { max-width: none; }
 }

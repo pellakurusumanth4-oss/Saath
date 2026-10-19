@@ -130,7 +130,7 @@ export default function App() {
   }, [page]);
   // Blocked, or a walk waiting for a position that didn't come: pick the spot by hand (each failed try opens it again).
   useEffect(() => {
-    if (denied || (error && trip && !me)) setSettingSpot(true);
+    if (!me && (denied || (error && trip))) setSettingSpot(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [denied, error]);
   useEffect(() => {

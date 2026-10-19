@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { LatLng } from '../../src/geo';
+import { distanceM, type LatLng } from '../../src/geo';
+
+// Every Saath shop is in Pune; a fix farther than this from the city centre would show walks of thousands of minutes.
+const PUNE: LatLng = { lat: 18.5195, lng: 73.8452 };
+const PUNE_RANGE_M = 50000;
 
 /** Where "here" is: real GPS if allowed, or a spot set by hand on the map. */
 export const useMe = () => {
@@ -18,8 +22,13 @@ export const useMe = () => {
     setError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setMe({ lat: position.coords.latitude, lng: position.coords.longitude });
+        const spot = { lat: position.coords.latitude, lng: position.coords.longitude };
         setLocating(false);
+        if (distanceM(spot, PUNE) > PUNE_RANGE_M) {
+          setError('Saath’s shops are in Pune, far from you. Browse the list, or pick a spot on the map.');
+          return;
+        }
+        setMe(spot);
       },
       (err) => {
         setLocating(false);

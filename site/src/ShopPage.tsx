@@ -97,7 +97,7 @@ function BoardPreview({ shop, off }: { shop: Shop; off: boolean }) {
       zoom: 16.9, pitch: 56, bearing: -17, interactive: false, attributionControl: false,
     });
     const element = document.createElement('div');
-    const marker = new maplibregl.Marker({ element, anchor: 'bottom' }).setLngLat([spot.lng, spot.lat]).addTo(map);
+    const marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 100] }).setLngLat([spot.lng, spot.lat]).addTo(map);
     element.removeAttribute('aria-label');
     setSlot(element);
     return () => {

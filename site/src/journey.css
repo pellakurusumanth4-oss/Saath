@@ -214,8 +214,9 @@
 .saved-walks { display: block; margin-top: 6px; font: 600 12px var(--body); color: var(--ink-3); }
 
 @media (max-height: 740px) {
-  .code-top { height: 270px; padding-top: calc(56px + env(safe-area-inset-top)); }
-  .code-top img { width: 64px; height: 64px; }
+  .code-top { height: 190px; padding-top: calc(56px + env(safe-area-inset-top)); }
+  .code-top img { display: none; }
+  .code-keys button { height: 46px; }
 }
 
 @media (min-width: 1024px) {

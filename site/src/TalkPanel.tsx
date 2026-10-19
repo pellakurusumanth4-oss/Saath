@@ -11,7 +11,7 @@ import { Icon, MenuRow, Podium } from './ui';
 
 const HINTS = [
   { label: 'How much do I save?', send: 'How much do I save if I walk over instead of ordering on a delivery app?' },
-  { label: 'What’s on the board?', send: 'What’s on your billboard today?' },
+  { label: 'When are you open?', send: 'When are you open?' },
   { label: 'Is it busy?', send: 'Is it busy right now?' },
   { label: 'What’s good today?', send: 'What’s good here today?' },
 ];
@@ -71,7 +71,8 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
     setState('thinking');
     const next = [...historyRef.current, { role: 'user' as const, content: words }];
     try {
-      const answer = await askFriend(mascot.id, next.slice(-12), shop.slug);
+      // The talk function refuses any turn over 500 characters, and a long story reply would break every later ask.
+      const answer = await askFriend(mascot.id, next.slice(-12).map((m) => ({ ...m, content: m.content.slice(0, 500) })), shop.slug);
       if (mine !== turn.current) return;
       setHistory([...next, { role: 'assistant', content: answer }]);
       setReply(answer);
@@ -84,7 +85,8 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
           return;
         }
         speaking.current = handle;
-        await handle.done;
+        // The voice couldn't play (iPhone blocks audio outside a tap): show the reply instead, without saving that choice.
+        if ((await handle.done) === false && mine === turn.current) setSoundOn(false);
       }
       if (mine === turn.current) setState('idle');
     } catch (err) {
@@ -105,6 +107,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       recognition.current?.stop();
       return;
     }
+    if (state === 'thinking') return;
     const mine = ++turn.current;
     hush();
     const handle = listenOnce({
@@ -197,7 +200,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
 
       <div className="talk-controls">
         <a className="icon-btn glass round" href={`/visit/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>
-        <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
+        <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} aria-disabled={state === 'thinking'} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>
         <button type="button" className="icon-btn glass round" onClick={() => setTyping((t) => !t)} aria-label="Type instead"><Icon name="receipt" /></button>

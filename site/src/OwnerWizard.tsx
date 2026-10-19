@@ -99,6 +99,9 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
 
   // ---- the map: a preview of the pin and billboard, the centre pin while placing, then the shop itself ----
   const onSpot = useCallback((at: LatLng) => { spot.current = at; }, []);
+  // The map reports its centre at once, then flies ~0.9 s to the pin: a quick double tap would place the shop mid-flight.
+  const placeOpened = useRef(0);
+  useEffect(() => { if (step === 'place') placeOpened.current = Date.now(); }, [step]);
   const mapShop = useMemo(() => (made ? { ...made, menu: [] } : step === 'mascot' || step === 'billboard' ? asShop(draft, friend, PREVIEW) : null),
     [made, step, draft, friend]);
   useEffect(() => {
@@ -142,7 +145,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
 
   const place = async () => {
     const at = spot.current;
-    if (!at) return setError('The map isn’t ready yet: wait a moment and tap again.');
+    if (!at || Date.now() - placeOpened.current < 1200) return setError('The map isn’t ready yet: wait a moment and tap again.');
     // Untouched, the pin is still on the map's opening view: every such shop would stack on the same spot.
     if (Math.abs(at.lat - PREVIEW.lat) < 1e-6 && Math.abs(at.lng - PREVIEW.lng) < 1e-6) return setError('Drag the map until the pin sits on your door, or tap “Use my location”.');
     setBusy(true);

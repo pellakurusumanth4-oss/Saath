@@ -13,8 +13,8 @@ export type KokoroStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 
 export type SpeakHandle = {
   cancel: () => void;
-  /** Resolves when the voice has finished (or was cancelled). */
-  done: Promise<void>;
+  /** Resolves when the voice has finished (or was cancelled); false when it couldn't play at all. */
+  done: Promise<boolean | void>;
 };
 
 /** Resolves once speechSynthesis stops speaking (capped at 20 s). */
@@ -273,12 +273,12 @@ async function speakWithEleven(friendId: string, text: string): Promise<SpeakHan
     }
   }
   const audio = new Audio(url);
-  let finish!: () => void;
-  const done = new Promise<void>((resolve) => { finish = resolve; });
-  audio.addEventListener('ended', () => finish(), { once: true });
-  audio.addEventListener('error', () => finish(), { once: true });
-  audio.play().catch(() => finish()); // autoplay blocked: don't leave the hangout waiting forever
-  return { cancel: () => { audio.pause(); finish(); }, done };
+  let finish!: (played: boolean) => void;
+  const done = new Promise<boolean>((resolve) => { finish = resolve; });
+  audio.addEventListener('ended', () => finish(true), { once: true });
+  audio.addEventListener('error', () => finish(false), { once: true });
+  audio.play().catch(() => finish(false)); // autoplay blocked: don't leave the hangout waiting forever
+  return { cancel: () => { audio.pause(); finish(true); }, done };
 }
 
 /** Stop any speech playback in flight. */
