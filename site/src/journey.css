@@ -151,7 +151,9 @@
 .arrived-title { margin: 6px 0 0; font: 800 26px/29px var(--display); letter-spacing: -.02em; }
 .arrived-sub { margin: 4px 0 0; font: 500 15px var(--body); color: var(--ink-2); }
 .arrived-actions { display: flex; gap: 8px; margin-top: 16px; }
-.arrived-actions .btn-go { height: 54px; }
+.arrived-meet { display: flex; width: 100%; height: 54px; margin-top: 16px; }
+.arrived-meet + .arrived-actions { margin-top: 8px; }
+.arrived-actions .btn-go, .arrived-actions .btn-dark { height: 54px; }
 .arrived-actions .btn-ghost { height: 54px; }
 .arrived-bought { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 14px; padding: 12px 14px; border: none; border-radius: 16px; background: #EAFBF0; text-align: left; cursor: pointer; }
 .arrived-bought span { flex: 1; font: 600 14px/19px var(--body); color: var(--ink); }
@@ -354,4 +356,22 @@
   .visits-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: stretch; }
   .visits-wrap .owner-tiles { margin: 0; flex-direction: column; }
   .visits-wrap .owner-tile { flex: 1 1 auto; }
+}
+
+/* ---------- J12 · smoothness ---------- */
+
+@keyframes shimmer { from { background-position: -200px 0; } to { background-position: 200px 0; } }
+button, a, [role='button'], .near-row, .pin, .board-panel { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.page { overscroll-behavior: contain; }
+.near-skeleton { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.near-skeleton + .near-skeleton { border-top: 1px solid var(--line); }
+.sk-thumb, .sk-lines i { flex: none; border-radius: 10px; background: linear-gradient(90deg, #EEF1F5 0%, #F7F9FB 50%, #EEF1F5 100%) 0 0 / 400px 100%; animation: shimmer 1.2s linear infinite; }
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; padding-left: 6px; }
+.sk-lines i { display: block; height: 12px; }
+.sk-lines i:nth-child(1) { width: 70%; height: 15px; }
+.sk-lines i:nth-child(2) { width: 45%; }
+.sk-lines i:nth-child(3) { width: 60%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-thumb, .sk-lines i { animation: none; }
 }

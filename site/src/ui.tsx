@@ -26,6 +26,7 @@ const PATHS: Record<string, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  ar: <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.3 7L12 12l8.7-5M12 22V12" />,
   north: <path d="M5 12l7-7 7 7M12 19V5" />,
   turnLeft: <path d="M9 14L4 9l5-5M20 20v-7a4 4 0 0 0-4-4H4" />,
   turnRight: <path d="M15 14l5-5-5-5M4 20v-7a4 4 0 0 1 4-4h12" />,

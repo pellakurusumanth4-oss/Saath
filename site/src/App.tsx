@@ -20,7 +20,7 @@ import LocationAsk from './LocationAsk';
 import InstallSheet from './InstallSheet';
 import { useInstall } from './install';
 import { useMe } from './hooks';
-import { orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
+import { figureOf, hostOf, orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
 import { distanceM, type LatLng } from '../../src/geo';
 
@@ -156,6 +156,19 @@ export default function App() {
     void startLocation();
   };
 
+  // Once the city is up, fetch each mascot's full figure in idle time, so a shop card's mascot shows at once.
+  // Skipped on Data Saver and 2G; it's ~55 KB a mascot.
+  const mascots = useMemo(() => [...new Map(shops.map((shop) => [hostOf(shop).id, hostOf(shop)])).values()], [shops]);
+  const mascotKey = mascots.map((mascot) => mascot.id).sort().join();
+  useEffect(() => {
+    const net = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (!mascotKey || net?.saveData || /2g/.test(net?.effectiveType ?? '')) return;
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 1500));
+    idle(() => { for (const mascot of mascots) new Image().src = figureOf(mascot); });
+    // Once per set of mascots, not on every live menu change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mascotKey]);
+
   // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.
   useEffect(() => setTalkingId(null), [hash]);
 
@@ -236,7 +249,7 @@ export default function App() {
           </div>
           <Search query={query} setQuery={setQuery} />
           <Chips category={category} setCategory={setCategory} />
-          <NearList shops={shown} me={me} thumb={76} onPick={pick} />
+          <NearList shops={shown} me={me} thumb={76} loading={!shops.length} onPick={pick} />
           <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} />
         </aside>
       ) : (
@@ -252,7 +265,7 @@ export default function App() {
               <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} floating />
               <div className="sheet glass-sheet near-sheet">
                 <div className="grabber" />
-                <NearList shops={shown} me={me} onPick={pick} />
+                <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} />
                 <div className="near-links">
                   {!installed && <button type="button" onClick={() => setInstalling(true)}>Install app</button>}
                   <a className="for-business" href="#/business">For businesses →</a>
@@ -284,7 +297,7 @@ export default function App() {
         <WalkHud key={trip.started} shop={tripShop} start={trip.route} onView={setWalkView} onArrive={arrive} onStop={stopTrip} />
       )}
       {door?.step === 'arrived' && doorShop && (
-        <ArrivedSheet shop={doorShop} onTalk={() => setTalkingId(doorShop.id)} onBought={() => setDoor({ ...door, step: 'code' })} onClose={() => setDoor(null)} />
+        <ArrivedSheet shop={doorShop} onTalk={() => setTalkingId(doorShop.id)} onBought={() => setDoor({ ...door, step: 'code' })} onClose={() => { if (!talkingId) setDoor(null); }} />
       )}
 
       {selected && page === 'map' && !busy && (

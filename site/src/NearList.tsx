@@ -6,8 +6,8 @@ import Compare from './Compare';
 import { hostOf, orderOf, portraitOf, sectionOf, walkMinutes, type ShopWithMenu } from './shops';
 import { SaveChip } from './ui';
 
-export default function NearList({ shops, me, thumb = 92, onPick }: {
-  shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; onPick: (shop: ShopWithMenu) => void;
+export default function NearList({ shops, me, thumb = 92, loading = false, onPick }: {
+  shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; loading?: boolean; onPick: (shop: ShopWithMenu) => void;
 }) {
   const [sort, setSort] = useState<'saving' | 'near'>('saving');
   const rows = useMemo(() => {
@@ -29,7 +29,14 @@ export default function NearList({ shops, me, thumb = 92, onPick }: {
         </div>
       </div>
       {sort === 'near' && !me && <p className="near-hint">Tap the locate button to sort by the walk.</p>}
-      <ul className="near-rows">
+      <ul className="near-rows" aria-busy={loading}>
+        {/* While the shops load, grey rows hold their place so nothing below jumps. */}
+        {loading && Array.from({ length: 4 }, (_, i) => (
+          <li key={i} className="near-skeleton" aria-hidden="true">
+            <span className="sk-thumb" style={{ width: thumb, height: Math.round(thumb * 0.565) }} />
+            <span className="sk-lines"><i /><i /><i /></span>
+          </li>
+        ))}
         {rows.map(({ shop, order }) => {
           const state = shop.status;
           const ring = state === 'busy' ? '#F59E0B' : state === 'closed' ? '#B9BDC8' : sectionOf(shop).color;
@@ -38,7 +45,7 @@ export default function NearList({ shops, me, thumb = 92, onPick }: {
               <button type="button" className="near-row" onClick={() => onPick(shop)}>
                 <span className="near-thumb">
                   <Ad shop={shop} height={Math.round(thumb * 0.565)} width={thumb} radius={10} tag={false} off={state === 'closed'} />
-                  <img src={portraitOf(hostOf(shop))} alt="" className={state === 'closed' ? 'is-grey' : ''} style={{ '--ring': ring } as CSSProperties} />
+                  <img src={portraitOf(hostOf(shop))} alt="" width={28} height={28} loading="lazy" decoding="async" className={state === 'closed' ? 'is-grey' : ''} style={{ '--ring': ring } as CSSProperties} />
                 </span>
                 <span className="near-text">
                   <b>{shop.name}{shop.demo && <em className="demo">DEMO</em>}</b>

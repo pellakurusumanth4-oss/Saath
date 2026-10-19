@@ -162,7 +162,11 @@ export function useShops(): ShopWithMenu[] {
     let live = true;
     const load = async () => {
       const { data } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).order('name');
-      if (!live || !data) return;
+      if (!live) return;
+      if (!data) {   // a failed load (offline, a weak signal): try again, so the list doesn't stay empty
+        window.setTimeout(() => { if (live) void load(); }, 3000);
+        return;
+      }
       setShops((data as (Shop & { menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: sortMenu(items) })));
     };
     void load();
