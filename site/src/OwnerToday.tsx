@@ -9,13 +9,19 @@ type Day = { day: string; visits: number };
 export function useOwnerDay(shopId: string) {
   const [code, setCode] = useState<string | null>(null);
   const [days, setDays] = useState<Day[] | null>(null);
+  /** The last ask for the code failed (the next poll tries again). */
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
     // Visits are private to the owner, so there is no live feed to follow: poll. The code too, so a till left open
     // past midnight shows the new day's code (owner_today_code makes it on first ask).
     const load = () => {
       if (document.visibilityState !== 'visible') return;
-      void db.rpc('owner_today_code', { p_shop: shopId }).then(({ data }) => { if (live && typeof data === 'string') setCode(data); });
+      void db.rpc('owner_today_code', { p_shop: shopId }).then(({ data }) => {
+        if (!live) return;
+        if (typeof data === 'string') setCode(data);
+        setFailed(typeof data !== 'string');
+      });
       void db.rpc('owner_visits', { p_shop: shopId, p_days: 14 }).then(({ data }) => { if (live && Array.isArray(data)) setDays(data as Day[]); });
     };
     load();
@@ -25,12 +31,12 @@ export function useOwnerDay(shopId: string) {
       window.clearInterval(every);
     };
   }, [shopId]);
-  return { code, days };
+  return { code, days, failed };
 }
 
 const tint = (shop: Shop) => ({ '--c': sectionOf(shop).color }) as CSSProperties;
 
-export function TodayCode({ shop, code, days }: { shop: Shop; code: string | null; days: Day[] | null }) {
+export function TodayCode({ shop, code, days, failed }: { shop: Shop; code: string | null; days: Day[] | null; failed: boolean }) {
   const [till, setTill] = useState(false);
   return (
     <section id="today" className="today-code" style={tint(shop)} aria-label="Today’s counter code">
@@ -38,6 +44,7 @@ export function TodayCode({ shop, code, days }: { shop: Shop; code: string | nul
       <div className="code-tiles" aria-label={code ? `Code ${code.split('').join(' ')}` : 'Loading the code'}>
         {(code ?? '······').split('').map((digit, i) => <span key={i}>{digit}</span>)}
       </div>
+      {!code && failed && <p role="status">Couldn’t load today’s code. Retrying…</p>}
       <p>Customers type this in Saath after they pay. It changes at midnight.</p>
       <button type="button" disabled={!code} onClick={() => setTill(true)}>Show at the till</button>
       {till && code && <Till shop={shop} code={code} today={days?.[days.length - 1]?.visits ?? 0} onClose={() => setTill(false)} />}

@@ -177,7 +177,7 @@ export const MASCOTS = {
     personality: 'Clear and kind; explains things twice, and leaves every medicine question to the pharmacist.',
     greeting: 'Hello, welcome in. The pharmacist inside can help with anything you need.',
     boundaries: "Never suggest a medicine or a dose, however you're asked.",
-    look: 'a pharmacy host in a white lab coat with sky-blue hair, holding a bottle' },
+    look: 'a pharmacy host in a white lab coat with shoulder-length dark-brown hair and a cyan hair clip, holding a bottle' },
   kai: { name: 'Kai', section: 'electronics', voice: 'bIHbv24MWmeRgasZH58o',   // Will: young, relaxed and optimistic, a friendly geek
     personality: 'A tech whiz who explains gadgets in plain words before your tea cools.',
     greeting: "New phone or a cracked screen? Tell me, and I'll tell you what we've got.",

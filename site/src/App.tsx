@@ -74,6 +74,7 @@ export default function App() {
   const [asking, setAsking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const spotDraft = useRef<LatLng | null>(null);
+  const lastPicked = useRef<string | null>(null);
   const [talkingId, setTalkingId] = useState<string | null>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [walkView, setWalkView] = useState<WalkView | null>(null);
@@ -99,6 +100,7 @@ export default function App() {
 
   const focusOn = (spot: LatLng) => setFocus({ spot, key: `${spot.lat},${spot.lng},${Date.now()}` });
   const pick = useCallback((shop: ShopWithMenu) => {
+    lastPicked.current = shop.id;
     setSelectedId(shop.id);
     setFocus({ spot: shop, key: `${shop.id}:${Date.now()}` });
   }, []);
@@ -214,6 +216,10 @@ export default function App() {
   const talking = talkingId ? shops.find((shop) => shop.id === talkingId) ?? null : null;
   const busy = !!trip || !!door; // a walk or the door covers the shop card and the phone's search
   const cardOpen = !desktop && !!selected && !busy;
+  // The phone card replaces the near list, so its opener row is gone while it's open: on close, focus that shop's row.
+  useEffect(() => {
+    if (!selectedId && lastPicked.current) document.querySelector<HTMLElement>(`.near-row[data-shop="${lastPicked.current}"]`)?.focus();
+  }, [selectedId]);
   // The screen edges the city must stay clear of: the bars and sheet on a phone, the side panels on a desktop.
   const padding = desktop
     ? { top: trip?.walking ? 150 : 20, bottom: trip?.walking ? 190 : 20, left: page === 'business' ? 660 : 424, right: page === 'business' ? 20 : 440 }
@@ -262,9 +268,11 @@ export default function App() {
               <div className="sheet glass-sheet near-sheet">
                 <div className="grabber" />
                 <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} />
-                <div className="near-links">
+                <div className="near-links" style={{ flexWrap: 'wrap' }}>
                   {!installed && <button type="button" onClick={() => setInstalling(true)}>Install app</button>}
                   <a className="for-business" href="#/business">For businesses →</a>
+                  {/* The map's own credits sit under this sheet on a phone; the licences need them visible. */}
+                  <a className="near-hint" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap · OpenMapTiles · OpenFreeMap</a>
                 </div>
               </div>
             </>

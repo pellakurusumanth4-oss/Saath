@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { LatLng } from '../../src/geo';
 import TalkPanel from './TalkPanel';
+import { plainError } from './net';
 import { BillboardFields, KindPicker, MascotHero, MascotPicker, agentOf, mascotFor, shortName } from './ownerParts';
 import { boardOf, db, hostOf, SECTIONS, SHOP_COLUMNS, type Shop, type ShopWithMenu } from './shops';
 import { Icon, Podium } from './ui';
@@ -131,7 +132,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
       const { data, error: insertError } = await db.from('shops').insert({ ...row, slug }).select(SHOP_COLUMNS).single();
       if (!insertError) return data as unknown as Shop;
       if (insertError.code !== '23505') {
-        setError(`Couldn’t put your shop on the map: ${insertError.message}`);
+        setError(`Couldn’t put your shop on the map. ${plainError(insertError)}`);
         return null;
       }
       // Its own id taken: an earlier tap went in and only its answer was lost (a weak signal). That shop is this one.

@@ -10,6 +10,7 @@ import MapBoundary from './MapBoundary';
 import Reviews from './Reviews';
 import { boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
+import { useInert } from './useInert';
 
 export default function ShopPage({ slug, me, onTalk, onWalk }: {
   slug: string; me: LatLng | null; onTalk: (shopId: string) => void; onWalk: (shopId: string) => void;
@@ -17,14 +18,25 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   const { shop, menu, missing } = useShop(slug);
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false); // where there's no share sheet, the link is copied instead
+  const page = useRef<HTMLDivElement>(null);
+  useInert(page);
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(tick);
   }, []);
+  // Escape goes back to the map, unless a talk or sheet open over this page has made it inert (that one closes instead).
+  // Capture, so this runs before that one's own Escape closes it and lifts the inert.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !page.current?.closest('[inert]')) window.location.hash = '#/';
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   if (!shop) {
     return (
-      <div className="page" role="dialog" aria-modal="true" aria-label="Shop">
+      <div ref={page} className="page" role="dialog" aria-modal="true" aria-label="Shop">
         <div className="page-sheet"><a className="back-link" href="#/">← Map</a><p className="note">{missing ? 'There’s no shop at this link.' : 'Loading the shop…'}</p></div>
       </div>
     );
@@ -40,7 +52,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   };
 
   return (
-    <div className="page shop-page" role="dialog" aria-modal="true" aria-label={shop.name} style={{ '--c': section.color } as CSSProperties}>
+    <div ref={page} className="page shop-page" role="dialog" aria-modal="true" aria-label={shop.name} style={{ '--c': section.color } as CSSProperties}>
       <div className="page-sheet">
         <div className="shop-hero">
           <Ad shop={shop} height={262} width="100%" off={off} radius={0} className="hero-ad" />
@@ -56,7 +68,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {shop.hours && <p className="shop-area">Hours: {shop.hours}</p>}
           <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(menu)} now={now} grey={off} /></div>
           <Compare shop={shop} menu={menu} mode="full" walk={walkText(me, shop)} countUp />
-          {shop.special && <p className="today-line"><span className="today" style={{ background: section.color }}>TODAY</span>{shop.special}</p>}
+          {shop.special && <p className="today-line"><span className="today" style={{ background: `color-mix(in srgb, ${section.color} 60%, #04121A)` }}>TODAY</span>{shop.special}</p>}
           {shop.offers.length > 0 && <ul className="offers">{shop.offers.map((offer) => <li key={offer}>{offer}</li>)}</ul>}
 
           <h2 className="block-title">Their billboard on the map</h2>

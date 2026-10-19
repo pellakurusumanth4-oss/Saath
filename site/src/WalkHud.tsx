@@ -26,6 +26,8 @@ export default function WalkHud({ shop, start, onView, onArrive, onStop }: {
   const live = useRef({ route: start, prev: null as LatLng | null, heading: null as number | null, off: 0, rerouted: 0, near: 0, almost: false });
   const handlers = useRef({ onView, onArrive });
   handlers.current = { onView, onArrive };
+  const banner = useRef<HTMLDivElement>(null);
+  useEffect(() => banner.current?.focus(), []); // the walk opens on its directions, not at the top of the page
 
   // The screen stays on while walking (Chrome; Safari 16.4+), and again whenever the tab comes back.
   useEffect(() => {
@@ -118,13 +120,16 @@ export default function WalkHud({ shop, start, onView, onArrive, onStop }: {
     small = street ? `${street}, then ${shop.name}` : `then ${shop.name}`;
   }
   if (rerouting) small = 'Rerouting…';
+  // Read out only when the next turn or the walk's state changes, not with every 10 m of the banner's distances.
+  const said = lost || almost || route.straight || !next ? big : next.text;
 
   return (
     <>
-      <div className={`walk-banner${almost && !lost ? ' is-almost' : ''}`} role="status" aria-live="polite">
+      <div ref={banner} tabIndex={-1} className={`walk-banner${almost && !lost ? ' is-almost' : ''}`}>
         <span className="walk-icon">{icon}</span>
         <div><b>{big}</b><span>{small}</span></div>
       </div>
+      <p className="sr-only" role="status">{said}</p>
       {buzzed ? (
         <div className="walk-pill is-buzz"><span className="walk-buzz"><i /><i /><i /></span>{buzzed === 'buzz' ? 'bzz · bzz' : 'ding'}</div>
       ) : hint && <div className="walk-pill glass"><Icon name="info" size={14} />Keep this tab open while you walk</div>}

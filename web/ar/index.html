@@ -40,7 +40,8 @@
   #hud { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 5px 12px; border-radius: 99px; white-space: nowrap;
          background: rgba(17, 19, 24, .62); color: #fff; font: 700 13px system-ui, Roboto, sans-serif; }
   #hud:empty { display: none; }
-  #home { position: fixed; left: 16px; right: 16px; bottom: 112px; display: none; text-align: center; color: #fff; font: 800 17px system-ui, Roboto, sans-serif; }
+  #home, #map { position: fixed; left: 16px; right: 16px; bottom: 144px;   /* clears the start button, two lines tall on phones without AR */
+    display: none; text-align: center; color: #fff; font: 800 17px system-ui, Roboto, sans-serif; }
   #back { position: absolute; right: 16px; top: 16px; display: none; padding: 10px 14px; border-radius: 99px; border: 2.5px solid var(--ink); background: #fff;
           color: var(--ink); box-shadow: 2px 2px 0 var(--ink); font: 800 15px system-ui, Roboto, sans-serif; text-decoration: none; pointer-events: auto; }
   /* Talking, kept clean (the user, 18 Oct): you hear his words, and nobody's are shown. City Day (19 Oct, design C06):
@@ -95,6 +96,7 @@
 <div id="intro">Saath<br><span id="introLine" style="font-weight:500;opacity:.8"></span></div>
 <button id="start">Loading…</button>
 <a id="home" href="#" role="button">Back to Saath</a>
+<a id="map" href="/visit/">Back to the map</a>
 <div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div>
   <div id="talk" hidden>
     <div class="talk-row">
@@ -111,15 +113,16 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { createTalk } from '../talk/talk.js';
+import { createTalk } from '../talk/talk.js?v=2026-10-19';   // bump on each talk.js change: the host caches it for 4 h
 
 const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
 // Which friend, from the app (src/friends.ts): only the rigs there are; the name is only ever used as text. An id
 // not in this list is a bug (the app sends only these), so it says so rather than quietly showing another mascot.
 const FRIENDS = ['rosa', 'kiran', 'juno', 'otto', 'sunny', 'nia', 'mika', 'max', 'omar', 'lina', 'sana', 'kai'], FRIEND = Q.get('friend') ?? 'juno';
 if (!FRIENDS.includes(FRIEND)) { document.body.textContent = `Unknown friend: ${FRIEND}`; throw new Error(`unknown friend ${FRIEND}`); }
-const NAME = (Q.get('name') || FRIEND).slice(0, 24), TALL_M = Number(Q.get('tall')) || 1.4;   // their height in metres
-const BACK = Q.get('return');   // a deep link back into the app, if it opened this page
+const NAME = (Q.get('name') || FRIEND[0].toUpperCase() + FRIEND.slice(1)).slice(0, 24), TALL_M = Number(Q.get('tall')) || 1.4;   // their height in metres
+// A deep link back into the app, if it opened this page: only the app's own schemes, so a crafted link can't send Home elsewhere.
+const BACK = /^(saath|exp):/.test(Q.get('return') ?? '') ? Q.get('return') : null;
 const VFOV = 72.7;    // S24 main camera (notes/ar-stability.md); only the preview camera uses it
 // Pokémon GO AR+ distances: under 1 m you're told to step back, cleared past 1.2 m.
 const NEAR_M = 1.0, CLEAR_M = 1.2;
@@ -575,8 +578,9 @@ if (PREVIEW) {
   const base = new THREE.Vector3(), lastCam = new THREE.Vector3(), gap = new THREE.Vector3(), moved = new THREE.Vector3();   // base: his spot, then his anchor's pose
   const GLIDE = 1;   // m/s: the fastest an anchor correction moves him
   const ok = navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false));
-  start.textContent = ok ? 'Start AR' : 'AR is not available in this browser';
+  start.textContent = ok ? 'Start AR' : 'AR needs Android Chrome with ARCore';
   start.disabled = !ok;
+  if (!ok && !BACK) document.getElementById('map').style.display = 'block';   // opened directly: a way back to the site
   const anchorAt = (xrFrame, p) => {
     try { xrFrame.createAnchor?.(new XRRigidTransform({ x: p.x, y: p.y, z: p.z }), renderer.xr.getReferenceSpace())?.then((a) => (anchor = a), () => {}); } catch {}
   };

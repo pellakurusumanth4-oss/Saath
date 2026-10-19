@@ -49,16 +49,16 @@ export function MascotHero({ mascot, children }: { mascot: Mascot; children?: Re
   );
 }
 
-/** The 12 mascots, the section's own first ("Made for you"). */
+/** The 12 mascots, the section's own first ("Suggested"). */
 export function MascotPicker({ section, value, onPick }: { section: string; value: string; onPick: (id: string) => void }) {
   const ordered = [...MASCOTS.filter((m) => m.section === section), ...MASCOTS.filter((m) => m.section !== section)];
   return (
-    <div className="wiz-cast" role="radiogroup" aria-label="Pick your mascot">
+    <div className="wiz-cast" role="group" aria-label="Pick your mascot">
       {ordered.map((m) => (
-        <button key={m.id} type="button" role="radio" aria-checked={m.id === value} style={{ '--c': SECTIONS[m.section]?.color } as CSSProperties} onClick={() => onPick(m.id)}>
+        <button key={m.id} type="button" aria-pressed={m.id === value} style={{ '--c': SECTIONS[m.section]?.color } as CSSProperties} onClick={() => onPick(m.id)}>
           <img src={portraitOf(m)} alt="" width={56} height={56} />
           <span>{shortName(m)}</span>
-          {m.section === section && <em>Made for you</em>}
+          {m.section === section && <em>Suggested</em>}
         </button>
       ))}
     </div>

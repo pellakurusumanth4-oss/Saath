@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { db, hostOf, portraitOf, sectionOf, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
+import { useInert } from './useInert';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
@@ -16,15 +17,24 @@ export default function CodeSheet({ shop, onBack, onVerified }: { shop: ShopWith
   const [demo, setDemo] = useState<string | null>(null);
   const busy = useRef(false);
   const box = useRef<HTMLDivElement>(null);
+  useInert(box);
   useEffect(() => box.current?.focus(), []);
 
   useEffect(() => {
     if (!shop.demo || shop.owner) return;
     let live = true;
-    void db.rpc('demo_today_code', { p_slug: shop.slug }).then(({ data }) => {
-      if (live && typeof data === 'string') setDemo(data);
+    let retry = 0;
+    // A failed read tries once more after 3 s, so a blip on the way in doesn't hide the helper.
+    const load = (again: boolean) => void db.rpc('demo_today_code', { p_slug: shop.slug }).then(({ data, error }) => {
+      if (!live) return;
+      if (typeof data === 'string') setDemo(data);
+      else if (error && again) retry = window.setTimeout(() => load(false), 3000);
     });
-    return () => { live = false; };
+    load(true);
+    return () => {
+      live = false;
+      window.clearTimeout(retry);
+    };
   }, [shop.demo, shop.owner, shop.slug]);
 
   const press = (key: string) => {

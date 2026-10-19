@@ -6,8 +6,10 @@ import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
 import { speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
-import { hostOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
-import { Icon, MenuRow, Podium } from './ui';
+import { hostOf, orderOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
+import { Icon, MenuRow } from './ui';
+import TalkingMascot, { type Speech } from './TalkingMascot';
+import { useInert } from './useInert';
 
 const HINTS = [
   { label: 'How much do I save?', send: 'How much do I save if I walk over instead of ordering on a delivery app?' },
@@ -31,6 +33,7 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
   const name = mascot.name.split(' ').pop()!;
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<State>('idle');
+  const [speech, setSpeech] = useState<Speech | null>(null);   // the reply being spoken, for the mascot's lips and gestures
   const [reply, setReply] = useState('');
   const [named, setNamed] = useState<MenuItem | null>(null);
   const [soundOn, setSoundOn] = useState(() => loadSoundPref());
@@ -52,7 +55,9 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
     speaking.current = null;
     stopAllSpeaking();
   };
-  useEffect(() => () => {
+  const screen = useRef<HTMLDivElement>(null);
+  useInert(screen);
+  useEffect(() => () => {   // after useInert's cleanup, so the opener is focusable again
     turn.current++;
     recognition.current?.stop();
     hush();
@@ -82,14 +87,22 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
       if (soundRef.current) {
         setState('talking');
         const handle = await speakReply(mascot.id, answer);
-        if (mine !== turn.current) {
+        if (mine !== turn.current || !soundRef.current) {   // a new question, or the voice turned off while it loaded
           handle.cancel();
+          if (mine === turn.current) {
+            setState('idle');
+            setSpeech({ key: mine, text: answer });
+          }
           return;
         }
         speaking.current = handle;
+        setSpeech({ key: mine, text: answer, audio: handle.audio });
         // The voice couldn't play (iPhone blocks audio outside a tap): show the reply instead, without saving that choice.
-        if ((await handle.done) === false && mine === turn.current) setSoundOn(false);
-      }
+        if ((await handle.done) === false && mine === turn.current) {
+          setSoundOn(false);
+          setSpeech({ key: mine, text: answer });
+        }
+      } else setSpeech({ key: mine, text: answer });   // shown as text: the mascot still mouths it, silently
       if (mine === turn.current) setState('idle');
     } catch (err) {
       if (mine !== turn.current) return;
@@ -148,10 +161,12 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
 
   const pill = state === 'listening' ? 'Listening…' : state === 'thinking' ? `${name} is thinking…` : state === 'talking' ? `${name} is talking` : `Ask ${name} about ${shop.name}`;
   const row = named ?? shop.menu.find((item) => item.price !== null) ?? null;
+  // A list with no prices and no usual order (a mall's stores) has no card and no saving to ask about.
+  const priced = !!row || !!orderOf(shop, shop.menu);
   const hasMenu = shop.menu.length > 0;
 
   return (
-    <div className={`talk-screen is-${state}`} role="dialog" aria-modal="true" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
+    <div ref={screen} className={`talk-screen is-${state}`} role="dialog" aria-modal="true" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
       <div className="talk-top">
         <button type="button" className="icon-btn glass" onClick={onClose} aria-label="Back"><Icon name="back" /></button>
         <div className="talk-who"><b>{mascot.name}</b><span>{shop.name} · {section.label}</span></div>
@@ -162,7 +177,7 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
 
       <div className="talk-stage">
         <span className="ring r1" /><span className="ring r2" /><span className="ring r3" />
-        <Podium mascot={mascot} color={section.color} height={260} grey={shop.status === 'closed'} className="talk-podium" />
+        <TalkingMascot mascot={mascot} color={section.color} state={state} speech={speech} grey={shop.status === 'closed'} />
       </div>
 
       <div className="talk-pill" role="status">
@@ -174,13 +189,12 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
       {error && <p className="talk-error" role="alert">{error}</p>}
 
       <div className="talk-hints">
-        {/* A shop with no menu (registered on the owner page) has no saving to ask about. */}
-        {HINTS.filter((hint) => hasMenu || hint !== HINTS[0]).map((hint) => (
+        {HINTS.filter((hint) => priced || hint !== HINTS[0]).map((hint) => (
           <button key={hint.label} type="button" className="glass" aria-disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>
 
-      {hasMenu && <div className="talk-card">
+      {priced && <div className="talk-card">
         <Compare shop={shop} menu={shop.menu} mode="compact" />
         {row && (
           <div className="talk-named">

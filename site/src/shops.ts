@@ -98,8 +98,9 @@ const sectionMascot = (section: string) => MASCOTS.find((mascot) => mascot.secti
 export const hostOf = (shop: Pick<Shop, 'friend' | 'section'>): Mascot =>
   MASCOTS.find((mascot) => mascot.id === shop.friend) ?? sectionMascot(shop.section) ?? MASCOTS.find((mascot) => mascot.id === 'juno')!;
 
-export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png`;
-export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.png`;
+// ?v= changes when a mascot's images do (v2: Sana's new hair, 19 Oct): the same URL would stay cached for hours.
+export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png?v=2`;
+export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.png?v=2`;
 
 /** What the status says, in words: "Busy · about a 10 min wait", "Closed · opens at 11 am". */
 export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
@@ -107,8 +108,8 @@ export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
   return shop.status_note ? `${word} · ${shop.status_note}` : word;
 }
 
-/** Minutes on foot at an easy 80 m a minute (straight line, so a little optimistic). */
-export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round(distanceM(me, shop) / 80));
+/** Minutes on foot at an easy 80 m a minute; × 1.3 because streets wind (the straight line said 5 min where the route said 8). */
+export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round((distanceM(me, shop) * 1.3) / 80));
 
 /** "2 min · 150 m" from where the visitor is, or null before we know. */
 export function walkText(me: LatLng | null, shop: LatLng): string | null {
@@ -190,7 +191,8 @@ export function useShops(): ShopWithMenu[] {
       .channel('shops-map')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shops' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => void load())
-      .subscribe();
+      // Also on every reconnect: changes made while the phone slept or the signal dropped never arrive as events.
+      .subscribe((status) => { if (status === 'SUBSCRIBED') void load(); });
     return () => {
       live = false;
       void db.removeChannel(channel);
@@ -224,7 +226,7 @@ export function useShop(slug: string): { shop: Shop | null; menu: MenuItem[]; mi
         .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `shop_id=eq.${shop.id}` }, () => void load())
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'menu_items' }, () => void load())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'shops', filter: `id=eq.${shop.id}` }, () => void load())
-        .subscribe();
+        .subscribe((status) => { if (status === 'SUBSCRIBED') void load(); }); // catch up after a reconnect, as useShops does
     };
     void load();
     return () => {

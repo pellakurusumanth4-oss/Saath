@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { db, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
+import { useInert } from './useInert';
 
 export default function ReviewSheet({ shop, visit, onDone }: { shop: ShopWithMenu; visit: string; onDone: (posted: boolean) => void }) {
   const [rating, setRating] = useState(0);
@@ -12,6 +13,7 @@ export default function ReviewSheet({ shop, visit, onDone }: { shop: ShopWithMen
   const [error, setError] = useState<string | null>(null);
   const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const box = useRef<HTMLDivElement>(null);
+  useInert(box);
   useEffect(() => box.current?.focus(), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onDone(false);
@@ -38,9 +40,9 @@ export default function ReviewSheet({ shop, visit, onDone }: { shop: ShopWithMen
           <div><b>Verified visit</b><span>{shop.name} · today {time}</span></div>
         </div>
         <p className="j-kicker">HOW WAS IT?</p>
-        <div className="review-stars" role="radiogroup" aria-label="Stars">
+        <div className="review-stars" role="group" aria-label="Stars">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => setRating(n)}>
+            <button key={n} type="button" aria-pressed={rating === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => setRating(n)}>
               <svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill={n <= rating ? '#F59E0B' : '#E3E8EF'} /></svg>
             </button>
           ))}

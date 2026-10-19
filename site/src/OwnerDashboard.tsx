@@ -1,9 +1,10 @@
 // The owner's dashboard (/owner/): their own shop only. How it is right now, today's counter code, what it does and
 // when it's open, its mascot (and a talk with it) and its billboard. Each change is saved 400 ms after the last one and
 // reaches visitors live. No prices: the mascot answers visitors from what the owner wrote.
-import { useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import TalkPanel from './TalkPanel';
 import { TodayCode, useOwnerDay } from './OwnerToday';
+import { plainError } from './net';
 import { BillboardFields, MascotHero, MascotPicker, shortName } from './ownerParts';
 import { db, hostOf, sectionOf, type Shop, type Status } from './shops';
 import { Icon } from './ui';
@@ -17,20 +18,38 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
   const [shop, setShop] = useState(start);
   const [state, setState] = useState('');
   const [talking, setTalking] = useState(false);
+  /** Not yet saved, the save in flight included: a field leaves only once the database has its value. */
   const pending = useRef<Partial<Shop>>({});
   const timer = useRef(0);
+  /** Saves go one after another, so an older one can't land after a newer one. */
+  const chain = useRef(Promise.resolve());
+  const gone = useRef(false);
+  /** Sign out was tapped with changes still unsaved: ask first. */
+  const [leaving, setLeaving] = useState(false);
   const day = useOwnerDay(shop.id);
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+      window.clearTimeout(timer.current);
+    };
+  }, []);
 
-  // A failed save is kept for the next try; leaving (sign out) saves what's pending first, so no change is lost.
-  const flush = async () => {
-    const patch = pending.current;
-    pending.current = {};
+  // A failed save stays pending and is tried again in 5 s; leaving (sign out) saves what's pending first.
+  const send = async () => {
+    const patch = { ...pending.current } as Record<string, unknown>;
     if (!Object.keys(patch).length) return;
     const { data, error } = await db.from('shops').update(patch).eq('id', shop.id).select('id');
     const ok = !error && !!data?.length;
-    if (!ok) pending.current = { ...patch, ...pending.current };
-    setState(ok ? '✓ Saved · live' : `Not saved: ${error?.message ?? 'this shop isn’t yours'}`);
+    const left = pending.current as Record<string, unknown>;
+    if (ok) for (const key in patch) if (left[key] === patch[key]) delete left[key];
+    if (error && !gone.current) {
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => void flush(), 5000);
+    }
+    setState(ok ? '✓ Saved · live' : error ? `Not saved. ${plainError(error)}` : 'Not saved: this shop isn’t yours');
   };
+  const flush = () => (chain.current = chain.current.then(send));
   const save = (patch: Partial<Shop>) => {
     setShop((current) => ({ ...current, ...patch }));
     // The setup requires these, so an emptied one waits until it's long enough again.
@@ -41,10 +60,12 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void flush(), 400);
   };
-  const leave = async (then: () => void) => {
+  const leave = async () => {
     window.clearTimeout(timer.current);
-    await flush();
-    then();
+    // A hung save holds sign out 3 s at most; anything still unsaved then is the owner's call.
+    await Promise.race([flush(), new Promise((done) => window.setTimeout(done, 3000))]);
+    if (Object.keys(pending.current).length) setLeaving(true);
+    else onSignOut();
   };
 
   const mascot = hostOf(shop);
@@ -54,8 +75,15 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
       <header className="dash-head">
         <span className="brand-tile small"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></span>
         <b className="dash-brand">saath <span>for businesses</span></b>
-        <button type="button" className="owner-link-btn dash-signout" onClick={() => void leave(onSignOut)}>Sign out</button>
+        <button type="button" className="owner-link-btn dash-signout" onClick={() => void leave()}>Sign out</button>
       </header>
+      {leaving && (
+        <div className="owner-msg dash-leave" role="alert">
+          <span>Not saved yet. Sign out anyway?</span>
+          <button type="button" className="btn-ghost small" autoFocus onClick={() => setLeaving(false)}>Stay</button>
+          <button type="button" className="btn-dark small" onClick={onSignOut}>Sign out</button>
+        </div>
+      )}
       <div className="dash-title">
         <small>{greeting()}</small>
         <h1>{shop.name}</h1>
@@ -83,7 +111,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
             </label>
           </section>
 
-          <TodayCode shop={shop} code={day.code} days={day.days} />
+          <TodayCode shop={shop} code={day.code} days={day.days} failed={day.failed} />
 
           <section className="owner-section" aria-labelledby="dash-business">
             <h2 id="dash-business">Your business</h2>

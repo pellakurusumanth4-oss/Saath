@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { hostOf, sectionOf, statusText, type ShopWithMenu } from './shops';
 import { Icon, Podium } from './ui';
+import { useInert } from './useInert';
 
 type XR = { isSessionSupported: (mode: 'immersive-ar') => Promise<boolean> };
 // Asked once, as the page loads, so the door opens with the right buttons instead of growing a moment later.
@@ -17,6 +18,7 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
   const mascot = hostOf(shop);
   const first = mascot.name.split(' ').pop()!;
   const box = useRef<HTMLDivElement>(null);
+  useInert(box);
   useEffect(() => box.current?.focus(), []);
   const [ar, setAr] = useState(arOk);
   useEffect(() => {
@@ -26,7 +28,8 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
   }, []);
   const arLink = `/ar/?${new URLSearchParams({ friend: mascot.id, shop: shop.slug, name: first, tall: String(mascot.tall) })}`;
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    // Not while a page or sheet opened from here (the shop page) is over it: that one closes first.
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !box.current?.closest('[inert]') && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);

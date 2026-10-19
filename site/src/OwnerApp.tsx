@@ -9,6 +9,7 @@ import OwnerDashboard from './OwnerDashboard';
 import OwnerWizard, { forgetDraft, MINE, read, type Stage } from './OwnerWizard';
 import { useDesktop } from './hooks';
 import { MASCOTS } from './mascots';
+import { plainError } from './net';
 import { db, portraitOf, SHOP_COLUMNS, type Shop } from './shops';
 import { Icon } from './ui';
 
@@ -22,7 +23,9 @@ export default function OwnerApp() {
   /** The owner's shop: undefined while it loads, null before they register one. */
   const [shop, setShop] = useState<Shop | null | undefined>(undefined);
   const [stage, setStage] = useState<Stage | null>(null);
-  const desktop = useDesktop();
+  /** The shop lookup failed and is being tried again. */
+  const [failed, setFailed] = useState(false);
+  const desktop = useDesktop('(min-width: 1024px)');
 
   useEffect(() => {
     void db.auth.getSession().then(({ data }) => setSession(data.session));
@@ -36,19 +39,33 @@ export default function OwnerApp() {
   const demo = session?.user.email === DEMO_EMAIL;
   useEffect(() => {
     setShop(undefined);
+    setFailed(false);
     if (!userId) return;
     let live = true;
-    void (async () => {
+    let retry = 0;
+    const load = async () => {
       const id = read(MINE);
-      let found = id ? ((await db.from('shops').select(SHOP_COLUMNS).eq('id', id).eq('owner', userId).maybeSingle()).data as Shop | null) : null;
-      if (!found && !demo) {
+      const mine = id ? await db.from('shops').select(SHOP_COLUMNS).eq('id', id).eq('owner', userId).maybeSingle() : null;
+      let found = (mine?.data ?? null) as Shop | null;
+      let error = mine?.error;
+      if (!found && !error && !demo) {
         // Published only: a draft left by the old setup can't go live from here (the dashboard has no publish step).
-        const { data } = await db.from('shops').select(SHOP_COLUMNS).eq('owner', userId).eq('published', true).order('created_at', { ascending: false }).limit(1);
-        found = (data?.[0] as Shop | undefined) ?? null;
+        const newest = await db.from('shops').select(SHOP_COLUMNS).eq('owner', userId).eq('published', true).order('created_at', { ascending: false }).limit(1);
+        found = (newest.data?.[0] as Shop | undefined) ?? null;
+        error = newest.error;
       }
-      if (live) setShop(found);
-    })();
-    return () => { live = false; };
+      if (!live) return;
+      // A failed lookup isn't "no shop yet": the setup would publish a second shop. Try again in 3 s.
+      if (error) {
+        setFailed(true);
+        retry = window.setTimeout(() => void load(), 3000);
+      } else setShop(found);
+    };
+    void load();
+    return () => {
+      live = false;
+      window.clearTimeout(retry);
+    };
   }, [userId, demo]);
 
   const signOut = () => {
@@ -57,13 +74,18 @@ export default function OwnerApp() {
   };
 
   if (session === null) return <OwnerGate />;
-  if (session === undefined || shop === undefined) return <main className="owner-gate"><p className="note">Loading…</p></main>;
+  if (session === undefined || shop === undefined) {
+    return <main className="owner-gate"><p className="note" role="status">{failed ? 'Couldn’t load your shop. Retrying…' : 'Loading…'}</p></main>;
+  }
   if (shop) return <OwnerDashboard key={shop.id} shop={shop} onSignOut={signOut} />;
 
   // The setup, over the city: the screen edges the map keeps clear of are the sheet (phone) or the panel (computer).
+  // A short screen (a phone on its side) gives the sheet at least 300 px, as owner.css does, so the pin stays above it.
+  const tall = window.innerHeight;
+  const sheet = Math.max(tall * (stage?.sheet ?? 0.86), tall <= 480 ? Math.min(tall, 300) : 0);
   const padding: Padding = desktop
     ? { top: stage?.spotlight ? 240 : 20, bottom: 20, left: 520, right: 20 }
-    : { top: stage?.spotlight ? 150 : 16, bottom: Math.round(window.innerHeight * (stage?.sheet ?? 0.86)), left: 0, right: 0 };
+    : { top: stage?.spotlight ? 150 : 16, bottom: Math.round(sheet), left: 0, right: 0 };
   return (
     <div className="owner-app">
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p></div>}>
@@ -87,7 +109,7 @@ function OwnerGate() {
     setMessage(null);
     const { error } = await db.auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) setMessage(error.message);
+    if (error) setMessage(plainError(error));
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -1,10 +1,19 @@
 // "Near you": the shops with their ads, status, walk and saving, by biggest saving or nearest. Closed ones sink.
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
 import { hostOf, orderOf, portraitOf, sectionOf, walkMinutes, type ShopWithMenu } from './shops';
 import { SaveChip } from './ui';
+
+const onNetwork = (changed: () => void) => {
+  window.addEventListener('online', changed);
+  window.addEventListener('offline', changed);
+  return () => {
+    window.removeEventListener('online', changed);
+    window.removeEventListener('offline', changed);
+  };
+};
 
 export default function NearList({ shops, me, thumb = 92, loading = false, onPick }: {
   shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; loading?: boolean; onPick: (shop: ShopWithMenu) => void;
@@ -18,6 +27,8 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
       || a.shop.name.localeCompare(b.shop.name));
     return ranked;
   }, [shops, me, sort]);
+  const online = useSyncExternalStore(onNetwork, () => navigator.onLine);
+  const offline = loading && !online; // useShops keeps retrying; say why nothing comes instead of grey rows forever
 
   return (
     <section className="near" aria-label="Shops near you">
@@ -29,9 +40,10 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
         </div>
       </div>
       {sort === 'near' && !me && <p className="near-hint">Tap the locate button to sort by the walk.</p>}
-      <ul className="near-rows" aria-busy={loading}>
+      <ul className="near-rows" aria-busy={loading && !offline}>
+        {offline && <li className="near-hint">You’re offline. Shops appear when you’re back online.</li>}
         {/* While the shops load, grey rows hold their place so nothing below jumps. */}
-        {loading && Array.from({ length: 4 }, (_, i) => (
+        {loading && !offline && Array.from({ length: 4 }, (_, i) => (
           <li key={i} className="near-skeleton" aria-hidden="true">
             <span className="sk-thumb" style={{ width: thumb, height: Math.round(thumb * 0.565) }} />
             <span className="sk-lines"><i /><i /><i /></span>
@@ -43,7 +55,7 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
           const ring = state === 'busy' ? '#F59E0B' : state === 'closed' ? '#B9BDC8' : sectionOf(shop).color;
           return (
             <li key={shop.id} className={state === 'closed' ? 'is-closed' : ''}>
-              <button type="button" className="near-row" onClick={() => onPick(shop)}>
+              <button type="button" className="near-row" data-shop={shop.id} onClick={() => onPick(shop)}>
                 <span className="near-thumb" aria-hidden="true">
                   <Ad shop={shop} height={Math.round(thumb * 0.565)} width={thumb} radius={10} tag={false} off={state === 'closed'} />
                   <img src={portraitOf(hostOf(shop))} alt="" width={28} height={28} loading="lazy" decoding="async" className={state === 'closed' ? 'is-grey' : ''} style={{ '--ring': ring } as CSSProperties} />

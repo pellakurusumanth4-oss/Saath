@@ -181,7 +181,9 @@ const HAIR = {
   max: () => ({ back: '', front: 'M-20.6,-16C-25,-18 -26,-25 -23,-28C-27,-32 -25,-39 -20,-40C-21,-46 -15,-51 -9,-49C-7,-55 2,-56 5,-51C10,-55 18,-51 18,-46C24,-46 27,-39 24,-34C28,-30 26,-22 21,-20L20.6,-16L18.6,-21C17,-26 14,-25 12,-28C9,-25 6,-28 3,-29C0,-26 -4,-28 -6,-28C-9,-25 -13,-28 -15,-26C-17,-24 -18,-23 -18.6,-21Z' }),
   omar: () => ({ back: '', front: 'M-20.3,-17C-22,-40 -17,-48 -6,-48.5C0,-52 14,-51.5 19,-44.5C22,-39 21.4,-27 20.3,-17L18.6,-23C16,-30 7,-32 -3,-31L-6,-28.5L-9,-31C-14,-30 -17,-27 -18.6,-22Z' }),
   lina: () => ({ back: 'M-9,-50a11,10 0 1 1 22,0a11,10 0 1 1 -22,0Z', front: 'M-21,-18C-23,-50 23,-50 21,-18L19,-14C18,-22 14,-29 1,-31C0,-29 0.5,-28 0,-26C-3,-30 -14,-29 -17,-20L-19,-14Z M-19.4,-16C-22.6,-9 -20.4,-3 -23,3C-19.4,1 -17.6,-6 -17.6,-14Z M19.4,-16C22.6,-9 20.4,-3 23,3C19.4,1 17.6,-6 17.6,-14Z' }),
-  sana: () => ({ back: 'M-23,-24C-26,-52 26,-52 23,-24C25,-10 24,-1 30,8C18,12 -18,12 -30,8C-24,-1 -25,-10 -23,-24Z', front: 'M-23,-24C-26,-52 26,-52 23,-24C24,-14 22,-4 18,0C12,4 -12,4 -18,0C-22,-4 -24,-14 -23,-24Z M0,-29C-10,-29 -16.6,-26 -17,-19C-17.6,-10 -10,-1.5 0,-0.6C10,-1.5 17.6,-10 17,-19C16.6,-26 10,-29 0,-29Z' }),
+  // shoulder-length hair (under: behind the head, the coat covers it below the shoulders) and a fringe swept from a side part
+  sana: () => ({ under: 'M-22.6,-22C-25,-50 25,-50 22.6,-22C23.4,-12 24.6,-3 26.2,4.6C22,8 15.6,8 12,5.4L-12,5.4C-15.6,8 -22,8 -26.2,4.6C-24.6,-3 -23.4,-12 -22.6,-22Z',
+    front: 'M-20.8,-17.5C-22.6,-47 22.6,-47 20.8,-17.5L19.3,-20.5C18.4,-27 14.8,-31.6 8,-33.6C9.4,-29.6 8.4,-27.4 6.2,-26.2C2,-31 -8,-31.4 -14.6,-26C-16.8,-24.4 -18.4,-21.8 -19.3,-19.6Z' }),
   kai: () => ({ back: '', front: 'M-20.5,-17C-21,-26 -21,-36 -17,-41C-12,-50 4,-55 16,-49C24,-45 27,-36 25,-27C24,-23 22,-21 20.5,-17L19,-24C16,-30 12,-27 7,-31C2,-26 -6,-29 -10,-25C-13,-27 -16,-24 -18.5,-19Z' }),
 };
 
@@ -195,12 +197,13 @@ function headGroup(c, b, chinY) {
   g += face(c);
   if (c.beard) g += inked('beard', [{ d: 'M-18.6,-20C-18,-8 -9,-0.6 0,0C9,-0.6 18,-8 18.6,-20C17,-12 12,-6 7,-5.4C4,-8.4 -4,-8.4 -7,-5.4C-12,-6 -17,-12 -18.6,-20Z', fill: c.hairColor }], 0.8) + `<path d="M-3.8,-6.6Q0,-6.1 3.8,-6.6Q2.8,-3 0,-3Q-2.8,-3 -3.8,-6.6Z" fill="#8A2E3B" stroke="${INK}" stroke-width="0.6"/>`;
   if (c.mustache) g += inked('mustache', [{ d: 'M0,-8.6C-3,-11 -8,-10.4 -9,-7.4C-6,-8.6 -3,-7.6 0,-7.2C3,-7.6 6,-8.6 9,-7.4C8,-10.4 3,-11 0,-8.6Z', fill: c.hairColor }], 0.6);
-  if (hair.front) g += inked('hair', [{ d: hair.front, fill: c.hairColor, rule: c.id === 'sana' ? 'evenodd' : undefined }]);
+  if (hair.front) g += inked('hair', [{ d: hair.front, fill: c.hairColor }]);
   if (c.streak) g += `<path d="${c.streak}" fill="${c.streakColor}"/>`;
   if (c.greyTemples) g += `<path d="M-19.8,-18L-18.6,-22C-18.4,-24 -18,-25 -17.6,-26L-19.6,-25Z M19.8,-18L18.6,-23C18.4,-24.5 18.2,-25.5 17.8,-26.5L19.7,-25Z" fill="#C9C6CF"/>`;
   if (c.hairShine) g += line(c.hairShine, 1.0, '#FFFFFF', ' opacity="0.35"');
   if (c.glasses) g += `<g id="glasses" fill="none" stroke="${c.glasses}" stroke-width="1.3"><circle cx="-8.2" cy="-16.4" r="6.3"/><circle cx="8.2" cy="-16.4" r="6.3"/><path d="M-1.9,-17.2Q0,-18.6 1.9,-17.2"/></g>`;
   if (c.hat) g += HATS[c.hat](c);
+  if (c.hairClip) g += `<rect x="-15.2" y="-31.4" width="7.6" height="2.8" rx="1.4" fill="${c.hairClip}" stroke="${INK}" stroke-width="0.6" transform="rotate(-24 -11.4 -30)"/>`;
   if (c.hairStick) g += line('M-10,-58L15,-43', 1.6, c.hairStick) + `<circle cx="-10" cy="-58" r="1.6" fill="${c.hairStick}" stroke="${INK}" stroke-width="0.5"/>`;
   return `<g id="head-${c.id}" transform="translate(0,${f(chinY)}) scale(${f(s)})">${g}</g>`;
 }
@@ -330,7 +333,7 @@ const CAST = [
     pose: ['raise', 'rest'], props: ['scissors', null], iris: '#5C2E44', eyes: 'almond',
     personality: 'Calm hands, big ideas; you leave feeling new.', greeting: 'Sit, relax. Shall we try something new today?' },
   { id: 'sana', sid: 'pharmacy', name: 'Sana', section: 'Pharmacy', color: '#1AA3C2', glyph: 'pharmacy', base: 'adult', fem: true, skin: 's3',
-    hairColor: '#3BB8D4', top: '#FFFFFF', sleeve: 'long', cuff: true, details: ['labcoat'], accent: '#16708A', bottom: 'trousers', bottomColor: '#16708A', shoes: '#F2F2F2', hem: -64,
+    hairColor: '#3A2420', hairShine: 'M-16,-36Q-9,-43.5 2,-42.6', hairClip: '#1AA3C2', top: '#FFFFFF', sleeve: 'long', cuff: true, details: ['labcoat'], accent: '#16708A', bottom: 'trousers', bottomColor: '#16708A', shoes: '#F2F2F2', hem: -64,
     pose: ['rest', 'raise'], props: [null, 'bottle'], iris: '#3A2418', mouth: 'small',
     personality: 'Clear and kind; explains every dose twice.', greeting: 'Not feeling well? Tell me, and I\'ll find you the right thing.' },
   { id: 'kai', sid: 'electronics', name: 'Kai', section: 'Electronics & Mobile', color: '#3D5AFE', glyph: 'electronics', base: 'young', skin: 's4',

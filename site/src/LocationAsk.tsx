@@ -1,9 +1,11 @@
 // J1c: why Saath wants the location, before the browser asks. "Not now" picks a spot on the map instead.
 import { useEffect, useRef } from 'react';
 import { Icon } from './ui';
+import { useInert } from './useInert';
 
 export default function LocationAsk({ onAllow, onPick }: { onAllow: () => void; onPick: () => void }) {
   const box = useRef<HTMLDivElement | null>(null);
+  useInert(box);
   useEffect(() => box.current?.focus(), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onPick();

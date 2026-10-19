@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { distanceM, type LatLng } from '../../src/geo';
 
-// Every Saath shop is in Pune; a fix farther than this from the city centre would show walks of thousands of minutes.
+// The demo shops are all in one city (Pune); a fix farther than this from its centre would show walks of thousands of minutes.
 const PUNE: LatLng = { lat: 18.5195, lng: 73.8452 };
 const PUNE_RANGE_M = 50000;
 
@@ -25,7 +25,7 @@ export const useMe = () => {
         const spot = { lat: position.coords.latitude, lng: position.coords.longitude };
         setLocating(false);
         if (distanceM(spot, PUNE) > PUNE_RANGE_M) {
-          setError('Saath’s shops are in Pune, far from you. Browse the list, or pick a spot on the map.');
+          setError('There are no Saath shops near you yet. Try the demo city: browse the list, or pick a spot on the map.');
           return;
         }
         setMe(spot);
@@ -51,15 +51,15 @@ export const useMe = () => {
   return { me, locating, error, denied, whereAmI, setMySpot };
 };
 
-/** A computer-sized window (1024 px and up), kept current as the window changes. */
-export const useDesktop = () => {
-  const query = '(min-width: 1024px)';
+/** A computer-sized window, kept current as the window changes: 1280 px and up leaves room for the map between the
+ * visitor's two side panels; the owner page, with one panel, passes its own 1024 px query. */
+export const useDesktop = (query = '(min-width: 1280px)') => {
   const [desktop, setDesktop] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
     const list = window.matchMedia(query);
     const onChange = () => setDesktop(list.matches);
     list.addEventListener('change', onChange);
     return () => list.removeEventListener('change', onChange);
-  }, []);
+  }, [query]);
   return desktop;
 };

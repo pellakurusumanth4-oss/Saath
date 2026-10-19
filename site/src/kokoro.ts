@@ -15,6 +15,8 @@ export type SpeakHandle = {
   cancel: () => void;
   /** Resolves when the voice has finished (or was cancelled); false when it couldn't play at all. */
   done: Promise<boolean | void>;
+  /** The playing voice when it is a sound file (ElevenLabs): the talking mascot follows its time and loudness. */
+  audio?: HTMLAudioElement;
 };
 
 /** Resolves once speechSynthesis stops speaking (capped at 20 s). */
@@ -279,7 +281,7 @@ async function speakWithEleven(friendId: string, text: string): Promise<SpeakHan
   audio.addEventListener('ended', () => finish(true), { once: true });
   audio.addEventListener('error', () => finish(false), { once: true });
   audio.play().catch(() => finish(false)); // autoplay blocked: don't leave the hangout waiting forever
-  return { cancel: () => { audio.pause(); finish(true); }, done };
+  return { cancel: () => { audio.pause(); finish(true); }, done, audio };
 }
 
 /** Stop any speech playback in flight. */

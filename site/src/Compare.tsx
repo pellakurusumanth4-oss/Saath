@@ -1,8 +1,9 @@
 // The usual order's saving: the shop's own app prices + typical app fees against walking in, and how it's worked out.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ago, orderOf, dollars, updatedAt, type MenuItem, type Order, type Shop } from './shops';
 import { Icon, SaveChip } from './ui';
+import { useInert } from './useInert';
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
@@ -73,9 +74,18 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
 
 /** "How we work out your saving": app prices come from the shop, app fees are typical, walking costs nothing. */
 export function HowSheet({ shop, order, updated, onClose }: { shop: Shop; order: Order; updated: string; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const opener = useRef(document.activeElement as HTMLElement | null);
+  useInert(box);
+  useEffect(() => () => opener.current?.focus(), []); // after useInert's cleanup, so the opener is focusable again
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
     <div className="sheet-back" onClick={onClose}>
-      <div className="sheet glass-sheet how" role="dialog" aria-modal="true" aria-label="How we work out your saving" onClick={(event) => event.stopPropagation()}>
+      <div ref={box} className="sheet glass-sheet how" role="dialog" aria-modal="true" aria-label="How we work out your saving" onClick={(event) => event.stopPropagation()}>
         <div className="grabber" />
         <div className="sheet-head">
           <h3>How we work out your saving</h3>

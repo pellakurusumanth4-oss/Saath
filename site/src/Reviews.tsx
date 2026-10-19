@@ -12,7 +12,7 @@ export default function Reviews({ shop, owner = false }: { shop: Pick<Shop, 'id'
   const load = useCallback(async () => {
     const { data } = await db.from('reviews').select('id,rating,body,owner_reply,visit_id,created_at')
       .eq('shop_id', shop.id).order('created_at', { ascending: false }).limit(20);
-    setReviews((data as Review[] | null) ?? []);
+    if (data) setReviews(data as Review[]); // a failed read hides the section rather than claiming there are none
   }, [shop.id]);
   useEffect(() => { void load(); }, [load]);
   if (!reviews) return null;
@@ -37,7 +37,11 @@ function ReviewItem({ review, shopName, now, owner, onChange }: { review: Review
   const [error, setError] = useState<string | null>(null);
   const report = async () => {
     const { error: failed } = await db.rpc('report_content', { p_kind: 'review', p_id: review.id });
-    if (!failed) setReported(true);
+    if (failed) setError('Couldn’t report it. Try again.');
+    else {
+      setError(null);
+      setReported(true);
+    }
   };
   const save = async () => {
     const { error: failed } = await db.rpc('reply_to_review', { p_review: review.id, p_reply: reply });

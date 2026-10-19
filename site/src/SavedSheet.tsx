@@ -5,14 +5,17 @@ import Ad from './Ad';
 import { useCountUp } from './Compare';
 import { hostOf, portraitOf, dollars, sectionOf, type Order, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
+import { useInert } from './useInert';
 
-const MONTH_KEY = () => `saath:saved:${new Date().toISOString().slice(0, 7)}`;
+/** The walker's own calendar day as YYYY-MM-DD (not UTC's, which files a walk after midnight under the day before). */
+const dayOf = (time = Date.now()) => new Date(time).toLocaleDateString('en-CA');
+const MONTH_KEY = () => `saath:saved:${dayOf().slice(0, 7)}`;
 
 type Walked = { day: string; saved: number; visit: string };
 
 /** This month's savings and walks on this phone, counting each verified visit once (reopening adds nothing). */
 function addToMonth(amount: number, visit: string): { total: number; walks: Walked[] } {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = dayOf();
   try {
     const walks = JSON.parse(localStorage.getItem('saath:walks') ?? '[]') as Walked[];
     let total = Number(localStorage.getItem(MONTH_KEY())) || 0;
@@ -30,7 +33,7 @@ function addToMonth(amount: number, visit: string): { total: number; walks: Walk
 
 /** The last 14 days, oldest first: whether a walk saved something that day. */
 const fortnight = (walks: Walked[]) => Array.from({ length: 14 }, (_, i) => {
-  const day = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10);
+  const day = dayOf(Date.now() - (13 - i) * 86400000);
   return walks.filter((w) => w.day === day).reduce((sum, w) => sum + w.saved, 0);
 });
 
@@ -40,12 +43,16 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   const month = useRef<{ total: number; walks: Walked[] } | null>(null);
   const saving = order?.saving ?? 0;
   month.current ??= addToMonth(saving, visit);
-  const thisMonth = month.current.walks.filter((w) => w.day.slice(0, 7) === new Date().toISOString().slice(0, 7)).length;
+  const thisMonth = month.current.walks.filter((w) => w.day.slice(0, 7) === dayOf().slice(0, 7)).length;
   const days = fortnight(month.current.walks);
   const top = Math.max(1, ...days);
   const share = () => void navigator.share?.({ title: 'Saath', text: order ? `I saved ${dollars(saving)} by walking to ${shop.name}` : `I walked to ${shop.name}`, url: `${location.origin}/visit/#/shop/${shop.slug}` }).catch(() => {});
   const shown = useCountUp(saving, true);
   const mascot = hostOf(shop);
+  const box = useRef<HTMLDivElement>(null);
+  useInert(box);
+  const nice = useRef<HTMLButtonElement>(null);
+  useEffect(() => nice.current?.focus(), []); // after the review sheet's useInert cleanup lifts the inert from the page
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -53,7 +60,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   }, [onClose]);
   return (
     <div className="sheet-back saved-back">
-      <div className="saved" role="dialog" aria-modal="true" aria-label={order ? `You saved ${dollars(saving)} by walking` : `You walked to ${shop.name}`}>
+      <div ref={box} className="saved" role="dialog" aria-modal="true" aria-label={order ? `You saved ${dollars(saving)} by walking` : `You walked to ${shop.name}`}>
         <Ad shop={shop} height={150} width="100%" radius={18} />
         <img className="saved-face" src={portraitOf(mascot)} alt="" style={{ borderColor: sectionOf(shop).color }} />
         <p className="saved-verified"><Icon name="check" size={13} stroke={3} />{posted ? 'Verified visit · review posted' : 'Verified visit'}</p>
@@ -80,7 +87,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
           {'share' in navigator
             ? <button type="button" className="btn-ghost" onClick={share}><Icon name="share" size={18} />Share</button>
             : <a className="btn-ghost" href={`#/shop/${shop.slug}`} onClick={onClose}>See the menu</a>}
-          <button type="button" autoFocus className="btn-go" onClick={onClose}><Icon name="check" size={19} />Nice!</button>
+          <button type="button" ref={nice} className="btn-go" onClick={onClose}><Icon name="check" size={19} />Nice!</button>
         </div>
       </div>
     </div>

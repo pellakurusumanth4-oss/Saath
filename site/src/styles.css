@@ -84,6 +84,7 @@ a { color: inherit; }
 .map-fog { position: absolute; left: 0; right: 0; top: 0; height: 34%; background: linear-gradient(180deg, #CFEFFF 0%, rgba(207, 239, 255, .85) 30%, rgba(207, 239, 255, 0) 100%); pointer-events: none; }
 .map-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; font-weight: 700; color: var(--ink-2); background: var(--sky); }
 .maplibregl-ctrl-attrib { font-size: 10px; }
+.is-desktop:has(.panel-right, .trip-sheet, .arrived) .maplibregl-ctrl-bottom-right { right: 460px; }   /* the map credits stay clear of the right panel */
 .spotlight { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 200ms ease; background: radial-gradient(circle at var(--x, 50%) var(--y, 40%), rgba(14, 23, 38, 0) 0 130px, rgba(14, 23, 38, .34) 300px); }
 .spotlight.is-on { opacity: 1; }
 
@@ -133,10 +134,10 @@ a { color: inherit; }
 .ad-glow { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, .14); }
 .ad-art { position: absolute; }
 .ad-glyph { position: absolute; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .15)); }
-.ad-head { position: absolute; width: 58%; font-family: var(--display); font-weight: 800; letter-spacing: -.02em; color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, .12); }
+.ad-head { position: absolute; width: 58%; font-family: var(--display); font-weight: 800; letter-spacing: -.02em; color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, .12), 0 1px 4px rgba(0, 0, 0, .4); }
 .ad-foot { position: absolute; display: flex; align-items: center; max-width: 70%; }
 .ad-foot img { border-radius: 50%; border-style: solid; border-color: #fff; display: block; flex: none; }
-.ad-foot span { font-weight: 700; color: rgba(255, 255, 255, .92); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-foot span { font-weight: 700; color: rgba(255, 255, 255, .92); text-shadow: 0 1px 4px rgba(0, 0, 0, .4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-tag { position: absolute; background: rgba(0, 0, 0, .35); color: #fff; font-weight: 800; letter-spacing: .06em; }
 
 /* ---------- the saving ---------- */
@@ -348,7 +349,7 @@ a { color: inherit; }
 .talk-named .menu-row { border-top: 0; }
 .talk-named-note { display: block; margin: 4px 0 0; font: 600 12px var(--body); color: var(--ink-3); }
 .talk-type { display: flex; gap: 8px; width: 100%; max-width: 520px; margin-top: 10px; }
-.talk-type input { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 14px; font: 600 15px var(--body); }
+.talk-type input { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid #8A93A6; border-radius: 14px; font: 600 15px var(--body); }
 .talk-controls { display: flex; align-items: center; gap: 28px; margin-top: 16px; }
 .mic { width: 76px; height: 76px; border: none; border-radius: 50%; background: var(--go); color: var(--ink); box-shadow: inset 0 -4px 0 var(--go-lip), 0 0 0 10px rgba(91, 227, 143, .2); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .mic.is-on { background: var(--ink); color: var(--go); box-shadow: 0 0 0 10px rgba(14, 23, 38, .12); }
@@ -406,7 +407,7 @@ a { color: inherit; }
 .owner-form, .owner-editor { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .owner-form label, .owner-section label, .owner-grid label { display: flex; flex-direction: column; gap: 4px; font: 700 13px var(--body); color: var(--ink-2); }
 .owner-form input, .owner-form select, .owner-editor input, .owner-editor select, .owner-editor textarea {
-  font: 600 15px var(--body); color: var(--ink); padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); min-width: 0; }
+  font: 600 15px var(--body); color: var(--ink); padding: 10px 12px; border: 1px solid #8A93A6; border-radius: 12px; background: var(--soft); min-width: 0; }
 .owner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .owner-help { margin: 0; font: 500 13px/18px var(--body); color: var(--ink-3); }
 .owner-msg { margin: 4px 0; padding: 9px 12px; border-radius: 12px; background: #FDECEC; color: #B42318; font: 700 13.5px var(--body); }
@@ -450,7 +451,7 @@ a { color: inherit; }
 
 /* ---------- phone vs desktop ---------- */
 
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   /* Room under the buttons for the "Made in Bolt" badge that Bolt's hosting pins to the bottom right. */
   .card .actions, .actions.sticky { padding-bottom: calc(60px + env(safe-area-inset-bottom)); background: #fff; }
   .is-phone .has-selected + .map-fog { display: none; }
@@ -460,10 +461,16 @@ a { color: inherit; }
   .saved { max-height: 100%; }
   .business-title { font-size: 40px; line-height: 44px; }
   .page-sheet { max-width: none; }
+  /* 700-1279 px windows use the phone layout: its sheets and bars keep a phone's width, centred. */
+  .card, .trip-sheet, .trip-top, .walk-banner, .walk-foot, .spot-hint, .spot-actions, .arrived { max-width: 560px; margin: 0 auto; }
+  .card-podium { right: max(8px, calc(50% - 272px)); }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 700px) {
   .talk-hints { flex-wrap: wrap; justify-content: center; }
+}
+
+@media (min-width: 1280px) {
   .page { background: rgba(14, 23, 38, .3); }
   .page-sheet { margin: 24px auto; min-height: auto; border-radius: var(--r-panel); overflow: clip; }
   .business { background: transparent; }

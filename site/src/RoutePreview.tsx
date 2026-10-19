@@ -1,4 +1,5 @@
 // J3a: the walk before it starts: the green route on the 3D map, the time, the steps, and "Start walking".
+import { useEffect } from 'react';
 import { distanceText, ICON, type Route } from './route';
 import { orderOf, type ShopWithMenu } from './shops';
 import { Icon, SaveChip } from './ui';
@@ -8,10 +9,15 @@ export default function RoutePreview({ shop, route, onBack, onStart }: {
 }) {
   const order = orderOf(shop, shop.menu);
   const steps = route?.steps ?? [];
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onBack();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onBack]);
   return (
     <>
       <div className="trip-top">
-        <button type="button" className="icon-btn glass round" onClick={onBack} aria-label="Back to the shop"><Icon name="back" size={21} stroke={2.4} /></button>
+        <button type="button" autoFocus className="icon-btn glass round" onClick={onBack} aria-label="Back to the shop"><Icon name="back" size={21} stroke={2.4} /></button>
         <div className="trip-title glass">Walk to {shop.name}</div>
       </div>
       <section className="trip-sheet" aria-label={`Walking route to ${shop.name}`}>
