@@ -36,7 +36,7 @@ export type Shop = LatLng & {
   ad_schedule: 'always' | 'week' | 'today';
   /** What the saving is worked out on: menu item ids and how many. */
   usual_order: { item: string; qty: number }[];
-  /** Typical delivery + platform + packaging fees on delivery apps, rupees. */
+  /** Typical delivery + platform + packaging fees on delivery apps, dollars. */
   app_fee: number;
   /** Where its billboard stands; empty: beside the shop. */
   board_lat: number | null;
@@ -53,12 +53,12 @@ export type MenuItem = {
   id: string;
   shop_id: string;
   name: string;
-  /** Empty when the shop gives none (a mall's floors) or says it in words in the note ("from 150 rupees"). */
+  /** Empty when the shop gives none (a mall's floors) or says it in words in the note ("from $7.50"). */
   price: number | null;
   /** What the shop says delivery apps charge for it, if it says. */
   app_price: number | null;
   available: boolean;
-  /** The shop's words about it: "contains nuts", "from 150 rupees". */
+  /** The shop's words about it: "contains nuts", "from $7.50". */
   note: string;
   sort: number;
   updated_at: string;
@@ -141,11 +141,10 @@ export function orderOf(shop: Pick<Shop, 'usual_order' | 'app_fee'>, menu: MenuI
   return { names, here, itemsApps, fee: shop.app_fee, apps, saving: apps - here };
 }
 
-/** ₹ as people say it: 1,450 and 48 lakh and 1.15 crore. */
-export function rupees(amount: number): string {
-  if (amount >= 1e7) return `₹${+(amount / 1e7).toFixed(2)} crore`;
-  if (amount >= 1e5) return `₹${+(amount / 1e5).toFixed(2)} lakh`;
-  return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+/** Prices are US dollars (the user's choice, 19 Oct): $3.50 with its cents, $15, $240,000. */
+export function dollars(amount: number): string {
+  const cents = Math.round(amount * 100) / 100;   // sums of cents in floating point (3.9999…) show as $4
+  return `$${cents.toLocaleString('en-US', { minimumFractionDigits: cents % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 
 export function ago(iso: string, now: number): string {

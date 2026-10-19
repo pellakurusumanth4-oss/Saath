@@ -7,7 +7,7 @@ import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
 import { MASCOTS } from './mascots';
-import { db, figureOf, hostOf, orderOf, rupees, sectionOf, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type Status } from './shops';
+import { db, figureOf, hostOf, orderOf, dollars, sectionOf, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type Status } from './shops';
 import { Icon } from './ui';
 import { OwnerNav, TodayCode, TodayVisits, useOwnerDay } from './OwnerToday';
 import Reviews from './Reviews';
@@ -368,10 +368,10 @@ export function ShopEditor({ shop, onPatch, only }: { shop: Shop; onPatch: (patc
             )}
           </div>
           <label>
-            Typical delivery-app fees, ₹
-            <input type="number" min={0} max={200} defaultValue={shop.app_fee} onChange={(event) => {
+            Typical delivery-app fees, $
+            <input type="number" min={0} max={20} step="any" inputMode="decimal" defaultValue={shop.app_fee} onChange={(event) => {
               const fee = event.target.valueAsNumber;
-              if (fee >= 0) saveShop({ app_fee: Math.min(200, Math.round(fee)) });
+              if (fee >= 0) saveShop({ app_fee: Math.min(20, Math.round(fee * 100) / 100) });
             }} />
           </label>
           {menu && <Compare shop={draft} menu={menu} mode="compact" />}
@@ -393,16 +393,16 @@ export function ShopEditor({ shop, onPatch, only }: { shop: Shop; onPatch: (patc
                       if (name) saveItem(item, { name });
                     }} />
                   <label className="owner-money">
-                    Walk-in ₹
+                    Walk-in $
                     <input type="number" min={0} step="any" inputMode="decimal" aria-label={`${item.name}: walk-in price`}
                       defaultValue={item.price ?? ''}
                       onChange={(event) => {
                         const price = event.target.valueAsNumber;
-                        if (price >= 0) saveItem(item, { price }, `${item.name} is now ${rupees(price)}${live && ' · live on your billboard card'}`);
+                        if (price >= 0) saveItem(item, { price }, `${item.name} is now ${dollars(price)}${live && ' · live on your billboard card'}`);
                       }} />
                   </label>
                   <label className="owner-money is-app">
-                    On apps ₹
+                    On apps $
                     <input type="number" min={0} step="any" inputMode="decimal" aria-label={`${item.name}: delivery app price`}
                       defaultValue={item.app_price ?? ''}
                       onChange={(event) => {
@@ -423,8 +423,8 @@ export function ShopEditor({ shop, onPatch, only }: { shop: Shop; onPatch: (patc
           )}
           <form className="owner-row owner-new-item" onSubmit={(event) => void add(event)}>
             <input name="name" required maxLength={60} placeholder="New item" aria-label="New item name" />
-            <label className="owner-money">₹<input name="price" type="number" required min={0} step="any" inputMode="decimal" aria-label="New item walk-in price" /></label>
-            <label className="owner-money is-app">apps ₹<input name="app" type="number" min={0} step="any" inputMode="decimal" aria-label="New item delivery app price" /></label>
+            <label className="owner-money">$<input name="price" type="number" required min={0} step="any" inputMode="decimal" aria-label="New item walk-in price" /></label>
+            <label className="owner-money is-app">apps $<input name="app" type="number" min={0} step="any" inputMode="decimal" aria-label="New item delivery app price" /></label>
             <button className="btn-go small" type="submit">Add</button>
           </form>
         </section>
@@ -513,7 +513,7 @@ export function ShopEditor({ shop, onPatch, only }: { shop: Shop; onPatch: (patc
         </label>
         <label>
           Today’s special
-          <input defaultValue={shop.special} maxLength={140} placeholder="Misal pav with an extra pav, ₹90"
+          <input defaultValue={shop.special} maxLength={140} placeholder="Misal pav with an extra pav, $4.50"
             onChange={(event) => saveShop({ special: event.target.value.trim() })} />
         </label>
         <label>

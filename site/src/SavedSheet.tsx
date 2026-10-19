@@ -1,9 +1,9 @@
-// "You saved ₹X by walking": shown after a verified visit (the counter code), with the review if one was posted.
+// "You saved $X by walking": shown after a verified visit (the counter code), with the review if one was posted.
 // A shop with no usual order (or a sold-out item in it) still gets the verified visit, without a saving.
 import { useEffect, useRef } from 'react';
 import Ad from './Ad';
 import { useCountUp } from './Compare';
-import { hostOf, portraitOf, rupees, sectionOf, type Order, type ShopWithMenu } from './shops';
+import { hostOf, portraitOf, dollars, sectionOf, type Order, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
 
 const MONTH_KEY = () => `saath:saved:${new Date().toISOString().slice(0, 7)}`;
@@ -43,7 +43,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   const thisMonth = month.current.walks.filter((w) => w.day.slice(0, 7) === new Date().toISOString().slice(0, 7)).length;
   const days = fortnight(month.current.walks);
   const top = Math.max(1, ...days);
-  const share = () => void navigator.share?.({ title: 'Saath', text: order ? `I saved ${rupees(saving)} by walking to ${shop.name}` : `I walked to ${shop.name}`, url: `${location.origin}/#/shop/${shop.slug}` }).catch(() => {});
+  const share = () => void navigator.share?.({ title: 'Saath', text: order ? `I saved ${dollars(saving)} by walking to ${shop.name}` : `I walked to ${shop.name}`, url: `${location.origin}/#/shop/${shop.slug}` }).catch(() => {});
   const shown = useCountUp(saving, true);
   const mascot = hostOf(shop);
   useEffect(() => {
@@ -53,14 +53,14 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   }, [onClose]);
   return (
     <div className="sheet-back saved-back">
-      <div className="saved" role="dialog" aria-modal="true" aria-label={order ? `You saved ${rupees(saving)} by walking` : `You walked to ${shop.name}`}>
+      <div className="saved" role="dialog" aria-modal="true" aria-label={order ? `You saved ${dollars(saving)} by walking` : `You walked to ${shop.name}`}>
         <Ad shop={shop} height={150} width="100%" radius={18} />
         <img className="saved-face" src={portraitOf(mascot)} alt="" style={{ borderColor: sectionOf(shop).color }} />
         <p className="saved-verified"><Icon name="check" size={13} stroke={3} />{posted ? 'Verified visit · review posted' : 'Verified visit'}</p>
         <p className="saved-kicker">YOU WALKED TO {shop.name.toUpperCase()}</p>
         {order && (
           <>
-            <p className="saved-amount">{rupees(shown)}</p>
+            <p className="saved-amount">{dollars(shown)}</p>
             <p className="saved-line">saved by walking</p>
             <p className="saved-fine">on your usual order, against delivery apps (typical fees included)</p>
           </>
@@ -72,7 +72,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
           </div>
         )}
         <div className="saved-month">
-          <p><span>This month, on this phone</span><b>{rupees(month.current.total)}</b></p>
+          <p><span>This month, on this phone</span><b>{dollars(month.current.total)}</b></p>
           <div className="saved-days" aria-hidden="true">{days.map((saved, i) => <i key={i} className={saved ? 'is-on' : ''} style={{ height: saved ? 8 + Math.round((16 * saved) / top) : 5 }} />)}</div>
           <span className="saved-walks">{thisMonth} {thisMonth === 1 ? 'walk' : 'walks'} this month</span>
         </div>

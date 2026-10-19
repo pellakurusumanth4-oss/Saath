@@ -40,6 +40,14 @@ test('the live SHOP DATA block: status and its note, today\'s special, offers, a
   assert.ok(shopData({ id: 'x', name: 'Fresh Squeeze', section: 'juice' }).includes('Status: not given'));
 });
 
+test('the website\'s shops are in US dollars: cents shown, big amounts with commas, one dollar singular', () => {
+  const data = shopData({ ...cafe, currency: 'USD', special: 'Kulhad masala chai with a warm bun maska, $3', menu: [{ name: 'Cutting chai', price: 1, appPrice: 1.5, available: true },
+    { name: 'Bun maska', price: 3.5, appPrice: 7, available: true }, { name: '3 BHK, Tower C', price: 575000, available: true }] });
+  for (const part of ['- Cutting chai: 1 dollar (about 1.50 dollars on delivery apps)', '- Bun maska: 3.50 dollars (about 7 dollars on delivery apps)', '- 3 BHK, Tower C: 575,000 dollars'])
+    assert.ok(data.includes(part), part);
+  assert.ok(!data.includes('rupees') && !data.includes('lakh'), data);
+});
+
 test('what the database leaves empty (null, or an empty note) counts as not given, as bolt.one\'s loader sends it', () => {
   const row = { id: 'wada-chai-katta', name: 'Wada Chai Katta', section: 'cafe', story: null, special: null, status: 'busy', statusNote: '',
     menu: [{ name: 'Misal pav', price: 80, appPrice: 139, available: true }, { name: 'Chai', price: 20, appPrice: null, available: true }], mascot: { name: null, voice: 'LFWwdLzOs2fj7AQXGqNp' } };

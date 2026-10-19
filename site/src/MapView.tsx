@@ -8,7 +8,7 @@ import type { FeatureCollection, Point } from 'geojson';
 import { MAP_STYLE } from '../../src/mapStyle';
 import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
-import { boardOf, hostOf, orderOf, portraitOf, rupees, sectionOf, type ShopWithMenu } from './shops';
+import { boardOf, hostOf, orderOf, portraitOf, dollars, sectionOf, type ShopWithMenu } from './shops';
 import { Icon, SaveChip } from './ui';
 
 /** Where the map opens: JM Road and Apte Road, where five demo shops stand close together. */
@@ -380,7 +380,7 @@ function Pin({ shop, saving, selected, dim, index, onPick }: {
   return (
     <button type="button" className={`pin is-${state}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
       style={{ '--c': sectionOf(shop).color, '--i': index } as CSSProperties}
-      aria-label={`${shop.name}, ${state}${saving ? `, save ${rupees(saving)}` : ''}`}
+      aria-label={`${shop.name}, ${state}${saving ? `, save ${dollars(saving)}` : ''}`}
       onClick={(event) => {
         event.stopPropagation();
         onPick();

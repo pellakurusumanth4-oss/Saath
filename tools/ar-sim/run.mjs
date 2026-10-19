@@ -58,18 +58,18 @@ const touch = (tab, type, xy) => tab.send('Input.dispatchTouchEvent', { type, to
 
 // A made-up shop for the shop-menu scenario, as Supabase's REST API returns it, and the reply he gives about it: the
 // recorded one, with its cue marked menu and its first sentence naming the chai (the words drive the card, not the sound).
-// Its usual order (2 masala chai + bun maska) is ₹90 walking in against ₹118 at its app prices + ₹50 fees: save ₹78.
-const SHOP = { name: 'Kettle & Kulhad', section: 'cafe', status: 'busy', status_note: 'about a 10 min wait', app_fee: 50,
+// Its usual order (2 masala chai + bun maska) is $4.50 walking in against $6 at its app prices + $2.50 fees: save $4.
+const SHOP = { name: 'Kettle & Kulhad', section: 'cafe', status: 'busy', status_note: 'about a 10 min wait', app_fee: 2.5,
   usual_order: [{ item: 'chai', qty: 2 }, { item: 'bun', qty: 1 }], menu_items: [
-  { id: 'chai', name: 'Masala Chai', price: 25, app_price: 33, available: true, sort: 1 },
-  { id: 'bun', name: 'Bun Maska', price: 40, app_price: 52, available: true, sort: 2 },
-  { id: 'poha', name: 'Poha', price: 35, app_price: null, available: false, sort: 3 }] };
+  { id: 'chai', name: 'Masala Chai', price: 1.25, app_price: 1.75, available: true, sort: 1 },
+  { id: 'bun', name: 'Bun Maska', price: 2, app_price: 2.5, available: true, sort: 2 },
+  { id: 'poha', name: 'Poha', price: 1.75, app_price: null, available: false, sort: 3 }] };
 const META = `new MutationObserver((_, ob) => { if (!document.head) return; ob.disconnect();
   const m = Object.assign(document.createElement('meta'), { name: 'saath-api', content: 'https://sim.supabase.co/functions/v1/ar' });
   m.dataset.key = 'sim-public-key'; document.head.append(m); }).observe(document, { childList: true, subtree: true });`;
 const shopReply = (plan) => {
   let named = false;
-  return { ...plan, lines: plan.lines.map(([ms, l]) => [ms, l.type === 'cue' ? { ...l, menu: true } : l.type === 'audio' && !named && (named = true) ? { ...l, text: 'The masala chai is twenty-five rupees today.' } : l]) };
+  return { ...plan, lines: plan.lines.map(([ms, l]) => [ms, l.type === 'cue' ? { ...l, menu: true } : l.type === 'audio' && !named && (named = true) ? { ...l, text: 'The masala chai is a dollar twenty-five today.' } : l]) };
 };
 
 // A recorded reply from ~/.cache/saath-recovery/talk (the given one, else the mascot's own, else the shop-café reply), streamed as the
@@ -215,7 +215,7 @@ function judge({ name, friend, sc, room, sim, errors, leaked, gl }) {
   if (sc.shop && asked) {
     const R = L.filter((r) => r.t >= asked.t), shown = R.filter((r) => r.menu), lit = shown.find((r) => r.menu.includes('*Masala Chai'));
     check('a menu answer shows the card, the item he names highlighted', !!lit, { cards: [...new Set(shown.map((r) => r.menu.join(' | ')))].slice(0, 3) });
-    check('the card shows how busy the shop is and the usual order’s saving', shown.some((r) => r.status === '~10 min' && r.save === 'Save ₹78'),
+    check('the card shows how busy the shop is and the usual order’s saving', shown.some((r) => r.status === '~10 min' && r.save === 'Save $4'),
       { status: dedupe(shown.map((r) => r.status)), save: dedupe(shown.map((r) => r.save)) });
     check('the card goes again after he finishes', shown.length && !R.at(-1).menu, { lastCard: R.at(-1).menu });
   }

@@ -2,12 +2,12 @@
 // against last week, what walk-ins saved, what the shop would pay per verified visit (an example rate, labelled as
 // one), and on a computer the dashboard's side menu.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { db, hostOf, portraitOf, rupees, sectionOf, type Shop } from './shops';
+import { db, hostOf, portraitOf, dollars, sectionOf, type Shop } from './shops';
 import { keepAwake } from './walking';
 import { Icon } from './ui';
 
 type Day = { day: string; visits: number };
-const RATE = 5; // ₹ per verified visit: an example, shown as one
+const RATE = 0.25; // dollars per verified visit: an example, shown as one
 
 /** Today's code and the last 14 days of verified visits (refreshed every 30 s while the page is in view). */
 export function useOwnerDay(shopId: string) {
@@ -75,11 +75,11 @@ export function TodayVisits({ days, saving }: { days: Day[] | null; saving: numb
         </div>
       </section>
       <div className="owner-tiles">
-        <div className="owner-tile is-save"><span>Walk-ins saved</span><b>{rupees(total * saving)}</b><small>vs delivery apps this week</small></div>
+        <div className="owner-tile is-save"><span>Walk-ins saved</span><b>{dollars(total * saving)}</b><small>vs delivery apps this week</small></div>
         <div className="owner-tile is-pay">
           <span>You pay only for verified visits <em>example rate</em></span>
-          <b>{rupees(total * RATE)}</b>
-          <small>{total} × ₹{RATE} this week. No visit, no charge. Your mascot and billboard are included.</small>
+          <b>{dollars(total * RATE)}</b>
+          <small>{total} × {dollars(RATE)} this week. No visit, no charge. Your mascot and billboard are included.</small>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 // The usual order's saving: the shop's own app prices + typical app fees against walking in, and how it's worked out.
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ago, orderOf, rupees, updatedAt, type MenuItem, type Order, type Shop } from './shops';
+import { ago, orderOf, dollars, updatedAt, type MenuItem, type Order, type Shop } from './shops';
 import { Icon, SaveChip } from './ui';
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -20,7 +20,7 @@ export function useCountUp(target: number, go: boolean): number {
     let frame = 0;
     const step = (t: number) => {
       const k = Math.min(1, (t - start) / 400);
-      setValue(Math.round(target * (1 - (1 - k) ** 3)));
+      setValue(Math.round(target * (1 - (1 - k) ** 3) * 100) / 100);   // to the cent: $3.90 must not end as $4
       if (k < 1) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
@@ -37,13 +37,13 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
   const shown = useCountUp(order?.saving ?? 0, countUp);
   if (!order) return null;
   const off = shop.status === 'closed';
-  if (mode === 'line') return <div className="cmp-line"><s>{rupees(order.apps)} apps</s> → <b>{rupees(order.here)} here</b></div>;
+  if (mode === 'line') return <div className="cmp-line"><s>{dollars(order.apps)} apps</s> → <b>{dollars(order.here)} here</b></div>;
   if (mode === 'compact') {
     return (
       <div className={`cmp-compact${off ? ' is-off' : ''}`}>
         <div className="cmp-compact-text">
           <div className="cmp-label">USUAL ORDER · {order.names.toUpperCase()}</div>
-          <div className="cmp-compact-sum"><s>{rupees(order.apps)} on apps</s> → <b>{rupees(order.here)} here</b></div>
+          <div className="cmp-compact-sum"><s>{dollars(order.apps)} on apps</s> → <b>{dollars(order.here)} here</b></div>
         </div>
         <SaveChip amount={order.saving} size="l" grey={off} />
       </div>
@@ -56,14 +56,14 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
         <button type="button" className="cmp-how" onClick={() => setHow(true)}><Icon name="info" size={13} />How?</button>
       </div>
       <div className="cmp-main">
-        <div className="cmp-apps"><span>Delivery apps</span><s>{rupees(order.apps)}</s></div>
+        <div className="cmp-apps"><span>Delivery apps</span><s>{dollars(order.apps)}</s></div>
         <Icon name="arrow" size={17} />
-        <div className="cmp-here"><span>Walk in</span><b>{rupees(order.here)}</b></div>
+        <div className="cmp-here"><span>Walk in</span><b>{dollars(order.here)}</b></div>
         <span className="cmp-gap" />
-        <div className="cmp-save"><span>you save</span><b>{rupees(shown)}</b></div>
+        <div className="cmp-save"><span>you save</span><b>{dollars(shown)}</b></div>
       </div>
       <div className="cmp-fine">
-        {rupees(order.itemsApps)} at the shop’s app prices + ~{rupees(order.fee)} typical app fees{walk ? ` · walk ${walk}` : ''}
+        {dollars(order.itemsApps)} at the shop’s app prices + ~{dollars(order.fee)} typical app fees{walk ? ` · walk ${walk}` : ''}
       </div>
       {/* On body: the card's backdrop-filter would otherwise trap the fixed sheet inside the card. */}
       {how && createPortal(<HowSheet shop={shop} order={order} updated={updatedAt(menu)} onClose={() => setHow(false)} />, document.body)}
@@ -83,13 +83,13 @@ export function HowSheet({ shop, order, updated, onClose }: { shop: Shop; order:
         </div>
         <ul className="how-points">
           <li><Icon name="tag" /><div><b>App prices come from the shop</b>{shop.name} enters what it charges on delivery apps for each item, next to its counter price.</div></li>
-          <li><Icon name="receipt" /><div><b>App fees are typical, not exact</b>About ₹30 delivery + ₹10 platform + ₹10 packaging. Your app shows the real amount at checkout.</div></li>
+          <li><Icon name="receipt" /><div><b>App fees are typical, not exact</b>About $1.50 delivery + 50¢ platform + 50¢ packaging. Your app shows the real amount at checkout.</div></li>
           <li><Icon name="walk" /><div><b>Walking there costs nothing</b>You pay the counter price and skip the fees.</div></li>
         </ul>
         <div className="how-example">
           <span>{order.names}</span>
-          <span>Apps {rupees(order.itemsApps)} + ~{rupees(order.fee)} fees = {rupees(order.apps)} · walk in {rupees(order.here)}</span>
-          <b>You save {rupees(order.saving)}</b>
+          <span>Apps {dollars(order.itemsApps)} + ~{dollars(order.fee)} fees = {dollars(order.apps)} · walk in {dollars(order.here)}</span>
+          <b>You save {dollars(order.saving)}</b>
         </div>
         <p className="how-fine">Saath isn’t linked to any delivery app.{updated ? ` Prices updated ${ago(updated, Date.now())} by the shop.` : ''}</p>
         <button type="button" className="btn-go wide" onClick={onClose}>Got it</button>

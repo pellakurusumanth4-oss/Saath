@@ -21,7 +21,7 @@ export async function loadShop(db, slug) {
     offers: data.offers.filter((offer) => offer.trim() && offer.length <= 200).slice(0, 5),
     status: data.status,
     statusNote: data.status_note,
-    currency: 'INR',
+    currency: 'USD',   // the website's prices are US dollars (migration 20261019160000)
     // The prompts reject a blank name, which the database allows (one space), so those items are left out.
     menu: data.menu_items
       .filter((item) => item.name.trim())

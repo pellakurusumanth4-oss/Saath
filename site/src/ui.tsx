@@ -1,7 +1,7 @@
 // City Day's small shared parts: icons, chips, the mascot on its podium and a menu row (the design session's kit).
 import type { CSSProperties, ReactNode } from 'react';
 import type { Mascot } from './mascots';
-import { ago, figureOf, rupees, statusText, type MenuItem, type Shop } from './shops';
+import { ago, figureOf, dollars, statusText, type MenuItem, type Shop } from './shops';
 
 const PATHS: Record<string, ReactNode> = {
   mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
@@ -47,7 +47,7 @@ export function Icon({ name, size = 20, color = 'currentColor', stroke = 2.2 }: 
 }
 
 export function SaveChip({ amount, size = 'm', grey = false }: { amount: number; size?: 's' | 'm' | 'l'; grey?: boolean }) {
-  return <span className={`save save-${size}${grey ? ' is-grey' : ''}`}>Save {rupees(amount)}</span>;
+  return <span className={`save save-${size}${grey ? ' is-grey' : ''}`}>Save {dollars(amount)}</span>;
 }
 
 export function StatusChip({ shop }: { shop: Pick<Shop, 'status' | 'status_note'> }) {
@@ -97,10 +97,10 @@ export function MenuRow({ item, color, today = false, highlight = false, flash =
         <b>{item.name}</b>
         {item.note && <span>{item.note}</span>}
       </div>
-      {out ? <span className="sold-out">Sold out today</span> : saving > 0 && <span className="menu-row-save">−{rupees(saving)}</span>}
+      {out ? <span className="sold-out">Sold out today</span> : saving > 0 && <span className="menu-row-save">−{dollars(saving)}</span>}
       <div className="menu-row-price">
-        {item.price !== null && <b className={out ? 'is-struck' : ''}>{item.price === 0 ? 'Free' : rupees(item.price)}</b>}
-        {!out && item.app_price !== null && item.price !== null && <s>{rupees(item.app_price)} apps</s>}
+        {item.price !== null && <b className={out ? 'is-struck' : ''}>{item.price === 0 ? 'Free' : dollars(item.price)}</b>}
+        {!out && item.app_price !== null && item.price !== null && <s>{dollars(item.app_price)} apps</s>}
       </div>
     </div>
   );

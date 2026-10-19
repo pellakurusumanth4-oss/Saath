@@ -14,12 +14,12 @@ const fakeDb = (row, asked = {}) => ({
 
 const row = {
   slug: 'sarasbaug-misal-house', name: 'Sarasbaug Misal House', section: 'restaurant', friend: 'rosa', story: '',
-  area: 'Sarasbaug, Swargate', special: 'Misal pav with an extra pav, ₹90', status: 'busy', status_note: 'About a 10 min wait',
+  area: 'Sarasbaug, Swargate', special: 'Misal pav with an extra pav, $4.50', status: 'busy', status_note: 'About a 10 min wait',
   offers: ['Saath walkers get a free papad', ' ', 'x'.repeat(201)],
   menu_items: [
-    { name: 'Kokum sharbat', price: 30, app_price: 59, available: true, note: '', sort: 3 },
-    { name: 'Parking', price: null, app_price: null, available: true, note: '30 rupees an hour', sort: 4 },
-    { name: 'Misal pav', price: 80, app_price: 139, available: true, sort: 1 },
+    { name: 'Kokum sharbat', price: 1.5, app_price: 3, available: true, note: '', sort: 3 },
+    { name: 'Parking', price: null, app_price: null, available: true, note: '$1.50 an hour', sort: 4 },
+    { name: 'Misal pav', price: 4, app_price: 7, available: true, sort: 1 },
     { name: ' ', price: 10, app_price: null, available: true, sort: 2 },
     { name: 'Sabudana vada', price: 50, app_price: null, available: false, sort: 2 },
   ],
@@ -35,11 +35,11 @@ test('a shop row becomes what the mascot prompts take, its live facts in the SHO
   assert.match(mascotPrompt(shop), /mascot of Sarasbaug Misal House/);
   const live = shopData(shop);
   assert.match(live, /Status: busy \(About a 10 min wait\)/);
-  assert.match(live, /Misal pav: 80 rupees \(about 139 rupees on delivery apps\)/);
+  assert.match(live, /Misal pav: 4 dollars \(about 7 dollars on delivery apps\)/);
   assert.match(live, /Sabudana vada: sold out/);
-  assert.match(live, /Today's special: Misal pav with an extra pav, ₹90/);
+  assert.match(live, /Today's special: Misal pav with an extra pav, \$4\.50/);
   assert.match(live, /- Saath walkers get a free papad/);
-  assert.match(live, /- Parking \(30 rupees an hour\)/);
+  assert.match(live, /- Parking \(\$1\.50 an hour\)/);
   assert.match(mascotPrompt(shop), /Area: Sarasbaug, Swargate/);
 });
 

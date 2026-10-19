@@ -300,8 +300,8 @@ const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.
   { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
   .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
 loadShop();
-// ₹ as people say it, as on the site (site/src/shops.ts rupees): 1,450 and 48 lakh and 1.15 crore.
-const rupees = (p) => (p >= 1e7 ? `₹${+(p / 1e7).toFixed(2)} crore` : p >= 1e5 ? `₹${+(p / 1e5).toFixed(2)} lakh` : `₹${Number(p).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
+// Prices are US dollars, as on the site (site/src/shops.ts dollars): $3.50 with its cents, $15, $240,000.
+const dollars = (p) => { const c = Math.round(Number(p) * 100) / 100; return `$${c.toLocaleString('en-US', { minimumFractionDigits: c % 1 ? 2 : 0, maximumFractionDigits: 2 })}`; };
 // The site's section colours (site/src/shops.ts SECTIONS): the named row is tinted in the shop's.
 const SECTION_COLOURS = { restaurant: '#E5533D', cafe: '#14897C', juice: '#7CB82F', bakery: '#8C5A3C', grocery: '#2E8B57', streetfood: '#E8A317',
   boutique: '#7B4BA8', mall: '#F28C28', realestate: '#23395B', salon: '#E35D9A', pharmacy: '#1AA3C2', books: '#8E6B3E', electronics: '#3D5AFE', gym: '#D9480F', hotel: '#0B7285' };
@@ -332,9 +332,9 @@ const rowOf = (i) => {
   const d = el('div', `row${on ? ' on' : ''}${i.available ? '' : ' out'}`), n = el('div', 'n'), p = el('div', 'p');
   n.append(el('b', '', i.name));
   if (on) n.append(el('span', '', `${NAME} is naming this one`));
-  if (i.price != null) p.append(el('b', '', +i.price === 0 ? 'Free' : rupees(i.price)));
-  if (cut) p.append(el('s', '', `${rupees(i.app_price)} apps`));
-  d.append(n, ...(i.available ? (cut ? [el('span', 'cut', `−${rupees(cut)}`)] : []) : [el('span', 'sold', 'Sold out today')]), p);
+  if (i.price != null) p.append(el('b', '', +i.price === 0 ? 'Free' : dollars(i.price)));
+  if (cut) p.append(el('s', '', `${dollars(i.app_price)} apps`));
+  d.append(n, ...(i.available ? (cut ? [el('span', 'cut', `−${dollars(cut)}`)] : []) : [el('span', 'sold', 'Sold out today')]), p);
   return d;
 };
 const drawMenu = () => {
@@ -348,9 +348,9 @@ const drawMenu = () => {
   const order = orderOf(shop), sum = order && el('div', 'sum');
   if (order) {
     const t = el('div', 't'), line = el('div', 's');
-    line.append(el('s', '', `${rupees(order.apps)} on apps`), ' → ', el('b', '', `${rupees(order.here)} here`));
+    line.append(el('s', '', `${dollars(order.apps)} on apps`), ' → ', el('b', '', `${dollars(order.here)} here`));
     t.append(el('div', 'l', `USUAL ORDER · ${order.names.toUpperCase()}`), line);
-    sum.append(t, el('span', 'save', `Save ${rupees(order.apps - order.here)}`));
+    sum.append(t, el('span', 'save', `Save ${dollars(order.apps - order.here)}`));
   }
   menuEl.style.setProperty('--c', SECTION_COLOURS[shop.section] ?? '#14897C');
   menuEl.replaceChildren(head, ...show.map(rowOf), ...(sum ? [sum] : []));
