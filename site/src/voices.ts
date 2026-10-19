@@ -11,12 +11,8 @@ export type FriendVoice = {
   fallback: VoiceSettings;
 };
 
-export const VOICES: Record<string, FriendVoice> = {
-  doraemon: { kokoro: { voice: 'af_bella', rate: 1.15 }, fallback: { pitch: 1.4, rate: 1.0 } },
-  nobita: { kokoro: { voice: 'af_sky', rate: 1.1 }, fallback: { pitch: 1.2, rate: 0.95 } },
-  shinchan: { kokoro: { voice: 'af_nicole', rate: 0.95 }, fallback: { pitch: 1.8, rate: 1.15 } },
-  goku: { kokoro: { voice: 'am_puck', rate: 1.1 }, fallback: { pitch: 0.9, rate: 1.05 } },
-};
+// None yet: the mascots speak in their own ElevenLabs voices, else in the browser's own voice.
+export const VOICES: Record<string, FriendVoice> = {};
 
 const SOUND_PREF_KEY = 'saath-talk-sound';
 

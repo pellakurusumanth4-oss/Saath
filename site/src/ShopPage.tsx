@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react';
+// A shop's own page (#/shop/<slug>): its ad, its mascot, the saving, its billboard on the map, the whole live menu.
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import maplibregl from 'maplibre-gl';
+import { MAP_STYLE } from '../../src/mapStyle';
 import type { LatLng } from '../../src/geo';
-import TalkPanel from './TalkPanel';
-import { ago, AR_READY, bestSaving, hostOf, portraitOf, rupees, sectionOf, STATUS_LABEL, useShop, walkMinutes } from './shops';
+import Ad from './Ad';
+import Compare from './Compare';
+import MapBoundary from './MapBoundary';
+import { AR_READY, boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
+import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 
-/** A shop's own page (#/shop/<slug>): live status, today's special and menu, the walk and the saving, and its mascot. */
-export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null }) {
+export default function ShopPage({ slug, me, onTalk, onWalk }: {
+  slug: string; me: LatLng | null; onTalk: (shopId: string) => void; onWalk: (shopId: string) => void;
+}) {
   const { shop, menu, missing } = useShop(slug);
   const [now, setNow] = useState(() => Date.now());
-  const [talking, setTalking] = useState(false);
-
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(tick);
@@ -16,104 +22,97 @@ export default function ShopPage({ slug, me }: { slug: string; me: LatLng | null
 
   if (!shop) {
     return (
-      <div className="shop-page" role="dialog" aria-label="Shop">
-        <div className="shop-sheet">
-          <a className="shop-back" href="#/">← Map</a>
-          <p className="shop-note">{missing ? 'There’s no shop at this link.' : 'Loading the shop…'}</p>
-        </div>
+      <div className="page" role="dialog" aria-label="Shop">
+        <div className="page-sheet"><a className="back-link" href="#/">← Map</a><p className="note">{missing ? 'There’s no shop at this link.' : 'Loading the shop…'}</p></div>
       </div>
     );
   }
 
-  const host = hostOf(shop);
+  const mascot = hostOf(shop);
   const section = sectionOf(shop);
-  const saving = bestSaving(menu);
-  const updated = menu.reduce((newest, item) => (item.updated_at > newest ? item.updated_at : newest), '');
-  const walk = me ? walkMinutes(me, shop) : null;
-  const ar = `/ar/?${new URLSearchParams({ shop: shop.slug, friend: host.id, name: host.name, tall: String(host.tall) })}`;
+  const off = shop.status === 'closed';
+  const share = () => {
+    const url = window.location.href;
+    if (navigator.share) void navigator.share({ title: shop.name, url }).catch(() => {});
+    else void navigator.clipboard?.writeText(url);
+  };
 
   return (
-    <div className="shop-page" role="dialog" aria-label={shop.name}>
-      <div className="shop-sheet" style={{ ['--section' as string]: section.color }}>
-        <a className="shop-back" href="#/">← Map</a>
-
-        <header className="shop-head">
-          <img className="shop-host" src={portraitOf(host)} alt={`${host.name}, the mascot`} width={84} height={84} />
-          <div>
-            <p className="shop-section">
-              {section.icon} {section.label}
-              {shop.demo && <span className="demo-badge" title="Made up for the Saath demo: there's no shop here">Demo shop</span>}
-            </p>
-            <h2 className="shop-name">{shop.name}</h2>
-            {shop.area && <p className="shop-area">{shop.area}</p>}
-            <p className={`shop-status is-${shop.status}`}>
-              {STATUS_LABEL[shop.status]}
-              {shop.status_note && <span> · {shop.status_note}</span>}
-            </p>
-          </div>
-        </header>
-
-        {(walk !== null || saving) && (
-          <p className="shop-walk">
-            {walk !== null && <strong>Walk {walk} min</strong>}
-            {walk !== null && saving && ' · '}
-            {saving && <strong>save {rupees(saving.saving)}</strong>}
-            {saving && <span> on {saving.item.name} vs delivery apps</span>}
-          </p>
-        )}
-        {walk === null && <p className="shop-hint">Tap “Where am I” on the map to see how far a walk it is.</p>}
-
-        {shop.special && (
-          <section className="shop-special">
-            <h3>Today’s special</h3>
-            <p>{shop.special}</p>
-          </section>
-        )}
-        {shop.offers.length > 0 && (
-          <ul className="shop-offers">
-            {shop.offers.map((offer) => <li key={offer}>{offer}</li>)}
-          </ul>
-        )}
-
-        <div className="shop-actions">
-          <button className="btn" onClick={() => setTalking(true)}>Talk to {host.name}</button>
-          {AR_READY.has(host.id) && <a className="btn btn-plain" href={ar}>Meet {host.name} in AR</a>}
+    <div className="page shop-page" role="dialog" aria-label={shop.name} style={{ '--c': section.color } as CSSProperties}>
+      <div className="page-sheet">
+        <div className="shop-hero">
+          <Ad shop={shop} height={262} width="100%" off={off} radius={0} className="hero-ad" />
+          <a className="icon-btn glass hero-back" href="#/" aria-label="Back to the map"><Icon name="back" /></a>
+          <button type="button" className="icon-btn glass hero-share" onClick={share} aria-label="Share"><Icon name="share" /></button>
         </div>
-        {AR_READY.has(host.id) && <p className="shop-hint">AR works in Chrome on Android.</p>}
+        <div className="shop-body">
+          <Podium mascot={mascot} color={section.color} grey={off} height={150} className="shop-podium" />
+          <p className="card-section">{section.label.toUpperCase()}{shop.demo && <> · <em className="demo">DEMO SHOP</em></>}</p>
+          <h1 className="shop-title">{shop.name}</h1>
+          {shop.area && <p className="shop-area">{shop.area}</p>}
+          <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(menu)} now={now} grey={off} /></div>
+          <Compare shop={shop} menu={menu} mode="full" walk={walkText(me, shop)} countUp />
+          {shop.special && <p className="today-line"><span className="today" style={{ background: section.color }}>TODAY</span>{shop.special}</p>}
+          {shop.offers.length > 0 && <ul className="offers">{shop.offers.map((offer) => <li key={offer}>{offer}</li>)}</ul>}
 
-        <section className="shop-menu">
-          <div className="shop-menu-head">
-            <h3>Menu</h3>
-            {updated && <span className="shop-updated">Updated {ago(updated, now)}</span>}
+          <h2 className="block-title">Their billboard on the map</h2>
+          <MapBoundary fallback={<Ad shop={shop} height={160} width="100%" off={off} />}>
+            <BoardPreview shop={shop} off={off} />
+          </MapBoundary>
+
+          <h2 className="block-title">Menu</h2>
+          <div className="menu-rows full">
+            {menu.length === 0 && <p className="note">The menu isn’t up yet.</p>}
+            {menu.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}
           </div>
-          {menu.length === 0 && <p className="shop-note">The menu isn’t up yet.</p>}
-          <ul>
-            {menu.map((item) => (
-              <li key={item.id} className={item.available ? '' : 'is-out'}>
-                <span className="shop-item">
-                  {item.name}
-                  {item.note && <small>{item.note}</small>}
-                </span>
-                {item.available ? (
-                  <span className="shop-price">
-                    {item.price === null ? '' : item.price === 0 ? 'Free' : rupees(item.price)}
-                    {item.price !== null && item.app_price !== null && item.app_price > item.price && (
-                      <s title="What delivery apps charge, says the shop">{rupees(item.app_price)} on apps</s>
-                    )}
-                  </span>
-                ) : (
-                  <span className="shop-price">Not today</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          <p className="shop-fine">Prices are the shop’s own; app prices are what the shop says delivery apps charge.</p>
-        </section>
-
-        {shop.story && <p className="shop-story">{shop.story}</p>}
+          <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>
+          {shop.story && <div className="story"><b>The story</b><p>{shop.story}</p></div>}
+        </div>
+        <div className="actions sticky">
+          <button type="button" className="btn-dark" onClick={() => onTalk(shop.id)}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
+          {AR_READY.has(mascot.id) && (
+            <a className="btn-ghost square" aria-label={`Meet ${mascot.name} in AR`}
+              href={`/ar/?${new URLSearchParams({ shop: shop.slug, friend: mascot.id, name: mascot.name, tall: String(mascot.tall) })}`}><Icon name="ar" size={19} /></a>
+          )}
+          {off
+            ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>
+            : <button type="button" className="btn-go" onClick={() => onWalk(shop.id)}><Icon name="walk" size={19} />Walk{me ? ` · ${walkMinutes(me, shop)} min` : ''}</button>}
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {talking && <TalkPanel friend={host} shop={{ slug: shop.slug, name: shop.name }} onClose={() => setTalking(false)} />}
+/** A small tilted look at the shop's billboard where it stands (not interactive). */
+function BoardPreview({ shop, off }: { shop: Shop; off: boolean }) {
+  const box = useRef<HTMLDivElement | null>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!box.current) return;
+    const spot = boardOf(shop);
+    const map = new maplibregl.Map({
+      container: box.current, style: MAP_STYLE as maplibregl.StyleSpecification, center: [spot.lng, spot.lat],
+      zoom: 16.9, pitch: 56, bearing: -17, interactive: false, attributionControl: false,
+    });
+    const element = document.createElement('div');
+    const marker = new maplibregl.Marker({ element, anchor: 'bottom' }).setLngLat([spot.lng, spot.lat]).addTo(map);
+    element.removeAttribute('aria-label');
+    setSlot(element);
+    return () => {
+      marker.remove();
+      map.remove();
+    };
+    // One preview per shop page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop.id]);
+  return (
+    <div className="board-preview">
+      <div ref={box} className="board-preview-map" />
+      {slot && createPortal(
+        <div className={`board is-still${off ? ' is-off' : ''}`}>
+          <span className="board-shadow" /><span className="board-pole" />
+          <span className="board-panel"><span className="board-lamps"><i /><i /><i /></span><span className="board-frame"><Ad shop={shop} height={90} off={off} radius={2} /></span><span className="board-walk" /></span>
+        </div>, slot)}
     </div>
   );
 }

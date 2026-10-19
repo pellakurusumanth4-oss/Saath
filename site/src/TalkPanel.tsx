@@ -1,270 +1,181 @@
-import { useEffect, useRef, useState } from 'react';
+// Talk to a shop's mascot, voice only: no transcript on screen (screen readers still get every reply, and it shows
+// when the sound is off). The mascot answers from the shop's live data in its own voice.
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import Compare from './Compare';
 import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
-import { loadSoundPref, saveSoundPref, speechVoicesReady, VOICES } from './voices';
-import { elevenAvailable, kokoroUnavailable, loadKokoro, speakReply, stopAllSpeaking, subscribeKokoroState, type KokoroStatus, type SpeakHandle } from './kokoro';
+import { loadSoundPref, saveSoundPref } from './voices';
+import { speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
+import { AR_READY, hostOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
+import { Icon, MenuRow, Podium } from './ui';
 
-type PanelMessage = ChatMessage & { replayable?: boolean };
-
-type Chip = { label: string; send: string };
-
-// The mascot answers about its shop: the menu, prices, today's special and how busy it is.
-const SHOP_STARTERS: Chip[] = [
-  { label: 'What’s good today?', send: 'What’s good here today?' },
-  { label: 'Is it busy?', send: 'Is it busy right now?' },
+const HINTS = [
   { label: 'How much do I save?', send: 'How much do I save if I walk over instead of ordering on a delivery app?' },
+  { label: 'What’s on the board?', send: 'What’s on your billboard today?' },
+  { label: 'Is it busy?', send: 'Is it busy right now?' },
+  { label: 'What’s good today?', send: 'What’s good here today?' },
 ];
 
-export default function TalkPanel({ friend, shop, onClose, onReplySpoken }: {
-  /** The shop's mascot; its id picks its voice. */
-  friend: { id: string; name: string };
-  shop: { slug: string; name: string };
-  onClose: () => void;
-  onReplySpoken?: () => void;
-}) {
-  const [messages, setMessages] = useState<PanelMessage[]>([]);
-  const [draft, setDraft] = useState('');
-  const [waiting, setWaiting] = useState(false);
-  const [listening, setListening] = useState(false);
+/** The menu item a reply names (the longest name it contains), to light up its row. */
+const namedIn = (reply: string, menu: MenuItem[]) =>
+  [...menu].sort((a, b) => b.name.length - a.name.length).find((item) => reply.toLowerCase().includes(item.name.toLowerCase())) ?? null;
+
+type State = 'idle' | 'listening' | 'thinking' | 'talking';
+
+export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClose: () => void }) {
+  const mascot = hostOf(shop);
+  const section = sectionOf(shop);
+  const name = mascot.name.split(' ').pop()!;
+  const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [state, setState] = useState<State>('idle');
+  const [reply, setReply] = useState('');
+  const [named, setNamed] = useState<MenuItem | null>(null);
   const [soundOn, setSoundOn] = useState(() => loadSoundPref());
   const [error, setError] = useState<string | null>(null);
-  const [noVoices, setNoVoices] = useState(false);
-  const [micHint, setMicHint] = useState<string | null>(null);
-  const [voiceLoading, setVoiceLoading] = useState(false);
-  const [kokoroState, setKokoroState] = useState<KokoroStatus>('idle');
-  const scroller = useRef<HTMLDivElement | null>(null);
+  const [typing, setTyping] = useState(() => !speechSupported());
+  const [draft, setDraft] = useState('');
   const recognition = useRef<RecognitionHandle | null>(null);
-  const currentSpeak = useRef<SpeakHandle | null>(null);
+  const speaking = useRef<SpeakHandle | null>(null);
+  const historyRef = useRef(history);
+  historyRef.current = history;
 
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [messages, waiting]);
-
-  // Kick off Kokoro load as soon as a chat opens, so the first reply can use it.
-  // With ElevenLabs set up, skip the 90 MB Kokoro download entirely.
-  useEffect(() => {
-    if (kokoroUnavailable()) return;
-    let active = true;
-    void elevenAvailable().then((eleven) => {
-      if (eleven || !active) return;
-      setVoiceLoading(true);
-      loadKokoro()
-        .catch(() => { /* state subscription marks it unavailable */ })
-        .finally(() => { if (active) setVoiceLoading(false); });
-    });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => subscribeKokoroState(setKokoroState), []);
-
-  // Cancel any playback when the chat closes.
-  useEffect(() => () => {
-    currentSpeak.current?.cancel();
-    currentSpeak.current = null;
+  const hush = () => {
+    speaking.current?.cancel();
+    speaking.current = null;
     stopAllSpeaking();
+  };
+  useEffect(() => () => {
+    recognition.current?.stop();
+    hush();
   }, []);
-
   useEffect(() => {
-    const synth = window.speechSynthesis;
-    if (!synth) {
-      setNoVoices(true);
-      return;
-    }
-    if (speechVoicesReady()) return;
-    const check = setTimeout(() => setNoVoices(!speechVoicesReady()), 2000);
-    const onVoicesChanged = () => {
-      if (speechVoicesReady()) {
-        setNoVoices(false);
-        clearTimeout(check);
-      }
-    };
-    synth.addEventListener('voiceschanged', onVoicesChanged);
-    return () => {
-      clearTimeout(check);
-      synth.removeEventListener('voiceschanged', onVoicesChanged);
-    };
-  }, []);
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-  const toggleSound = () => {
-    setSoundOn((prev) => {
-      const next = !prev;
-      saveSoundPref(next);
-      if (!next) {
-        currentSpeak.current?.cancel();
-        currentSpeak.current = null;
-        stopAllSpeaking();
-      }
-      return next;
-    });
-  };
-
-  const speak = async (text: string) => {
-    currentSpeak.current?.cancel();
-    currentSpeak.current = null;
-    const handle = await speakReply(friend.id, text);
-    currentSpeak.current = handle;
-  };
-
-  const reply = (text: string) => {
-    setMessages((prev) => [...prev, { role: 'assistant', content: text, replayable: true }]);
-    if (soundOn) void speak(text);
-    onReplySpoken?.();
-  };
-
-  const send = async (text: string) => {
-    const content = text.trim();
-    if (!content || waiting) return;
-    const next = [...messages, { role: 'user' as const, content }];
-    setMessages(next);
-    setDraft('');
-    setWaiting(true);
+  const ask = async (text: string) => {
+    const words = text.trim();
+    if (!words || state === 'thinking') return;
+    hush();
     setError(null);
-    // Cancel any previous playback when a new reply starts.
-    currentSpeak.current?.cancel();
-    currentSpeak.current = null;
+    setState('thinking');
+    const next = [...historyRef.current, { role: 'user' as const, content: words }];
     try {
-      const answer = await askFriend(friend.id, next.slice(-12), shop.slug);
-      reply(answer);
-    } catch (err) {
-      if (err instanceof RateLimitError) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: err.message }]);
-      } else {
-        setError(`${friend.name.split(' ')[0]} didn’t hear you — try again in a moment.`);
+      const answer = await askFriend(mascot.id, next.slice(-12), shop.slug);
+      setHistory([...next, { role: 'assistant', content: answer }]);
+      setReply(answer);
+      setNamed(namedIn(answer, shop.menu));
+      if (soundOn) {
+        setState('talking');
+        const handle = await speakReply(mascot.id, answer);
+        speaking.current = handle;
+        await handle.done;
       }
-    } finally {
-      setWaiting(false);
+      setState('idle');
+    } catch (err) {
+      setState('idle');
+      setError(err instanceof RateLimitError ? err.message : `${name} didn’t hear you. Try again in a moment.`);
     }
   };
 
   const toggleMic = () => {
-    if (listening) {
+    if (state === 'listening') {
       recognition.current?.stop();
       return;
     }
+    hush();
     const handle = listenOnce({
-      onPartial: (text) => setDraft(text),
+      onPartial: () => {},
       onFinal: (text) => {
-        setListening(false);
         recognition.current = null;
-        setDraft('');
-        void send(text);
+        setState('idle');
+        void ask(text);
       },
       onError: (code) => {
-        setListening(false);
         recognition.current = null;
-        setError('Couldn’t hear that — try saying it again.');
-        if (code === 'not-allowed') {
-          setMicHint('Mic blocked — allow it in the browser');
-        } else if (code === 'network') {
-          setMicHint('Mic needs Chrome with Google speech');
-        } else {
-          setMicHint(null);
-        }
+        setState('idle');
+        setError(code === 'not-allowed' ? 'The mic is blocked: allow it in the browser, or type instead.' : 'Couldn’t hear that. Try again, or type instead.');
       },
     });
     if (handle) {
       recognition.current = handle;
-      setListening(true);
+      setState('listening');
       setError(null);
+    } else {
+      setTyping(true);
     }
   };
 
-  const starters = SHOP_STARTERS;
-  const firstName = friend.name.split(' ')[0];
-  const loadingVoice = voiceLoading && kokoroState === 'loading';
+  const toggleSound = () => setSoundOn((on) => {
+    saveSoundPref(!on);
+    if (on) hush();
+    return !on;
+  });
+
+  const pill = state === 'listening' ? 'Listening…' : state === 'thinking' ? `${name} is thinking…` : state === 'talking' ? `${name} is talking` : `Ask ${name} about ${shop.name}`;
+  const row = named ?? shop.menu.find((item) => item.price !== null) ?? null;
 
   return (
-    <div className="watch talk" role="dialog" aria-label={`Talking with ${friend.name}`}>
-      <div className="talk-head">
-        <h3 className="talk-title">
-          Talk to {friend.name} at {shop.name}
-          {loadingVoice && <span className="talk-voice-loading"> Loading voice…</span>}
-        </h3>
-        <button
-          className="talk-sound"
-          onClick={toggleSound}
-          aria-label={soundOn ? 'Turn voice off' : 'Turn voice on'}
-          title={soundOn ? 'Voice on' : 'Voice off'}
-        >
-          {soundOn ? '🔊' : '🔇'}
-        </button>
-        <button
-          className="watch-close talk-close"
-          onClick={() => { currentSpeak.current?.cancel(); currentSpeak.current = null; stopAllSpeaking(); onClose(); }}
-          aria-label={`Stop talking with ${friend.name}`}
-        >
-          ✕
+    <div className={`talk-screen is-${state}`} role="dialog" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
+      <div className="talk-top">
+        <button type="button" className="icon-btn glass" onClick={onClose} aria-label="Back"><Icon name="back" /></button>
+        <div className="talk-who"><b>{mascot.name}</b><span>{shop.name} · {section.label}</span></div>
+        <button type="button" className="icon-btn glass" onClick={toggleSound} aria-label={soundOn ? 'Turn the voice off' : 'Turn the voice on'}>
+          <Icon name={soundOn ? 'sound' : 'mute'} />
         </button>
       </div>
-      <div className="talk-scroll" ref={scroller}>
-        {messages.length === 0 && !waiting && (
-          <p className="talk-empty">Ask {firstName} about {shop.name}!</p>
-        )}
-        {messages.map((message, index) => (
-          message.role === 'user' ? (
-            <p key={index} className="talk-bubble is-user">{message.content}</p>
-          ) : (
-            <span key={index} className="talk-bubble is-friend">
-              {message.content}
-              {message.replayable && soundOn && (
-                <button
-                  className="talk-replay"
-                  onClick={() => void speak(message.content)}
-                  aria-label={`Play ${firstName}'s reply again`}
-                  title="▶ play"
-                >
-                  ▶ play
-                </button>
-              )}
-            </span>
-          )
-        ))}
-        {waiting && <p className="talk-bubble is-friend talk-waiting">…</p>}
-        {listening && <p className="talk-listening">Listening…</p>}
-        {noVoices && kokoroState === 'unavailable' && (
-          <p className="talk-note" role="status">This browser has no voices — try Chrome on your phone.</p>
-        )}
-        {error && <p className="talk-error" role="alert">{error}</p>}
+
+      <div className="talk-stage">
+        <span className="ring r1" /><span className="ring r2" /><span className="ring r3" />
+        <Podium mascot={mascot} color={section.color} height={260} grey={shop.status === 'closed'} className="talk-podium" />
       </div>
-      <div className="talk-chips">
-        {starters.map((chip) => (
-          <button key={chip.label} className="talk-chip" disabled={waiting || listening} onClick={() => void send(chip.send)}>
-            {chip.label}
-          </button>
+
+      <div className="talk-pill" role="status">
+        {state === 'talking' && <span className="bars" aria-hidden="true"><i /><i /><i /><i /><i /></span>}
+        {pill}
+      </div>
+      <p className="sr-only" aria-live="polite">{reply ? `${name} said: ${reply}` : ''}</p>
+      {!soundOn && reply && <p className="talk-text">{reply}</p>}
+      {error && <p className="talk-error" role="alert">{error}</p>}
+
+      <div className="talk-hints">
+        {HINTS.map((hint) => (
+          <button key={hint.label} type="button" className="glass" disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>
-      <form
-        className="talk-form"
-        onSubmit={(event) => {
+
+      <div className="talk-card">
+        <Compare shop={shop} menu={shop.menu} mode="compact" />
+        {row && (
+          <div className="talk-named">
+            <MenuRow item={row} color={section.color} highlight={!!named} />
+            {named && <span className="talk-named-note">{name} is talking about this</span>}
+          </div>
+        )}
+      </div>
+
+      {typing && (
+        <form className="talk-type" onSubmit={(event) => {
           event.preventDefault();
-          recognition.current?.stop();
-          setMicHint(null);
-          void send(draft);
-        }}
-      >
-        <input
-          className="talk-input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={micHint ?? `Say something to ${firstName}…`}
-          maxLength={500}
-          aria-label={`Message for ${friend.name}`}
-        />
-        {speechSupported() && (
-          <button
-            type="button"
-            className={listening ? 'talk-mic is-active' : 'talk-mic'}
-            onClick={toggleMic}
-            aria-label={listening ? 'Stop listening' : 'Speak your message'}
-            title={listening ? 'Stop listening' : '🎤 Speak'}
-          >
-            🎤
-          </button>
-        )}
-        <button className="btn btn-yellow talk-send" type="submit" disabled={waiting || listening || !draft.trim()}>
-          Send
+          void ask(draft);
+          setDraft('');
+        }}>
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder={`Ask ${name}…`} aria-label={`Message for ${mascot.name}`} />
+          <button type="submit" className="btn-go small" disabled={!draft.trim() || state === 'thinking'}>Ask</button>
+        </form>
+      )}
+
+      <div className="talk-controls">
+        <a className="icon-btn glass round" href={`#/shop/${shop.slug}`} onClick={onClose} aria-label="See the menu"><Icon name="list" /></a>
+        <button type="button" className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
+          <Icon name="mic" size={30} stroke={2.4} />
         </button>
-      </form>
+        {AR_READY.has(mascot.id)
+          ? <a className="icon-btn glass round" href={`/ar/?${new URLSearchParams({ shop: shop.slug, friend: mascot.id, name: mascot.name, tall: String(mascot.tall) })}`} aria-label={`Meet ${mascot.name} in AR`}><Icon name="ar" /></a>
+          : <button type="button" className="icon-btn glass round" onClick={() => setTyping((t) => !t)} aria-label="Type instead"><Icon name="receipt" /></button>}
+      </div>
+      <p className="talk-tip">{speechSupported() ? 'Tap to talk · tap again to stop' : 'Type your question: this browser can’t listen'}</p>
     </div>
   );
 }

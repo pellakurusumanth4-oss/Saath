@@ -28,6 +28,19 @@ export type Shop = LatLng & {
   claimable: boolean;
   /** Made up for the demo: shown as a demo shop, so nobody walks to it. */
   demo: boolean;
+  /** Its billboard ad: a headline, a small line and one of the pictures in public/ads/art, or an uploaded image. */
+  ad_headline: string;
+  ad_sub: string;
+  ad_art: string;
+  ad_image_url: string;
+  ad_schedule: 'always' | 'week' | 'today';
+  /** What the saving is worked out on: menu item ids and how many. */
+  usual_order: { item: string; qty: number }[];
+  /** Typical delivery + platform + packaging fees on delivery apps, rupees. */
+  app_fee: number;
+  /** Where its billboard stands; empty: beside the shop. */
+  board_lat: number | null;
+  board_lng: number | null;
 };
 
 export type MenuItem = {
@@ -45,10 +58,13 @@ export type MenuItem = {
   updated_at: string;
 };
 
-export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo';
+export type ShopWithMenu = Shop & { menu: MenuItem[] };
 
-/** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon for those
- * without a mascot's pin yet. */
+export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo,'
+  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng';
+const MENU_COLUMNS = 'id,shop_id,name,price,app_price,available,note,sort,updated_at';
+
+/** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon. */
 export const SECTIONS: Record<string, { label: string; icon: string; color: string }> = {
   restaurant: { label: 'Restaurant', icon: '🍛', color: '#E5533D' },
   cafe: { label: 'Café & Chai', icon: '☕', color: '#14897C' },
@@ -68,8 +84,6 @@ export const SECTIONS: Record<string, { label: string; icon: string; color: stri
 };
 export const sectionOf = (shop: Pick<Shop, 'section'>) => SECTIONS[shop.section] ?? SECTIONS.restaurant;
 
-export const STATUS_LABEL: Record<Status, string> = { open: 'Open now', busy: 'Busy right now', closed: 'Closed now' };
-
 const sectionMascot = (section: string) => MASCOTS.find((mascot) => mascot.section === section);
 
 /** The mascot at a shop's door: its own, else its section's, else Juno. */
@@ -77,27 +91,52 @@ export const hostOf = (shop: Pick<Shop, 'friend' | 'section'>): Mascot =>
   MASCOTS.find((mascot) => mascot.id === shop.friend) ?? sectionMascot(shop.section) ?? MASCOTS.find((mascot) => mascot.id === 'juno')!;
 
 export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png`;
+export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.png`;
 
 /** Mascots whose AR rig is in the site's /ar/rigs/ (the AR page's), so "Meet in AR" shows. */
+// shortcut: empty until the user OKs the push of the AR page with the 12 mascot rigs; then all 12 (ready in the clone).
 export const AR_READY = new Set<string>([]);
 
-/** The section's map pin, drawn with its mascot; null for the sections without a mascot yet. */
-export const pinOf = (shop: Pick<Shop, 'section'>) => {
-  const mascot = sectionMascot(shop.section);
-  return mascot ? `/mascots/pins/${mascot.id}.svg` : null;
-};
+/** What the status says, in words: "Busy · about a 10 min wait", "Closed · opens at 11 am". */
+export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
+  const word = { open: 'Open', busy: 'Busy', closed: 'Closed' }[shop.status];
+  return shop.status_note ? `${word} · ${shop.status_note}` : word;
+}
 
 /** Minutes on foot at an easy 80 m a minute (straight line, so a little optimistic). */
 export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round(distanceM(me, shop) / 80));
 
-/** The biggest saving on one item on today: the shop's own price against what it says delivery apps charge. */
-export function bestSaving(menu: MenuItem[]): { item: MenuItem; saving: number } | null {
-  let best: { item: MenuItem; saving: number } | null = null;
-  for (const item of menu) {
-    const saving = item.available && item.price !== null && item.app_price !== null ? item.app_price - item.price : 0;
-    if (saving > 0 && (!best || saving > best.saving)) best = { item, saving };
+/** "2 min · 150 m" from where the visitor is, or null before we know. */
+export function walkText(me: LatLng | null, shop: LatLng): string | null {
+  if (!me) return null;
+  const m = distanceM(me, shop);
+  return `${walkMinutes(me, shop)} min · ${m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`}`;
+}
+
+/** Where a shop's billboard stands: its own spot, else about 40 m east of the shop. */
+export const boardOf = (shop: Shop): LatLng =>
+  shop.board_lat !== null && shop.board_lng !== null
+    ? { lat: shop.board_lat, lng: shop.board_lng }
+    : { lat: shop.lat, lng: shop.lng + 40 / (111320 * Math.cos((shop.lat * Math.PI) / 180)) };
+
+export type Order = { names: string; here: number; itemsApps: number; fee: number; apps: number; saving: number };
+
+/** The usual order's sum: the shop's own app prices + typical fees against its walk-in price. Null when an item is
+ * missing, sold out or has no app price (the saving is then hidden), or when walking in saves nothing. */
+export function orderOf(shop: Pick<Shop, 'usual_order' | 'app_fee'>, menu: MenuItem[]): Order | null {
+  const lines = shop.usual_order.map(({ item, qty }) => ({ item: menu.find((m) => m.id === item), qty }));
+  if (!lines.length) return null;
+  let here = 0;
+  let itemsApps = 0;
+  for (const { item, qty } of lines) {
+    if (!item || !item.available || item.price === null || item.app_price === null || !(qty > 0)) return null;
+    here += item.price * qty;
+    itemsApps += item.app_price * qty;
   }
-  return best;
+  const apps = itemsApps + shop.app_fee;
+  if (apps <= here) return null;
+  const names = lines.map(({ item, qty }) => `${qty > 1 ? `${qty} ` : ''}${item!.name.toLowerCase()}`).join(' + ');
+  return { names, here, itemsApps, fee: shop.app_fee, apps, saving: apps - here };
 }
 
 /** ₹ as people say it: 1,450 and 48 lakh and 1.15 crore. */
@@ -112,22 +151,29 @@ export function ago(iso: string, now: number): string {
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes} min ago`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)} h ago`;
-  return `${Math.floor(minutes / 1440)} days ago`;
+  return minutes < 2880 ? 'yesterday' : `${Math.floor(minutes / 1440)} days ago`;
 }
 
-/** Every shop, for the map and the list, kept live. */
-export function useShops(): Shop[] {
-  const [shops, setShops] = useState<Shop[]>([]);
+/** When the menu last changed: its newest item. */
+export const updatedAt = (menu: MenuItem[]) => menu.reduce((newest, item) => (item.updated_at > newest ? item.updated_at : newest), '');
+
+const sortMenu = (items: MenuItem[]) => [...items].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+
+/** Every shop with its menu, for the map and the list, kept live (a demo-sized table: any change reloads it all). */
+export function useShops(): ShopWithMenu[] {
+  const [shops, setShops] = useState<ShopWithMenu[]>([]);
   useEffect(() => {
     let live = true;
     const load = async () => {
-      const { data } = await db.from('shops').select(SHOP_COLUMNS).order('name');
-      if (live && data) setShops(data as Shop[]);
+      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).order('name');
+      if (!live || !data) return;
+      setShops((data as (Shop & { menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: sortMenu(items) })));
     };
     void load();
     const channel = db
       .channel('shops-map')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shops' }, () => void load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => void load())
       .subscribe();
     return () => {
       live = false;
@@ -144,15 +190,14 @@ export function useShop(slug: string): { shop: Shop | null; menu: MenuItem[]; mi
     let live = true;
     let channel: RealtimeChannel | null = null;
     const load = async () => {
-      const { data, error } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(*)`).eq('slug', slug).maybeSingle();
+      const { data, error } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('slug', slug).maybeSingle();
       if (!live || error) return; // on an error keep what's shown; the next change loads again
       if (!data) {
         setState({ shop: null, menu: [], missing: true });
         return;
       }
       const { menu_items: items, ...shop } = data as Shop & { menu_items: MenuItem[] };
-      const menu = [...items].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
-      setState({ shop, menu, missing: false });
+      setState({ shop, menu: sortMenu(items), missing: false });
       // Deletes can't be filtered by shop, so any menu delete reloads; it's a small table.
       channel ??= db
         .channel(`shop-${shop.id}`)

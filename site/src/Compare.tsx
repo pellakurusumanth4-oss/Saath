@@ -1,0 +1,95 @@
+// The usual order's saving: the shop's own app prices + typical app fees against walking in, and how it's worked out.
+import { useEffect, useState } from 'react';
+import { ago, orderOf, rupees, updatedAt, type MenuItem, type Order, type Shop } from './shops';
+import { Icon, SaveChip } from './ui';
+
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/** Counts up from 0 to the number over 400 ms once `go` is set (just the number with reduced motion). */
+export function useCountUp(target: number, go: boolean): number {
+  const [value, setValue] = useState(go && !reduced() ? 0 : target);
+  useEffect(() => {
+    if (!go || reduced()) {
+      setValue(target);
+      return;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / 400);
+      setValue(Math.round(target * (1 - (1 - k) ** 3)));
+      if (k < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, go]);
+  return value;
+}
+
+export default function Compare({ shop, menu, mode = 'card', walk = null, countUp = false }: {
+  shop: Shop; menu: MenuItem[]; mode?: 'full' | 'card' | 'compact' | 'line'; walk?: string | null; countUp?: boolean;
+}) {
+  const order = orderOf(shop, menu);
+  const [how, setHow] = useState(false);
+  const shown = useCountUp(order?.saving ?? 0, countUp);
+  if (!order) return null;
+  const off = shop.status === 'closed';
+  if (mode === 'line') return <div className="cmp-line"><s>{rupees(order.apps)} apps</s> → <b>{rupees(order.here)} here</b></div>;
+  if (mode === 'compact') {
+    return (
+      <div className={`cmp-compact${off ? ' is-off' : ''}`}>
+        <div className="cmp-compact-text">
+          <div className="cmp-label">USUAL ORDER · {order.names.toUpperCase()}</div>
+          <div className="cmp-compact-sum"><s>{rupees(order.apps)} on apps</s> → <b>{rupees(order.here)} here</b></div>
+        </div>
+        <SaveChip amount={order.saving} size="l" grey={off} />
+      </div>
+    );
+  }
+  return (
+    <div className={`cmp cmp-${mode}${off ? ' is-off' : ''}`}>
+      <div className="cmp-top">
+        <span className="cmp-label">USUAL ORDER · {order.names.toUpperCase()}</span>
+        <button type="button" className="cmp-how" onClick={() => setHow(true)}><Icon name="info" size={13} />How?</button>
+      </div>
+      <div className="cmp-main">
+        <div className="cmp-apps"><span>Delivery apps</span><s>{rupees(order.apps)}</s></div>
+        <Icon name="arrow" size={17} />
+        <div className="cmp-here"><span>Walk in</span><b>{rupees(order.here)}</b></div>
+        <span className="cmp-gap" />
+        <div className="cmp-save"><span>you save</span><b>{rupees(shown)}</b></div>
+      </div>
+      <div className="cmp-fine">
+        {rupees(order.itemsApps)} at the shop’s app prices + ~{rupees(order.fee)} typical app fees{walk ? ` · walk ${walk}` : ''}
+      </div>
+      {how && <HowSheet shop={shop} order={order} updated={updatedAt(menu)} onClose={() => setHow(false)} />}
+    </div>
+  );
+}
+
+/** "How we work out your saving": app prices come from the shop, app fees are typical, walking costs nothing. */
+export function HowSheet({ shop, order, updated, onClose }: { shop: Shop; order: Order; updated: string; onClose: () => void }) {
+  return (
+    <div className="sheet-back" onClick={onClose}>
+      <div className="sheet glass-sheet how" role="dialog" aria-label="How we work out your saving" onClick={(event) => event.stopPropagation()}>
+        <div className="grabber" />
+        <div className="sheet-head">
+          <h3>How we work out your saving</h3>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        </div>
+        <ul className="how-points">
+          <li><Icon name="tag" /><div><b>App prices come from the shop</b>{shop.name} enters what it charges on delivery apps for each item, next to its counter price.</div></li>
+          <li><Icon name="receipt" /><div><b>App fees are typical, not exact</b>About ₹30 delivery + ₹10 platform + ₹10 packaging. Your app shows the real amount at checkout.</div></li>
+          <li><Icon name="walk" /><div><b>Walking there costs nothing</b>You pay the counter price and skip the fees.</div></li>
+        </ul>
+        <div className="how-example">
+          <span>{order.names}</span>
+          <span>Apps {rupees(order.itemsApps)} + ~{rupees(order.fee)} fees = {rupees(order.apps)} · walk in {rupees(order.here)}</span>
+          <b>You save {rupees(order.saving)}</b>
+        </div>
+        <p className="how-fine">Saath isn’t linked to any delivery app.{updated ? ` Prices updated ${ago(updated, Date.now())} by the shop.` : ''}</p>
+        <button type="button" className="btn-go wide" onClick={onClose}>Got it</button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,59 @@
+// "Near you": the shops with their ads, status, walk and saving, by biggest saving or nearest. Closed ones sink.
+import { useMemo, useState, type CSSProperties } from 'react';
+import { distanceM, type LatLng } from '../../src/geo';
+import Ad from './Ad';
+import Compare from './Compare';
+import { hostOf, orderOf, portraitOf, sectionOf, walkMinutes, type ShopWithMenu } from './shops';
+import { SaveChip } from './ui';
+
+export default function NearList({ shops, me, thumb = 92, onPick }: {
+  shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; onPick: (shop: ShopWithMenu) => void;
+}) {
+  const [sort, setSort] = useState<'saving' | 'near'>('saving');
+  const rows = useMemo(() => {
+    const ranked = shops.map((shop) => ({ shop, order: orderOf(shop, shop.menu), away: me ? distanceM(me, shop) : null }));
+    ranked.sort((a, b) =>
+      Number(a.shop.status === 'closed') - Number(b.shop.status === 'closed')
+      || (sort === 'near' && a.away !== null && b.away !== null ? a.away - b.away : (b.order?.saving ?? 0) - (a.order?.saving ?? 0))
+      || a.shop.name.localeCompare(b.shop.name));
+    return ranked;
+  }, [shops, me, sort]);
+
+  return (
+    <section className="near" aria-label="Shops near you">
+      <div className="near-head">
+        <h2>Near you</h2>
+        <div className="seg" role="group" aria-label="Sort">
+          <button type="button" aria-pressed={sort === 'saving'} onClick={() => setSort('saving')}>Biggest saving</button>
+          <button type="button" aria-pressed={sort === 'near'} onClick={() => setSort('near')}>Nearest</button>
+        </div>
+      </div>
+      {sort === 'near' && !me && <p className="near-hint">Tap the locate button to sort by the walk.</p>}
+      <ul className="near-rows">
+        {rows.map(({ shop, order }) => {
+          const state = shop.status;
+          const ring = state === 'busy' ? '#F59E0B' : state === 'closed' ? '#B9BDC8' : sectionOf(shop).color;
+          return (
+            <li key={shop.id} className={state === 'closed' ? 'is-closed' : ''}>
+              <button type="button" className="near-row" onClick={() => onPick(shop)}>
+                <span className="near-thumb">
+                  <Ad shop={shop} height={Math.round(thumb * 0.565)} width={thumb} radius={10} tag={false} off={state === 'closed'} />
+                  <img src={portraitOf(hostOf(shop))} alt="" className={state === 'closed' ? 'is-grey' : ''} style={{ '--ring': ring } as CSSProperties} />
+                </span>
+                <span className="near-text">
+                  <b>{shop.name}{shop.demo && <em className="demo">DEMO</em>}</b>
+                  <span className={`near-state is-${state}`}>
+                    {state === 'busy' ? `Busy${shop.status_note ? ` · ${shop.status_note}` : ''}` : state === 'closed' ? (shop.status_note || 'Closed') : 'Open'}
+                    {me && <span className="near-walk"> · {walkMinutes(me, shop)} min</span>}
+                  </span>
+                  {order && <Compare shop={shop} menu={shop.menu} mode="line" />}
+                </span>
+                {order && <SaveChip amount={order.saving} grey={state === 'closed'} />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
