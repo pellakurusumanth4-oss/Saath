@@ -99,6 +99,9 @@ export default function App() {
     setSettingSpot(false);
   }, [setMySpot]);
 
+  // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.
+  useEffect(() => setTalkingId(null), [hash]);
+
   // The page for businesses shows the city's billboards through on the right.
   useEffect(() => {
     if (page === 'business') setFocus({ spot: { lat: 18.5195, lng: 73.8452 }, key: `business:${Date.now()}` });
@@ -189,7 +192,7 @@ export default function App() {
         </div>
       )}
 
-      {selected && (
+      {selected && page === 'map' && (
         <ShopCard key={selected.id} shop={selected} me={me} layout={desktop ? 'panel' : 'sheet'}
           onClose={() => setSelectedId(null)}
           onTalk={() => setTalkingId(selected.id)}

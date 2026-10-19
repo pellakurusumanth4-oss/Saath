@@ -24,7 +24,7 @@ const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
 svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
 Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
 document.body.appendChild(svg);
-// Rigs that draw their lines with CSS (Goku: classes in this page's <style>, widths in --lw from ink()) keep both
+// Rigs that draw their lines with CSS (classes in this page's <style>, widths in --lw from ink()) keep both
 // inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
 // page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
 if (typeof ink === 'function') {

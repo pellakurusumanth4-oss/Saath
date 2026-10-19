@@ -1,0 +1,593 @@
+{
+  "_note": "Dummy shops for the hackathon demo (19 Oct): every name, story, menu, price and status is made up, and only the locations are real (points on public Pune roads, from OpenStreetMap). One shop per approved mascot, in the shape talk() takes as `shop` (web/talk/sample-shops.json), plus lat, lng and demo: true. Show them as demo shops.",
+  "shops": [
+    {
+      "id": "copper-ladle",
+      "name": "The Copper Ladle",
+      "section": "restaurant",
+      "lat": 18.521064,
+      "lng": 73.846676,
+      "area": "JM Road, Deccan Gymkhana",
+      "status": "open",
+      "statusNote": "",
+      "story": "A family kitchen that began as a twelve-table lunch room in 2016. The recipes are the owner's mother's, and the thali changes every day.",
+      "special": "Maharashtrian thali, 220 rupees",
+      "menu": [
+        {
+          "name": "Maharashtrian thali",
+          "price": 220,
+          "appPrice": 340,
+          "available": true
+        },
+        {
+          "name": "Misal pav",
+          "price": 90,
+          "appPrice": 150,
+          "available": true,
+          "note": "medium spicy"
+        },
+        {
+          "name": "Paneer butter masala",
+          "price": 240,
+          "appPrice": 360,
+          "available": true
+        },
+        {
+          "name": "Dal khichdi",
+          "price": 160,
+          "appPrice": 250,
+          "available": true
+        },
+        {
+          "name": "Gulab jamun, two pieces",
+          "price": 70,
+          "appPrice": 110,
+          "available": true
+        },
+        {
+          "name": "Masala chaas",
+          "price": 40,
+          "appPrice": 70,
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "rosa"
+      },
+      "demo": true
+    },
+    {
+      "id": "kettle-and-kulhad",
+      "name": "Kettle and Kulhad",
+      "section": "cafe",
+      "status": "busy",
+      "statusNote": "about a 10 min wait",
+      "area": "Apte Road, Deccan Gymkhana",
+      "story": "Meera opened Kettle and Kulhad in 2019 with one kettle, a borrowed table and her grandmother's masala recipe. The cardamom is still crushed by hand every morning. Office regulars come for the four o'clock chai break, and the back wall is covered in notes they have left over the years.",
+      "special": "Kulhad masala chai with a warm bun maska, 60 rupees",
+      "offers": [
+        "Saath walkers get 10 percent off any chai before 11 am"
+      ],
+      "menu": [
+        {
+          "name": "Cutting chai",
+          "price": 20,
+          "unit": "small glass",
+          "appPrice": 28
+        },
+        {
+          "name": "Kulhad masala chai",
+          "price": 35,
+          "unit": "clay cup",
+          "note": "the house favourite",
+          "appPrice": 49
+        },
+        {
+          "name": "Ginger lemon tea",
+          "price": 30,
+          "note": "no milk"
+        },
+        {
+          "name": "Filter coffee",
+          "price": 40
+        },
+        {
+          "name": "Bun maska",
+          "price": 30,
+          "appPrice": 42
+        },
+        {
+          "name": "Kanda poha",
+          "price": 45,
+          "note": "contains peanuts"
+        },
+        {
+          "name": "Walnut brownie",
+          "price": 80,
+          "note": "contains nuts and egg",
+          "appPrice": 110
+        },
+        {
+          "name": "Kokum sharbat",
+          "price": 40,
+          "available": false
+        }
+      ],
+      "mascot": {
+        "id": "kiran"
+      },
+      "lat": 18.519108,
+      "lng": 73.843174,
+      "demo": true
+    },
+    {
+      "id": "green-glass",
+      "name": "The Green Glass",
+      "section": "juice",
+      "status": "open",
+      "statusNote": "",
+      "story": "Two cousins started The Green Glass from a cart in 2021 and moved into this little shop a year later. The fruit comes from the morning market, and nothing is squeezed before you order.",
+      "special": "Watermelon and mint cooler, 60 rupees",
+      "menu": [
+        {
+          "name": "Mango shake",
+          "price": 70,
+          "appPrice": 110,
+          "available": true
+        },
+        {
+          "name": "Watermelon and mint cooler",
+          "price": 60,
+          "appPrice": 95,
+          "available": true
+        },
+        {
+          "name": "Green apple and spinach juice",
+          "price": 80,
+          "available": true
+        },
+        {
+          "name": "Sugarcane juice",
+          "price": 30,
+          "available": false
+        }
+      ],
+      "mascot": {
+        "id": "juno"
+      },
+      "lat": 18.519124,
+      "lng": 73.845096,
+      "area": "JM Road, Deccan Gymkhana",
+      "demo": true
+    },
+    {
+      "id": "morning-crust",
+      "name": "Morning Crust Bakery",
+      "section": "bakery",
+      "lat": 18.521733,
+      "lng": 73.844112,
+      "area": "Apte Road, Deccan Gymkhana",
+      "status": "open",
+      "statusNote": "fresh bread out at 7 am",
+      "story": "One oven, the same family and the same corner since 1998. A new batch of bread comes out every morning at seven.",
+      "special": "Warm cinnamon buns, 45 rupees each",
+      "menu": [
+        {
+          "name": "Pav, pack of six",
+          "price": 30,
+          "appPrice": 45,
+          "available": true
+        },
+        {
+          "name": "Whole wheat bread",
+          "price": 55,
+          "appPrice": 80,
+          "available": true
+        },
+        {
+          "name": "Cinnamon bun",
+          "price": 45,
+          "appPrice": 70,
+          "available": true
+        },
+        {
+          "name": "Chocolate walnut cake, a slice",
+          "price": 90,
+          "appPrice": 140,
+          "available": true,
+          "note": "contains nuts and egg"
+        },
+        {
+          "name": "Eggless fruit cake, a slice",
+          "price": 70,
+          "appPrice": 110,
+          "available": true,
+          "note": "eggless"
+        },
+        {
+          "name": "Butter biscuits, 250 grams",
+          "price": 180,
+          "appPrice": 260,
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "otto"
+      },
+      "demo": true
+    },
+    {
+      "id": "hot-tawa-corner",
+      "name": "Hot Tawa Corner",
+      "section": "streetfood",
+      "lat": 18.528924,
+      "lng": 73.843303,
+      "area": "FC Road, Shivajinagar",
+      "status": "busy",
+      "statusNote": "a short queue, about 5 minutes",
+      "story": "A tawa, a cart and a lot of butter. It started on this road in 2012 and moved under a roof in 2019.",
+      "special": "Cheese pav bhaji, 140 rupees",
+      "menu": [
+        {
+          "name": "Pav bhaji",
+          "price": 110,
+          "appPrice": 180,
+          "available": true
+        },
+        {
+          "name": "Cheese pav bhaji",
+          "price": 140,
+          "appPrice": 220,
+          "available": true
+        },
+        {
+          "name": "Vada pav",
+          "price": 25,
+          "appPrice": 45,
+          "available": true,
+          "note": "spicy green chutney"
+        },
+        {
+          "name": "Tawa pulao",
+          "price": 120,
+          "appPrice": 190,
+          "available": true
+        },
+        {
+          "name": "Masala soda",
+          "price": 40,
+          "appPrice": 65,
+          "available": true
+        },
+        {
+          "name": "Kulfi",
+          "price": 50,
+          "available": false
+        }
+      ],
+      "mascot": {
+        "id": "sunny"
+      },
+      "demo": true
+    },
+    {
+      "id": "corner-shelf",
+      "name": "Corner Shelf Kirana",
+      "section": "grocery",
+      "lat": 18.51309,
+      "lng": 73.831593,
+      "area": "Prabhat Road, Erandwane",
+      "status": "open",
+      "statusNote": "",
+      "story": "A neighbourhood kirana run by the same family for three generations. If it is not on the shelf, they will tell you which day it comes in.",
+      "special": "Fresh methi and palak bundles, 20 rupees each",
+      "menu": [
+        {
+          "name": "Toned milk, 1 litre",
+          "price": 56,
+          "appPrice": 64,
+          "available": true
+        },
+        {
+          "name": "Basmati rice, 1 kilo",
+          "price": 140,
+          "appPrice": 165,
+          "available": true
+        },
+        {
+          "name": "Toor dal, 1 kilo",
+          "price": 160,
+          "appPrice": 185,
+          "available": true
+        },
+        {
+          "name": "Wheat atta, 5 kilos",
+          "price": 260,
+          "appPrice": 295,
+          "available": true
+        },
+        {
+          "name": "Eggs, six",
+          "price": 48,
+          "appPrice": 60,
+          "available": true
+        },
+        {
+          "name": "Methi bundle",
+          "price": 20,
+          "appPrice": 35,
+          "available": true
+        },
+        {
+          "name": "Sugar, 1 kilo",
+          "price": 48,
+          "appPrice": 55,
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "nia"
+      },
+      "demo": true
+    },
+    {
+      "id": "thread-and-bloom",
+      "name": "Thread and Bloom",
+      "section": "boutique",
+      "lat": 18.529826,
+      "lng": 73.843793,
+      "area": "FC Road, Shivajinagar",
+      "status": "open",
+      "statusNote": "",
+      "story": "Handloom kurtas and sarees from weavers the owner knows by name, with alterations done upstairs.",
+      "special": "Hand-block printed cotton kurtas",
+      "menu": [
+        {
+          "name": "Cotton kurta",
+          "price": 1200,
+          "available": true
+        },
+        {
+          "name": "Hand-block printed cotton kurta",
+          "price": 1450,
+          "available": true
+        },
+        {
+          "name": "Chanderi dupatta",
+          "price": 900,
+          "available": true
+        },
+        {
+          "name": "Handloom cotton saree",
+          "price": 3500,
+          "available": true
+        },
+        {
+          "name": "Linen shirt",
+          "price": 1600,
+          "available": true
+        },
+        {
+          "name": "Alterations",
+          "price": "from 150 rupees",
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "mika"
+      },
+      "demo": true
+    },
+    {
+      "id": "riverstone-arcade",
+      "name": "Riverstone Arcade",
+      "section": "mall",
+      "lat": 18.517237,
+      "lng": 73.843446,
+      "area": "JM Road, Deccan Gymkhana",
+      "status": "open",
+      "statusNote": "open till 10 pm",
+      "story": "A small arcade of eighteen shops on three floors, with a food court on the top floor.",
+      "special": "Live music in the food court on weekend evenings",
+      "menu": [
+        {
+          "name": "Food court",
+          "note": "third floor",
+          "available": true
+        },
+        {
+          "name": "Books and stationery",
+          "note": "first floor",
+          "available": true
+        },
+        {
+          "name": "Shoes and bags",
+          "note": "ground floor",
+          "available": true
+        },
+        {
+          "name": "Play corner for children, with a grown-up",
+          "note": "second floor",
+          "available": true
+        },
+        {
+          "name": "Parking",
+          "price": "30 rupees an hour",
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "max"
+      },
+      "demo": true
+    },
+    {
+      "id": "banyan-grove",
+      "name": "Banyan Grove Residences, site office",
+      "section": "realestate",
+      "status": "open",
+      "statusNote": "the agent is in until 7 pm",
+      "area": "Law College Road, Erandwane",
+      "story": "Banyan Grove is three towers built around a hundred-year-old banyan tree that the builder, Tulsi Developers, chose to keep. Work began in 2024. Tower A is ready to move into; the builder's plan has Towers B and C finishing in 2027.",
+      "special": "The sample flat in Tower A is open for walk-in visits today",
+      "offers": [
+        "A free covered parking slot with bookings made this month (the builder's offer; the agent has the terms)"
+      ],
+      "menu": [
+        {
+          "name": "1 BHK, 620 square feet carpet, Tower A, ready to move in",
+          "price": 4800000
+        },
+        {
+          "name": "2 BHK, 950 square feet carpet, Tower A, ready to move in",
+          "price": 7600000
+        },
+        {
+          "name": "2 BHK, 1010 square feet carpet, Tower B, under construction",
+          "price": 7900000
+        },
+        {
+          "name": "3 BHK, 1350 square feet carpet, Tower C, under construction",
+          "price": 11500000
+        },
+        {
+          "name": "Clubhouse, pool and children's play area",
+          "note": "for all residents"
+        },
+        {
+          "name": "Maintenance",
+          "price": "4 rupees a square foot a month"
+        }
+      ],
+      "mascot": {
+        "id": "omar"
+      },
+      "lat": 18.517148,
+      "lng": 73.829482,
+      "demo": true
+    },
+    {
+      "id": "still-water",
+      "name": "Still Water Salon and Spa",
+      "section": "salon",
+      "lat": 18.510627,
+      "lng": 73.831902,
+      "area": "Prabhat Road, Erandwane",
+      "status": "busy",
+      "statusNote": "next free chair in about 20 minutes",
+      "story": "Two stylists who trained together opened Still Water in 2020. The spa room is upstairs, and it is quiet on weekday mornings.",
+      "special": "Head massage and hair wash, 450 rupees",
+      "menu": [
+        {
+          "name": "Haircut",
+          "price": 400,
+          "available": true
+        },
+        {
+          "name": "Hair spa",
+          "price": 900,
+          "available": true
+        },
+        {
+          "name": "Head massage, 20 minutes",
+          "price": 350,
+          "available": true
+        },
+        {
+          "name": "Manicure",
+          "price": 500,
+          "available": true
+        },
+        {
+          "name": "Threading",
+          "price": "from 50 rupees",
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "lina"
+      },
+      "demo": true
+    },
+    {
+      "id": "tulsi-leaf",
+      "name": "Tulsi Leaf Pharmacy",
+      "section": "pharmacy",
+      "status": "open",
+      "statusNote": "the pharmacist is in until 10 pm",
+      "story": "A family pharmacy, open since 2008.",
+      "menu": [
+        {
+          "name": "Free blood pressure check",
+          "price": 0
+        },
+        {
+          "name": "Home delivery within two kilometres",
+          "price": "free on orders over 300 rupees"
+        },
+        {
+          "name": "Prescription medicines",
+          "note": "with a doctor's prescription"
+        },
+        {
+          "name": "Baby care, first aid and diabetes care products"
+        }
+      ],
+      "mascot": {
+        "id": "sana"
+      },
+      "lat": 18.507934,
+      "lng": 73.830073,
+      "area": "Karve Road, Erandwane",
+      "demo": true
+    },
+    {
+      "id": "circuit-corner",
+      "name": "Circuit Corner Mobiles",
+      "section": "electronics",
+      "lat": 18.530729,
+      "lng": 73.844284,
+      "area": "FC Road, Shivajinagar",
+      "status": "closed",
+      "statusNote": "opens at 11 am",
+      "story": "Phone repairs and accessories on FC Road since 2015.",
+      "special": "Tempered glass screen guard fitted free with any phone cover",
+      "menu": [
+        {
+          "name": "Tempered glass screen guard",
+          "price": 199,
+          "available": true
+        },
+        {
+          "name": "Phone cover",
+          "price": 299,
+          "available": true
+        },
+        {
+          "name": "Fast charger, 20 watts",
+          "price": 799,
+          "available": true
+        },
+        {
+          "name": "Wired earphones",
+          "price": 349,
+          "available": true
+        },
+        {
+          "name": "Screen replacement",
+          "price": "from 1,800 rupees",
+          "available": true
+        },
+        {
+          "name": "Battery replacement",
+          "price": "from 1,200 rupees",
+          "available": true
+        }
+      ],
+      "mascot": {
+        "id": "kai"
+      },
+      "demo": true
+    }
+  ]
+}

@@ -118,7 +118,7 @@ export const FIGURES_JS = `
 
     // Changes only what changed, so running animations carry on.
     function update(m, f) {
-      var el = m.el, who = FACES.hasOwnProperty(f.character) ? f.character : 'doraemon';
+      var el = m.el, who = FACES.hasOwnProperty(f.character) ? f.character : 'juno';
       var color = /^#[0-9a-f]{3,8}$/i.test(f.color || '') ? f.color : AZURE;
       var met = !!f.met, name = met ? String(f.name || '') : '???';
       var ll = m.marker.getLngLat();

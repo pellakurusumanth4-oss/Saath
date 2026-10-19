@@ -23,6 +23,10 @@
   window.__api = { calls: [], plan: null };
   window.fetch = async (input, opts = {}) => {
     const u = String(input instanceof Request ? input.url : input);
+    if (u.includes('/rest/v1/')) {   // the shop and its menu, as Supabase's REST API returns them (window.__shop, set by run.mjs)
+      __api.calls.push({ url: u, t: performance.now() });
+      return new Response(JSON.stringify(window.__shop ? [window.__shop] : []), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
     if (!u.includes('/api/')) return real(input, opts);
     let body = null; try { body = JSON.parse(opts.body); } catch {}
     const call = { url: u, body, t: performance.now(), aborted: false, sent: 0 };

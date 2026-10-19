@@ -7,12 +7,14 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { hear, talk, warm } from './server.mjs';
-import { RULES, PERSONAS } from './prompts.mjs';
+import { mascotAlone } from './prompts.mjs';
 
 const listen = (handler) => new Promise((r) => { const s = http.createServer(handler).listen(0, '127.0.0.1', () => r(s)); });
 const base = (s) => `http://127.0.0.1:${s.address().port}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readBody = async (req) => { let b = ''; for await (const c of req) b += c; return JSON.parse(b); };
+// A port nothing listens on: another clone may be running this suite at the same time, so fixed ports collide.
+const freePort = () => new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => r(port)); }); });
 
 // Claude: an SSE reply made of `pieces`, with `pause` ms after the first two; or an error status.
 function fakeClaude({ pieces = [], status = 200, pause = 0 } = {}) {
@@ -56,7 +58,7 @@ function fakeVoice({ status = 200 } = {}) {
 }
 
 // Runs talk() against the fakes and returns the lines it sent.
-async function run({ claude, voice, input = { friend: 'nobita', text: 'what are you doing', history: [] }, signal, env = {} }) {
+async function run({ claude, voice, input = { friend: 'juno', text: 'what are you doing', history: [] }, signal, env = {} }) {
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) }, env);
   const lines = [];
   await talk(input, (o) => lines.push(o), signal);
@@ -85,10 +87,10 @@ test('each audio line carries the PCM, the spoken characters\' times and its sen
   claude.close(); voice.close();
 });
 
-test('Claude is asked with Haiku 5.5, thinking off, low effort, the cached persona, and the key from CLAUDE_API_KEY', async () => {
+test('Claude is asked with Haiku 5.5, thinking off, low effort, the mascot\'s prompt (its block cached), and the key from CLAUDE_API_KEY', async () => {
   const claude = await fakeClaude({ pieces: REPLY }), voice = await fakeVoice();
   const history = [{ role: 'user', content: 'hi' }, { role: 'assistant', content: '[happy|wave] Hi!' }];
-  await run({ claude, voice, input: { friend: 'nobita', text: 'what are you doing', history } });
+  await run({ claude, voice, input: { friend: 'juno', text: 'what are you doing', history } });
   const { body, key } = claude.seen[0];
   assert.equal(key, 'test-claude');
   assert.equal(body.model, 'claude-haiku-5-5');
@@ -97,7 +99,7 @@ test('Claude is asked with Haiku 5.5, thinking off, low effort, the cached perso
   assert.deepEqual(body.thinking, { type: 'disabled' });
   assert.deepEqual(body.output_config, { effort: 'low' });
   assert.equal('temperature' in body, false);
-  assert.deepEqual(body.system, [{ type: 'text', text: RULES }, { type: 'text', text: PERSONAS.nobita, cache_control: { type: 'ephemeral', ttl: '1h' } }]);
+  assert.deepEqual(body.system, [{ type: 'text', text: MASCOT_RULES }, { type: 'text', text: mascotPrompt(mascotAlone('juno')), cache_control: { type: 'ephemeral', ttl: '1h' } }, { type: 'text', text: shopData(mascotAlone('juno')) }]);
   assert.deepEqual(body.messages, [...history, { role: 'user', content: 'what are you doing' }]);
   claude.close(); voice.close();
 });
@@ -152,7 +154,7 @@ test('when the page goes away mid-reply, Claude is cut off and nothing more is s
   const claude = await fakeClaude({ pieces: REPLY, pause: 1500 }), voice = await fakeVoice();
   const ac = new AbortController(), lines = [];
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) });
-  const done = talk({ friend: 'nobita', text: 'hi', history: [] }, (o) => { lines.push(o); if (o.type === 'audio') ac.abort(); }, ac.signal);
+  const done = talk({ friend: 'juno', text: 'hi', history: [] }, (o) => { lines.push(o); if (o.type === 'audio') ac.abort(); }, ac.signal);
   await done;
   await sleep(100);
   assert.equal(claude.seen[0].closedEarly, true);
@@ -163,13 +165,13 @@ test('when the page goes away mid-reply, Claude is cut off and nothing more is s
 test('warming up (on a mic press): Claude gets the same prompt with max_tokens 0 and no stream, ElevenLabs a free GET', async () => {
   const claude = await fakeClaude({ pieces: REPLY }), voice = await fakeVoice();
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) });
-  await warm('nobita');
+  await warm('juno');
   const { body, key } = claude.seen[0];
   assert.equal(key, 'test-claude');
   assert.equal(body.max_tokens, 0);
   assert.equal(body.stream, undefined);
   assert.deepEqual([body.model, body.thinking, body.output_config], ['claude-haiku-5-5', { type: 'disabled' }, { effort: 'low' }]);
-  assert.deepEqual(body.system, [{ type: 'text', text: RULES }, { type: 'text', text: PERSONAS.nobita, cache_control: { type: 'ephemeral', ttl: '1h' } }]);
+  assert.deepEqual(body.system, [{ type: 'text', text: MASCOT_RULES }, { type: 'text', text: mascotPrompt(mascotAlone('juno')), cache_control: { type: 'ephemeral', ttl: '1h' } }, { type: 'text', text: shopData(mascotAlone('juno')) }]);
   assert.deepEqual(voice.seen.map((c) => [c.method, c.path, c.key]), [['GET', '/v1/models', 'test-voice']]);
   claude.close(); voice.close();
 });
@@ -177,13 +179,13 @@ test('warming up (on a mic press): Claude gets the same prompt with max_tokens 0
 test('warming up never throws, even with the services down', async () => {
   const claude = await fakeClaude({ status: 500 }), voice = await fakeVoice({ status: 500 });
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) });
-  await warm('nobita');
+  await warm('juno');
   claude.close(); voice.close();
 });
 
 test('serve.mjs: /api/talk streams NDJSON, rejects bad input, and never serves the key file', async () => {
   const claude = await fakeClaude({ pieces: REPLY }), voice = await fakeVoice();
-  const port = 8197, root = fileURLToPath(new URL('..', import.meta.url));
+  const port = await freePort(), root = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['serve.mjs'], { cwd: root, stdio: 'ignore',
     env: { ...process.env, PORT: String(port), CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) } });
   try {
@@ -195,9 +197,9 @@ test('serve.mjs: /api/talk streams NDJSON, rejects bad input, and never serves t
     assert.equal(unknown.status, 400);
     assert.match((await unknown.json()).error, /friend/);
     assert.equal((await post('x'.repeat(30000))).status, 413);
-    assert.equal((await post(JSON.stringify({ friend: 'nobita', warm: true }))).status, 204);
+    assert.equal((await post(JSON.stringify({ friend: 'juno', warm: true }))).status, 204);
     assert.equal((await post(JSON.stringify({ friend: 'tom', warm: true }))).status, 400);
-    const ok = await post(JSON.stringify({ friend: 'nobita', text: 'what are you doing' }));
+    const ok = await post(JSON.stringify({ friend: 'juno', text: 'what are you doing' }));
     assert.equal(ok.status, 200);
     assert.match(ok.headers.get('content-type'), /application\/x-ndjson/);
     const types = (await ok.text()).trim().split('\n').map((l) => JSON.parse(l).type);
@@ -241,7 +243,7 @@ test('hear(): a failed call or a missing key gives a message to show', async () 
 
 test('serve.mjs: /api/hear takes audio only, up to 2 MB, and answers with the words', async () => {
   const scribe = await fakeScribe();
-  const port = 8198, root = fileURLToPath(new URL('..', import.meta.url));
+  const port = await freePort(), root = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['serve.mjs'], { cwd: root, stdio: 'ignore',
     env: { ...process.env, PORT: String(port), ELEVEN_LABS_API_KEY: 'test-voice', ELEVEN_LABS_URL: base(scribe) } });
   try {
@@ -259,7 +261,7 @@ test('serve.mjs: /api/hear takes audio only, up to 2 MB, and answers with the wo
 });
 
 test('serve.mjs: a bad URL or a client that leaves mid-upload never stops the server', async () => {
-  const port = 8199, root = fileURLToPath(new URL('..', import.meta.url));
+  const port = await freePort(), root = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['serve.mjs'], { cwd: root, stdio: 'ignore', env: { ...process.env, PORT: String(port) } });
   try {
     const at = `http://127.0.0.1:${port}`;
@@ -292,7 +294,7 @@ test('a reply that stalls mid-stream is cut off at the deadline: an error line, 
 });
 
 test('serve.mjs: only this laptop\'s own pages may spend credits: JSON only, a local Host, 60 API calls a minute', async () => {
-  const port = 8200, root = fileURLToPath(new URL('..', import.meta.url));
+  const port = await freePort(), root = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['serve.mjs'], { cwd: root, stdio: 'ignore', env: { ...process.env, PORT: String(port) } });
   try {
     const at = `http://127.0.0.1:${port}`;
@@ -314,29 +316,29 @@ test('serve.mjs: only this laptop\'s own pages may spend credits: JSON only, a l
 
 
 // A listening turn: 12 sentences; two of them are complete before the fake's pause (after its first two pieces).
-const STORY = ['[sleepy|lazy|long] Okay. ', 'This one is true. It', ' happened on a Sunday. ', ...Array.from({ length: 9 }, (_, i) => `Then came part ${i + 1}. `)];
+const STORY = ['[sleepy|think|long] Okay. ', 'This one is true. It', ' happened on a Sunday. ', ...Array.from({ length: 9 }, (_, i) => `Then came part ${i + 1}. `)];
 const STORY_SENTENCES = ['Okay.', 'This one is true.', 'It happened on a Sunday.', ...Array.from({ length: 9 }, (_, i) => `Then came part ${i + 1}.`)];
 
 test('a listening turn: the cue says long, all 12 sentences are spoken in order, the first before Claude has finished, and Claude may write 400 tokens', async () => {
   const claude = await fakeClaude({ pieces: STORY, pause: 600 }), voice = await fakeVoice();
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) });
   const t0 = performance.now(), at = [], lines = [];
-  await talk({ friend: 'nobita', text: 'tell me a story', history: [] }, (o) => { at.push(Math.round(performance.now() - t0)); lines.push(o); });
-  assert.deepEqual(lines[0], { type: 'cue', emotion: 'sleepy', action: 'lazy', long: true });
+  await talk({ friend: 'juno', text: 'tell me a story', history: [] }, (o) => { at.push(Math.round(performance.now() - t0)); lines.push(o); });
+  assert.deepEqual(lines[0], { type: 'cue', emotion: 'sleepy', action: 'think', long: true });
   assert.deepEqual(voice.seen.map((c) => c.body.text), STORY_SENTENCES);
   const first = lines.findIndex((l) => l.type === 'audio');
   assert.ok(at[first] < 500, `first audio at ${at[first]} ms: it should go before the 600 ms pause in Claude's reply ends`);
   assert.ok(at.at(-1) >= 600, `done at ${at.at(-1)} ms`);
-  assert.deepEqual(lines.at(-1), { type: 'done', reply: '[sleepy|lazy|long] ' + STORY_SENTENCES.join(' ') });
+  assert.deepEqual(lines.at(-1), { type: 'done', reply: '[sleepy|think|long] ' + STORY_SENTENCES.join(' ') });
   assert.equal(claude.seen[0].body.max_tokens, 400);
   claude.close(); voice.close();
 });
 
 test('a listening turn gets four times the deadline: a stall of twice the short deadline still finishes, one past the long deadline is cut', async () => {
   const voice = await fakeVoice(), slow = await fakeClaude({ pieces: STORY, pause: 700 }), stuck = await fakeClaude({ pieces: STORY, pause: 2500 });
-  let lines = await run({ claude: slow, voice, input: { friend: 'nobita', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });   // long: 1200 ms
+  let lines = await run({ claude: slow, voice, input: { friend: 'juno', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });   // long: 1200 ms
   assert.equal(lines.at(-1).type, 'done', JSON.stringify(lines.at(-1)));
-  lines = await run({ claude: stuck, voice, input: { friend: 'nobita', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });
+  lines = await run({ claude: stuck, voice, input: { friend: 'juno', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });
   delete process.env.TALK_DEADLINE_MS;
   assert.equal(lines.at(-1).type, 'error', JSON.stringify(lines.at(-1)));
   slow.close(); stuck.close(); voice.close();
@@ -346,7 +348,7 @@ test('cut off mid-story (the mic is held again): no later sentence is spoken, an
   const claude = await fakeClaude({ pieces: STORY, pause: 400 }), voice = await fakeVoice();
   Object.assign(process.env, { CLAUDE_API_KEY: 'test-claude', ELEVEN_LABS_API_KEY: 'test-voice', ANTHROPIC_BASE_URL: base(claude), ELEVEN_LABS_URL: base(voice) });
   const ac = new AbortController(), lines = [];
-  await talk({ friend: 'nobita', text: 'tell me a story', history: [] }, (o) => { lines.push(o); if (o.type === 'audio' && o.s === 1) ac.abort(); }, ac.signal);
+  await talk({ friend: 'juno', text: 'tell me a story', history: [] }, (o) => { lines.push(o); if (o.type === 'audio' && o.s === 1) ac.abort(); }, ac.signal);
   await sleep(100);
   assert.deepEqual(voice.seen.map((c) => c.body.text), STORY_SENTENCES.slice(0, 2));
   assert.ok(!lines.some((l) => l.type === 'done' || l.type === 'error'), JSON.stringify(lines.map((l) => l.type)));
@@ -355,11 +357,11 @@ test('cut off mid-story (the mic is held again): no later sentence is spoken, an
 });
 
 test('a listening question whose reply forgot the long tag: the long deadline applies from the start and every sentence is spoken', async () => {
-  const story = ['[sleepy|lazy] Okay. ', ...STORY.slice(1)];
+  const story = ['[sleepy|think] Okay. ', ...STORY.slice(1)];
   const claude = await fakeClaude({ pieces: story, pause: 700 }), voice = await fakeVoice();
-  const lines = await run({ claude, voice, input: { friend: 'nobita', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });
+  const lines = await run({ claude, voice, input: { friend: 'juno', text: 'tell me a story', history: [] }, env: { TALK_DEADLINE_MS: '300' } });
   delete process.env.TALK_DEADLINE_MS;
-  assert.deepEqual(lines[0], { type: 'cue', emotion: 'sleepy', action: 'lazy' });
+  assert.deepEqual(lines[0], { type: 'cue', emotion: 'sleepy', action: 'think' });
   assert.deepEqual(voice.seen.map((c) => c.body.text), STORY_SENTENCES);
   assert.equal(lines.at(-1).type, 'done', JSON.stringify(lines.at(-1)));
   claude.close(); voice.close();
@@ -368,7 +370,6 @@ test('a listening question whose reply forgot the long tag: the long deadline ap
 // A shop's mascot (web/talk/sample-shops.json: made-up shops).
 import { MASCOTS, MASCOT_RULES, mascotPrompt, shopData } from './prompts.mjs';
 import SHOPS from './sample-shops.json' with { type: 'json' };
-import VOICES from './voices.json' with { type: 'json' };
 
 test('a shop\'s mascot: Claude gets the mascot rules, the shop\'s cached block and its live SHOP DATA (not cached); the voice is the mascot\'s, the cue its own words and menu', async () => {
   const claude = await fakeClaude({ pieces: ['[happy|show|me', 'nu] Try the kulhad chai. ', 'It is thirty-five rupees.'] }), voice = await fakeVoice();
@@ -380,11 +381,11 @@ test('a shop\'s mascot: Claude gets the mascot rules, the shop\'s cached block a
   claude.close(); voice.close();
 });
 
-test('a mascot speaks in its own stock voice; a friend\'s voice or any other id is never used for it', async () => {
+test('a mascot speaks in its own stock voice; any other voice id is never used for it', async () => {
   const claude = await fakeClaude({ pieces: ['[happy|wave] Hello.'] }), voice = await fakeVoice();
-  for (const v of ['Xb7hH8MSUJpSbSDYk0k2', 'LFWwdLzOs2fj7AQXGqNp', 'doraemon', null]) await run({ claude, voice, input: { shop: { ...SHOPS.cafe, mascot: { id: 'kiran', voice: v } }, text: 'hi', history: [] } });
+  for (const v of ['Xb7hH8MSUJpSbSDYk0k2', 'LFWwdLzOs2fj7AQXGqNp', 'not-a-stock-voice', null]) await run({ claude, voice, input: { shop: { ...SHOPS.cafe, mascot: { id: 'kiran', voice: v } }, text: 'hi', history: [] } });
   assert.deepEqual(voice.seen.map((c) => c.path.split('/')[3]), ['Xb7hH8MSUJpSbSDYk0k2', MASCOTS.kiran.voice, MASCOTS.kiran.voice, MASCOTS.kiran.voice]);
-  assert.ok(!Object.values(VOICES).includes(MASCOTS.kiran.voice));
+
   claude.close(); voice.close();
 });
 

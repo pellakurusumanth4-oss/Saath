@@ -8,8 +8,8 @@
   Talk to a friend without AR (a dark room, a laptop): the same talking engine (talk.js) and rig as the AR page, with
   the friend standing on screen. Clean on purpose (the user, 18 Oct: "my input doesn't need to appear", "speech like a
   thinking cloud on his top", "less elements"): only him, a cloud over his head with what he is saying, and the mic.
-  ?friend=doraemon|nobita|shinchan|goku, ?lip= as in the AR page, ?debug adds friend links and timings. Serve web/
-  (node web/serve.mjs); on the phone, after adb reverse tcp:8099 tcp:8099, open http://localhost:8099/talk/?friend=nobita.
+  ?friend=<mascot id> (juno, kiran, rosa, …: web/talk/prompts.mjs MASCOTS), ?lip= as in the AR page, ?debug adds friend links and timings. Serve web/
+  (node web/serve.mjs); on the phone, after adb reverse tcp:8099 tcp:8099, open http://localhost:8099/talk/?friend=juno.
 -->
 <style>
   /* The approved Golden Hour look: a warm sky, a gold mic that turns blue while it listens, no ink outlines. */
@@ -49,9 +49,11 @@
 import { createTalk } from './talk.js';
 import { drawCloud } from './cloud.js';
 
-const NAMES = { doraemon: 'Doraemon', nobita: 'Nobita', shinchan: 'Shin-chan', goku: 'Goku', michael: 'Michael', dwight: 'Dwight', holt: 'Captain Holt' };
-const Q = new URLSearchParams(location.search), FRIEND = Q.get('friend') ?? 'nobita';
-// An id not in NAMES is a bug (a friend missed from this list), so say so rather than quietly showing Nobita.
+// The 12 business mascots (web/talk/prompts.mjs MASCOTS; the user approved them on 19 Oct, Juno first). Without a
+// ?shop= each talks as itself with no shop's data open.
+const NAMES = { rosa: 'Chef Rosa', kiran: 'Kiran', juno: 'Juno', otto: 'Grandpa Otto', sunny: 'Sunny', nia: 'Auntie Nia', mika: 'Mika', max: 'Max', omar: 'Omar', lina: 'Lina', sana: 'Sana', kai: 'Kai' };
+const Q = new URLSearchParams(location.search), FRIEND = Q.get('friend') ?? 'juno';
+// An id not in NAMES is a bug (a mascot missed from this list), so say so rather than quietly showing Juno.
 if (!Object.hasOwn(NAMES, FRIEND)) { document.body.textContent = `Unknown friend: ${FRIEND}`; throw new Error(`unknown friend ${FRIEND}`); }
 document.body.classList.toggle('debug', Q.has('debug'));
 document.getElementById('friends').innerHTML = Object.entries(NAMES)

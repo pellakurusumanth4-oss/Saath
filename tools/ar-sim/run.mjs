@@ -2,7 +2,7 @@
 // touch, a 4x slower CPU), with sim-xr.js as ARCore and fake-talk.js as the voice (no paid calls), then checks and
 // records it. Needs `node web/serve.mjs` (port 8099); starts its own headless Chrome on CDP port 9420 if none is there.
 // ORIGIN=http://127.0.0.1:<port> and CDP_PORT=<port> point it at another copy of web/ and another Chrome.
-//   node tools/ar-sim/run.mjs <scenario | all | all-friends> [--throttle 4] [--friend nobita]
+//   node tools/ar-sim/run.mjs <scenario | all | all-friends> [--throttle 4] [--friend juno]
 // Writes tools/ar-sim/out/<scenario>/{video.mp4, sheet.png, report.json}; all-friends: out/all-friends/<friend>/.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -14,7 +14,7 @@ import { FRIENDS, ROOMS, SCENARIOS } from './scenarios.mjs';
 const HERE = path.dirname(new URL(import.meta.url).pathname), ORIGIN = process.env.ORIGIN || 'http://127.0.0.1:8099', PORT = Number(process.env.CDP_PORT) || 9420;
 const argv = process.argv.slice(2), flag = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
 const WHICH = argv.find((a, i) => !a.startsWith('--') && !argv[i - 1]?.startsWith('--')) ?? 'good-room';
-const THROTTLE = Number(flag('throttle', 4)), FRIEND = flag('friend', 'nobita');
+const THROTTLE = Number(flag('throttle', 4)), FRIEND = flag('friend', 'juno');
 const INJECT = ['sim-xr.js', 'fake-talk.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8')).join('\n');
 const UA = 'Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -56,12 +56,34 @@ async function openTab() {
 const centre = (tab, sel) => tab.ev(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
 const touch = (tab, type, xy) => tab.send('Input.dispatchTouchEvent', { type, touchPoints: xy ? [{ x: xy[0], y: xy[1] }] : [] });
 
-// A recorded reply from ~/.cache/saath-recovery/talk (the friend's own, else Nobita's), streamed as the server would.
-function talkPlan(friend) {
-  const file = [friend, 'nobita'].map((f) => path.join(os.homedir(), `.cache/saath-recovery/talk/${f}.ndjson`)).find((f) => fs.existsSync(f));
-  if (!file) return null;
-  const texts = {}, lines = fs.readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  return { headMs: 400, lines: lines.map((l) => (l.type === 'audio' ? [30, { ...l, text: (texts[l.s] ??= (l.chars ?? []).join('')) }] : [0, l])) };
+// A made-up shop for the shop-menu scenario, as Supabase's REST API returns it, and the reply he gives about it: the
+// recorded one, with its cue marked menu and its first sentence naming the chai (the words drive the card, not the sound).
+const SHOP = { name: 'Kettle & Kulhad', menu_items: [
+  { name: 'Masala Chai', price: 25, available: true, sort: 1, updated_at: new Date(Date.now() - 10 * 60000).toISOString() },
+  { name: 'Bun Maska', price: 40, available: true, sort: 2, updated_at: new Date(Date.now() - 3 * 3600000).toISOString() },
+  { name: 'Poha', price: 35, available: false, sort: 3, updated_at: new Date(Date.now() - 3 * 3600000).toISOString() }] };
+const META = `new MutationObserver((_, ob) => { if (!document.head) return; ob.disconnect();
+  const m = Object.assign(document.createElement('meta'), { name: 'saath-api', content: 'https://sim.supabase.co/functions/v1/ar' });
+  m.dataset.key = 'sim-public-key'; document.head.append(m); }).observe(document, { childList: true, subtree: true });`;
+const shopReply = (plan) => {
+  let named = false;
+  return { ...plan, lines: plan.lines.map(([ms, l]) => [ms, l.type === 'cue' ? { ...l, menu: true } : l.type === 'audio' && !named && (named = true) ? { ...l, text: 'The masala chai is twenty-five rupees today.' } : l]) };
+};
+
+// A recorded reply from ~/.cache/saath-recovery/talk (the given one, else the mascot's own, else the shop-café reply), streamed as the
+// server would. Recordings made with --no-voice carry silent audio (18 Oct, night); that is voiced here with a 170 Hz
+// tone in a 4-syllable-a-second rhythm, so the mouth, which follows the voice's loudness, still has a voice to follow.
+function talkPlan(friend, file = null) {
+  const path_ = [file, friend, 'shop-cafe'].filter(Boolean).map((f) => path.join(os.homedir(), `.cache/saath-recovery/talk/${f}.ndjson`)).find((f) => fs.existsSync(f));
+  if (!path_) return null;
+  const texts = {}, lines = fs.readFileSync(path_, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const voiced = (pcm) => {
+    const b = Buffer.from(pcm, 'base64');
+    for (let i = 0; i < b.length; i += 2) if (Math.abs(b.readInt16LE(i)) > 500) return pcm;   // a real voice: as recorded
+    for (let i = 0, n = b.length / 2; i < n; i++) b.writeInt16LE(Math.round(9000 * Math.max(0, Math.sin((2 * Math.PI * 4 * i) / 24000)) * Math.sin((2 * Math.PI * 170 * i) / 24000)), i * 2);
+    return b.toString('base64');
+  };
+  return { headMs: 400, lines: lines.map((l) => (l.type === 'audio' ? [30, { ...l, pcm: voiced(l.pcm), text: (texts[l.s] ??= l.text ?? (l.chars ?? []).join('')) }] : [0, l])) };
 }
 
 async function run(name, friend, out) {
@@ -73,18 +95,18 @@ async function run(name, friend, out) {
     await tab.send('Emulation.setUserAgentOverride', { userAgent: UA, platform: 'Android' });
     await tab.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
     await tab.send('Browser.grantPermissions', { permissions: ['audioCapture'], origin: ORIGIN }).catch(() => {});
-    await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__SIM = ${JSON.stringify({ room, script: sc.script, opts: sc.opts })};\n${INJECT}` });
+    await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__SIM = ${JSON.stringify({ room, script: sc.script, opts: sc.opts })};\n${sc.shop ? `window.__shop = ${JSON.stringify(SHOP)};\n${META}\n` : ''}${INJECT}` });
     // Safety net: nothing under /api/ may reach the real server (paid APIs); fake-talk.js answers them in the page.
     let leaked = 0;
     tab.on['Fetch.requestPaused'] = ({ requestId }) => { leaked++; tab.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' }); };
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*' }] });
-    await tab.send('Page.navigate', { url: `${ORIGIN}/ar/?friend=${friend}&name=${encodeURIComponent(label)}&tall=${tall}` });
+    await tab.send('Page.navigate', { url: `${ORIGIN}/ar/?friend=${friend}&name=${encodeURIComponent(label)}&tall=${tall}${sc.shop ? '&shop=kettle-and-kulhad' : ''}` });
     for (let i = 0; !(await tab.ev(`document.getElementById('start')?.textContent === 'Start AR'`).catch(() => false)); i++) {
       if (i > 300) throw new Error('the page never offered Start AR');
       await sleep(200);
     }
     const gl = await tab.ev(`(() => { const g = document.createElement('canvas').getContext('webgl2'), e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; })()`);
-    const reply = talkPlan(friend);
+    const reply = sc.shop ? shopReply(talkPlan(friend, 'shop-cafe')) : talkPlan(friend);
     if (reply) await tab.ev(`__api.plan = ${JSON.stringify(reply)}, true`);
     const frames = [];
     tab.on['Page.screencastFrame'] = ({ data, metadata, sessionId }) => { frames.push({ ts: metadata.timestamp, data }); tab.send('Page.screencastFrameAck', { sessionId }).catch(() => {}); };
@@ -188,6 +210,11 @@ function judge({ name, friend, sc, room, sim, errors, leaked, gl }) {
     const mouths = [...new Set(sp.map((r) => r.mouth).filter(Boolean))], redraws = sp.filter((r) => r.feet).length;
     check('his mouth moves while he talks', mouths.length >= 2 && redraws >= 5, { mouths, redrawsWhileSpeaking: redraws });
   }
+  if (sc.shop && asked) {
+    const R = L.filter((r) => r.t >= asked.t), shown = R.filter((r) => r.menu), lit = shown.find((r) => r.menu.includes('*Masala Chai'));
+    check('a menu answer shows the card, the item he names highlighted', !!lit, { cards: [...new Set(shown.map((r) => r.menu.join(' | ')))].slice(0, 3) });
+    check('the card goes again after he finishes', shown.length && !R.at(-1).menu, { lastCard: R.at(-1).menu });
+  }
   const ms = L.map((r) => r.ms), gaps = L.slice(1).map((r, i) => r.t - L[i].t);
   check('frame time p95 < 50 ms', pct(ms, 0.95) < 50, { p50: pct(ms, 0.5), p95: pct(ms, 0.95), max: Math.max(...ms), fps: +(L.length / (L.at(-1).t - L[0].t)).toFixed(1), framesOver50msApart: gaps.filter((g) => g > 0.05).length, simulatorP95: pct(L.map((r) => r.simMs ?? 0), 0.95) });
   const simBugs = E.filter((e) => e.simError || e.feedError);
@@ -238,7 +265,7 @@ img{width:192px;height:416px;display:block}figure{margin:0}figcaption{height:44p
 
 const FRIEND_PASS = Object.keys(FRIENDS).map((f) => ['friend-pass', f, `all-friends/${f}`]);
 const jobs = WHICH === 'all' ? [...Object.keys(SCENARIOS).filter((s) => s !== 'friend-pass').map((s) => [s, FRIEND, s]), ...FRIEND_PASS]
-  : WHICH === 'all-friends' ? FRIEND_PASS : SCENARIOS[WHICH] ? [[WHICH, FRIEND, FRIEND === 'nobita' ? WHICH : `${WHICH}-${FRIEND}`]] : null;
+  : WHICH === 'all-friends' ? FRIEND_PASS : SCENARIOS[WHICH] ? [[WHICH, FRIEND, FRIEND === 'juno' ? WHICH : `${WHICH}-${FRIEND}`]] : null;
 if (!jobs || !FRIENDS[FRIEND]) { console.error(`usage: run.mjs <${Object.keys(SCENARIOS).join(' | ')} | all | all-friends> [--throttle 4] [--friend ${Object.keys(FRIENDS).join('|')}]`); process.exit(2); }
 await chrome();
 let failed = 0;

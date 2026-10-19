@@ -46,7 +46,7 @@ test('each ring holds its spots, all within 5 km, for hours on end', () => {
   for (const [name, at] of Object.entries(POINTS)) {
     for (const ring of RINGS) {
       for (let h = HOUR; h < HOUR + 200; h++) {
-        const d = distanceM(at, spotIn(at, ring, `goku@${h}`));
+        const d = distanceM(at, spotIn(at, ring, `otto@${h}`));
         assert.ok(d >= ring[0] - 1e-6 && d <= ring[1] + 1e-6, `${name}: ${d} m is outside ${ring}`);
         assert.ok(d <= 5000 + 1e-6);
       }
@@ -58,8 +58,8 @@ test('the same key gives the same spot (a restart within the hour), the next hou
   const at = POINTS.mid;
   for (const ring of RINGS) {
     for (let h = HOUR; h < HOUR + 200; h++) {
-      assert.deepEqual(spotIn(at, ring, `doraemon@${h}`), spotIn({ ...at }, [...ring], `doraemon@${h}`));
-      assert.notDeepEqual(spotIn(at, ring, `doraemon@${h}`), spotIn(at, ring, `doraemon@${h + 1}`));
+      assert.deepEqual(spotIn(at, ring, `kiran@${h}`), spotIn({ ...at }, [...ring], `kiran@${h}`));
+      assert.notDeepEqual(spotIn(at, ring, `kiran@${h}`), spotIn(at, ring, `kiran@${h + 1}`));
     }
   }
 });
@@ -68,7 +68,7 @@ test('spots spread out: every direction, distances across the whole ring, and no
   const at = POINTS.equator, ring = RINGS[1];
   const quadrants = new Set(), ds = [], bs = [];
   for (let h = HOUR; h < HOUR + 400; h++) {
-    const to = spotIn(at, ring, `shinchan@${h}`);
+    const to = spotIn(at, ring, `sunny@${h}`);
     quadrants.add(Math.floor(bearingDeg(at, to) / 90));
     ds.push(distanceM(at, to));
     bs.push(bearingDeg(at, to));
@@ -97,10 +97,10 @@ test('each set of friends shows once its place is set, the near one once you hav
   const home = POINTS.mid, office = destination(POINTS.mid, 30_000, 90), near = nearSpot(POINTS.mid);
   const ids = (places, n) => placeFriends(places, n, HOUR).map((f) => f.id);
   assert.deepEqual(ids({}, null), []);
-  assert.deepEqual(ids({}, near), ['nobita']);
-  assert.deepEqual(ids({ home }, near), ['nobita', 'doraemon', 'shinchan', 'goku']);
-  assert.deepEqual(ids({ office }, null), ['michael', 'dwight', 'holt']);
-  assert.deepEqual(ids({ home, office }, near), ['nobita', 'doraemon', 'shinchan', 'goku', 'michael', 'dwight', 'holt']);
+  assert.deepEqual(ids({}, near), ['juno']);
+  assert.deepEqual(ids({ home }, near), ['juno', 'kiran', 'sunny', 'otto']);
+  assert.deepEqual(ids({ office }, null), ['rosa', 'kai', 'sana']);
+  assert.deepEqual(ids({ home, office }, near), ['juno', 'kiran', 'sunny', 'otto', 'rosa', 'kai', 'sana']);
   for (const f of placeFriends({ home, office }, near, HOUR)) assert.doesNotMatch(f.place + ' ' + f.hint, LANDMARKS);
 });
 
@@ -131,7 +131,7 @@ test('home friends stand in their rings round home and office friends round the 
 test('in the same hour, a friend stands at a different offset round a different home', () => {
   const [a, b] = [POINTS.mid, destination(POINTS.mid, 50_000, 45)];
   const offset = (home) => {
-    const f = placeFriends({ home }, null, HOUR).find((x) => x.id === 'doraemon');
+    const f = placeFriends({ home }, null, HOUR).find((x) => x.id === 'kiran');
     return [Math.round(distanceM(home, f)), Math.round(bearingDeg(home, f))];
   };
   assert.notDeepEqual(offset(a), offset(b));

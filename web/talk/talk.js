@@ -2,8 +2,10 @@
 // recording the server writes down where the browser can't hear), the reply from /api/talk (web/talk/server.mjs),
 // its voice, and the face to draw each frame. A plain ES module with no dependencies: the AR page uses it now, the
 // app's WebView or the website later.
-//   createTalk({ friend, onEvent, lip }) -> { listen(), send(text?), stop(), warm(), face(), cloud(), state }
-//   onEvent(type, data): 'state' (idle | listening | thinking | speaking), 'heard' (text), 'cue' ({emotion, action}),
+//   createTalk({ friend, shop?, onEvent, lip }) -> { listen(), send(text?), stop(), warm(), face(), cloud(), state }
+//   shop: a shop's id, sent instead of friend: the server loads that shop and its mascot (never trusting the page for
+//   either) and may mark a reply's cue `menu` (it talks about the menu or prices) or `long` (a listening turn).
+//   onEvent(type, data): 'state' (idle | listening | thinking | speaking), 'heard' (text), 'cue' ({emotion, action, menu}: menu when he talks about the shop's menu or prices),
 //   'error' (a message to show), 'timing' ({name, ms} since letting go: heard, cue, audio, sound).
 //   face() -> {mood, mouth: 'closed'|'half'|'open'} while he thinks or talks, for the rig's saath.face() each frame;
 //   then null when he has finished (his own face; a gesture held back until he stopped talking plays now), or false
@@ -35,7 +37,8 @@ async function* lines(body) {
   if (buf.trim()) yield buf;
 }
 
-export function createTalk({ friend, onEvent, lip = 0 }) {
+export function createTalk({ friend, shop = null, onEvent, lip = 0 }) {
+  const who = shop ? { shop } : { friend };
   let state = 'idle', rec = null, recorder = null, held = false, heard = '', finished = false, cut = false, lateError = '';
   // Brave has the speech API but nothing behind it (it fails at once) and Firefox has none: both record.
   let noSR = 'brave' in navigator;
@@ -81,15 +84,15 @@ export function createTalk({ friend, onEvent, lip = 0 }) {
     ac = new AbortController(); hush(); emotion = 'neutral'; sounded = false; finished = false; cut = false; lateError = '';
     set('thinking');
     try {
-      const res = await fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ friend, text, history }), signal: ac.signal });
+      const res = await fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ ...who, text, history }), signal: ac.signal });
       if (!res.ok) { if (res.status === 400) history = []; throw new Error(OOPS); }   // history it turns down is forgotten
       for await (const line of lines(res.body)) {
         if (my !== turn) return;   // interrupted: a late chunk of an old reply
         const o = JSON.parse(line);
-        if (o.type === 'cue') { emotion = o.emotion; time('cue'); onEvent('cue', { emotion: o.emotion, action: o.action }); }
+        if (o.type === 'cue') { emotion = o.emotion; time('cue'); onEvent('cue', { emotion: o.emotion, action: o.action, ...(o.menu && { menu: true }), ...(o.long && { long: true }) }); }
         else if (o.type === 'audio') { play(o); set('speaking'); }
-        // The server takes 400 characters a message; a long reply (5 sentences) can be about 800.
-        else if (o.type === 'done') { history = [...history, { role: 'user', content: text }, { role: 'assistant', content: o.reply.slice(0, 400) }].slice(-KEEP); lastTalk = Date.now(); }
+        // The server takes 1200 characters a reply (a listening turn, about a minute of talk, is about 1000).
+        else if (o.type === 'done') { history = [...history, { role: 'user', content: text }, { role: 'assistant', content: o.reply.slice(0, 1200) }].slice(-KEEP); lastTalk = Date.now(); }
         else if (o.type === 'error') throw new Error(o.message);
       }
       finished = true;   // all of it has come: once its voice ends, he's done
@@ -172,7 +175,7 @@ export function createTalk({ friend, onEvent, lip = 0 }) {
     warm() {
       if (performance.now() - warmedAt < 3000) return;
       warmedAt = performance.now();
-      fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ friend, warm: true }) }).catch(() => {});
+      fetch(`${API}/api/talk`, { method: 'POST', headers: { 'content-type': 'application/json', ...AUTH }, body: JSON.stringify({ ...who, warm: true }) }).catch(() => {});
     },
     // Press: listen, cutting off anything he is saying.
     listen() {

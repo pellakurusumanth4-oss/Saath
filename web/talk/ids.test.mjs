@@ -1,13 +1,12 @@
-// Every friend id must match across the lists that name them (three friends were added on 18 Oct night, so a missed
-// list is easy). The server's lists must be the same; the pages' lists (rigs, the app's type, the AR and talk pages)
-// must be the same as each other, and each friend in them must talk on the server (he can talk before his rig is ready).
+// Every character id must match across the lists that name them: the server's gesture words and mascot agents, and
+// the pages' lists (rigs, the app's type, the AR and talk pages), each of which must talk on the server. Since 19 Oct
+// the characters are the 12 business mascots (web/talk/prompts.mjs MASCOTS).
 // Run: node --test "web/talk/*.test.mjs"
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { MASCOTS, PERSONAS } from './prompts.mjs';
+import { MASCOTS } from './prompts.mjs';
 import { ACTIONS } from './reply.mjs';
-import VOICES from './voices.json' with { type: 'json' };
 
 const read = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
 const ids = (o) => Object.keys(o).filter((k) => !k.startsWith('_')).sort();
@@ -19,14 +18,12 @@ const lists = {
   talkPage: [...read('./index.html').match(/const NAMES = \{([^}]+)\}/)[1].matchAll(/(\w+): '/g)].map((m) => m[1]).sort(),
 };
 
-test('the server knows the same friends in its personas, actions and voices', () => {
-  assert.deepEqual(ids(ACTIONS), ids(PERSONAS));
-  assert.deepEqual(ids(VOICES), ids(PERSONAS));
+test('the server knows the same mascots in its gesture words and its agents', () => {
+  assert.deepEqual(ids(ACTIONS), ids(MASCOTS));
 });
 
-test('the rigs, the app, the AR page and the talk page list the same friends, and each talks on the server', () => {
+test('the rigs, the app, the AR page and the talk page list the same mascots, and each talks on the server', () => {
   assert.ok(lists.rigs.length >= 4, lists.rigs);
   for (const [where, list] of Object.entries(lists)) assert.deepEqual(list, lists.rigs, `${where} lists ${list}, the rigs ${lists.rigs}`);
-  // A friend talks with its persona; a business mascot's rig talks as its shop's agent (MASCOTS, web/talk/prompts.mjs).
-  for (const id of lists.rigs) assert.ok(Object.hasOwn(PERSONAS, id) || Object.hasOwn(MASCOTS, id), `${id} has a rig but no persona or mascot entry`);
+  for (const id of lists.rigs) assert.ok(Object.hasOwn(MASCOTS, id), `${id} has a rig but no mascot entry`);
 });

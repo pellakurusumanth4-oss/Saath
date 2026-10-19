@@ -105,7 +105,7 @@ test('a shop\'s mascot comes from its id, its name or its kind; a shop\'s own ma
   const own = mascotOf({ ...cafe, mascot: { name: 'Kettu', greeting: 'Welcome to Kettle and Kulhad.', look: 'a copper kettle' } });
   assert.deepEqual([own.name, own.greeting, own.look, own.personality, own.voice], ['Kettu', 'Welcome to Kettle and Kulhad.', 'a copper kettle', undefined, MASCOTS.kiran.voice]);
   assert.equal(mascotOf({ ...cafe, mascot: { id: 'sana', greeting: 'Not feeling well? I will find you the right thing.' } }).greeting, MASCOTS.sana.greeting, 'a roster mascot keeps its checked greeting');
-  for (const voice of ['LFWwdLzOs2fj7AQXGqNp', 'doraemon', 'constructor', null]) assert.equal(mascotOf({ ...cafe, mascot: { id: 'kiran', voice } }).voice, MASCOTS.kiran.voice, String(voice));
+  for (const voice of ['LFWwdLzOs2fj7AQXGqNp', 'not-a-stock-voice', 'constructor', null]) assert.equal(mascotOf({ ...cafe, mascot: { id: 'kiran', voice } }).voice, MASCOTS.kiran.voice, String(voice));
   assert.equal(mascotOf({ ...cafe, mascot: { id: 'kiran', voice: 'Xb7hH8MSUJpSbSDYk0k2' } }).voice, 'Xb7hH8MSUJpSbSDYk0k2');
   assert.equal(mascotOf({ ...cafe, mascot: { id: 'constructor' } }).name, undefined);
   const books = { id: 'x', name: 'Paper Lantern', section: 'books' }, gym = { ...books, section: 'gym' }, hotel = { ...books, section: 'hotel' };
@@ -129,4 +129,17 @@ test('a mascot on its own, with no shop: itself and its kind, honest that no sho
   assert.ok(data.includes('No shop is open in this chat') && !data.includes('Status:'), data);
   assert.throws(() => mascotPrompt({ section: 'juice', mascot: { name: 'Juno' } }), /^Error: bad shop: name$/);   // only a roster mascot, by id
   assert.throws(() => mascotPrompt({ ...cafe, name: '' }), /^Error: bad shop: name$/);
+});
+
+test('the demo shops (web/talk/demo-shops.json): one per approved mascot, all made up, on real Pune streets, all good data for the talk', async () => {
+  const { shops } = JSON.parse(fs.readFileSync(new URL('./demo-shops.json', import.meta.url), 'utf8'));
+  assert.deepEqual(shops.map((s) => s.mascot.id).sort(), Object.keys(MASCOTS).sort());
+  assert.equal(new Set(shops.map((s) => s.id)).size, shops.length);
+  for (const s of shops) {
+    assert.equal(s.demo, true, s.id);
+    assert.ok(s.lat > 18.50 && s.lat < 18.54 && s.lng > 73.82 && s.lng < 73.86, `${s.id} is not in Deccan, Erandwane or Shivajinagar`);
+    assert.ok(/^[a-z0-9-]{3,40}$/.test(s.id), `${s.id} is not a slug bolt.one takes`);
+    assert.equal(mascotOf(s).name, MASCOTS[s.mascot.id].name, s.id);
+    assert.ok(mascotPrompt(s).includes(`Area: ${s.area}`) && shopData(s).includes(`Status: ${s.status}`), s.id);
+  }
 });

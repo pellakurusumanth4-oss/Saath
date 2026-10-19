@@ -1,0 +1,886 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mika · 2D rig</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#F4EEE3;font-family:system-ui,Roboto,sans-serif}
+.sheet{position:absolute;inset:0;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);padding:46px 24px 14px}
+.cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cell svg{width:100%;height:400px;overflow:visible}
+.cell b{font:700 17px system-ui,Roboto,sans-serif;color:#2B2433;margin-top:2px}
+.cell span{font:400 12px system-ui,Roboto,sans-serif;color:#6B6474}
+.title{position:absolute;left:30px;top:16px;font:800 15px system-ui,Roboto,sans-serif;letter-spacing:.14em;color:#B0702F}
+</style>
+</head>
+<body>
+<div class="title" id="title">MIKA · SAATH BUSINESS MASCOT · 2D RIG</div>
+<div class="sheet" id="sheet"></div>
+<script>window.SAATH_AR = {"ground":[0,0],"tall":172,"roles":{"idle":"Idle","hi":"Hi!","arrive":"Welcome!","extras":["Show","Think","Laugh"]},"mouths":{"closed":"closed","half":"half","open":"open","round":"round"},"moods":{"neutral":{},"happy":{"eyes":"happy"},"excited":{"eyes":"happy","brows":"up","closed":"grin"},"surprised":{"brows":"up","closed":"round"},"curious":{"look":[1,0],"brows":"tilt"},"sad":{"brows":"sad","closed":"flat"},"worried":{"brows":"sad","look":[0,0.6],"closed":"flat"},"sleepy":{"blink":0.55},"thinking":{"look":[1,-1],"brows":"tilt"}},"actions":{"wave":"Hi!","welcome":"Welcome!","show":"Show","yes":"Yes!","think":"Think","laugh":"Laugh"},"later":[]};</script>
+<script>
+// Saath business mascots: one parametric drawer on two skeletons (adult, young), flat fills with ink under fill.
+// Units are cm, y down, ground at y = 0, figure centred on x = 0. Each part is its own <g id> (legs, torso, arms, head, hair,
+// face, prop) so a rig builder can lift them one by one.
+const INK = '#2B2433';
+const SKIN = { s1: ['#FFE3CC', '#F2C6A6'], s2: ['#F8CFA9', '#E6B086'], s3: ['#DDA678', '#C58A5E'], s4: ['#B57B52', '#98623E'], s5: ['#7C4B33', '#633A27'] };
+const f = (n) => +n.toFixed(2);
+const pt = (p) => `${f(p[0])},${f(p[1])}`;
+
+// One group whose shapes share one outline: every shape stroked in ink first, then every fill on top.
+function inked(id, shapes, sw = 1.0) {
+  const ink = shapes.filter((s) => !s.noInk).map((s) => s.circle ? `<circle cx="${f(s.circle[0])}" cy="${f(s.circle[1])}" r="${f(s.circle[2])}"/>` : `<path d="${s.d}"${s.rule ? ` fill-rule="${s.rule}"` : ''}/>`).join('');
+  const fill = shapes.map((s) => s.circle ? `<circle cx="${f(s.circle[0])}" cy="${f(s.circle[1])}" r="${f(s.circle[2])}" fill="${s.fill}"/>` : `<path d="${s.d}" fill="${s.fill}"${s.rule ? ` fill-rule="${s.rule}"` : ''}/>`).join('');
+  return `<g id="${id}"><g fill="${INK}" stroke="${INK}" stroke-width="${sw * 2}" stroke-linejoin="round">${ink}</g>${fill}</g>`;
+}
+const line = (d, w = 0.8, c = INK, extra = '') => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${extra}/>`;
+
+// Tapered segment A->B (widths wa, wb) as a quad; joints become circles in the same inked group.
+function seg(A, B, wa, wb) {
+  const dx = B[0] - A[0], dy = B[1] - A[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+  return `M${pt([A[0] + nx * wa / 2, A[1] + ny * wa / 2])}L${pt([B[0] + nx * wb / 2, B[1] + ny * wb / 2])}L${pt([B[0] - nx * wb / 2, B[1] - ny * wb / 2])}L${pt([A[0] - nx * wa / 2, A[1] - ny * wa / 2])}Z`;
+}
+function limb(pts, ws, fill, endCap = true) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) out.push({ d: seg(pts[i], pts[i + 1], ws[i], ws[i + 1]), fill });
+  pts.forEach((p, i) => { if (endCap || i < pts.length - 1) out.push({ circle: [p[0], p[1], ws[i] / 2], fill }); });
+  return out;
+}
+const lerp = (A, B, t) => [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t];
+const unit = (A, B) => { const l = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1; return [(B[0] - A[0]) / l, (B[1] - A[1]) / l]; };
+
+// Skeletons. Adult: 172 cm, head 40 (4.3 heads). Young: 140 cm, head 42 (3.3 heads).
+const BASES = {
+  adult: { H: 172, h: 40, sy: -124, wy: -90, hy: -76, crotch: -80, knee: -42, ankle: -6, hipX: 7.2, legW: [15.6, 11.6, 10.2], arm: [9.2, 7.6, 6.2], hand: 3.7, upper: 24, fore: 22 },
+  young: { H: 140, h: 42, sy: -93, wy: -70, hy: -60, crotch: -60, knee: -30, ankle: -5, hipX: 6.4, legW: [13.4, 10.2, 9.2], arm: [8, 6.8, 5.6], hand: 3.3, upper: 17, fore: 16 },
+};
+
+// Arm poses: elbow and wrist from the shoulder pivot, as angles in degrees from straight down (positive = outward).
+const POSES = { rest: [12, 6], raise: [24, 168], wave: [32, 150], hang: [14, 4], hip: [40, -40], hold: [18, 95] };
+function armJoints(b, side, pose, sw) {
+  const P = [side * (sw - 3), b.sy + 3];
+  const [a1, a2] = POSES[pose], r = (d) => d * Math.PI / 180;
+  const E = [P[0] + side * Math.sin(r(a1)) * b.upper, P[1] + Math.cos(r(a1)) * b.upper];
+  const W = [E[0] + side * Math.sin(r(a2)) * b.fore, E[1] + Math.cos(r(a2)) * b.fore];
+  return { P, E, W };
+}
+
+function hand(W, dir, b, skin, kind, side) {
+  const r = b.hand, C = [W[0] + dir[0] * r * 0.9, W[1] + dir[1] * r * 0.9];
+  if (kind === 'open') {
+    // an anime mitten: palm and fingers as one rounded block, a thumb on the inner side; finger gaps are lines (handLines)
+    const u = dir, v = [-dir[1], dir[0]], at = (a, b2) => [W[0] + u[0] * a * r + v[0] * b2 * r, W[1] + u[1] * a * r + v[1] * b2 * r];
+    const d = `M${pt(at(0.1, -0.95))}L${pt(at(1.9, -1.05))}C${pt(at(3.05, -1.05))} ${pt(at(3.05, 1.05))} ${pt(at(1.9, 1.05))}L${pt(at(0.1, 0.95))}C${pt(at(-0.5, 0.95))} ${pt(at(-0.5, -0.95))} ${pt(at(0.1, -0.95))}Z`;
+    const ti = -side, t0 = at(0.6, ti * 0.7), t1 = at(1.5, ti * 1.75);
+    return [{ d, fill: skin }, ...limb([t0, t1], [r * 0.75, r * 0.6], skin)];
+  }
+  // fist: a rounded palm plus a thumb on the side facing the body
+  return [{ circle: [C[0], C[1], r], fill: skin }, { circle: [C[0] - side * r * 0.75, C[1] - r * 0.15, r * 0.5], fill: skin }];
+}
+
+function arm(b, c, side, pose, sw) {
+  const { P, E, W } = armJoints(b, side, pose, sw), skin = SKIN[c.skin][0];
+  const sl = c.sleeve; // 'long' | 'short' | 'rolled' | 'none'
+  const bare = limb([P, E, W], b.arm, skin);
+  const dir = unit(E, W);
+  const open = pose === 'wave';
+  const handShapes = hand(W, dir, b, skin, open ? 'open' : 'fist', side);
+  let sleeve = [];
+  const sc = c.sleeveColor || c.top;
+  const sw2 = b.arm.map((w) => w + 2.6);
+  if (sl === 'long') sleeve = limb([P, E, lerp(E, W, 0.86)], [sw2[0] + 1, sw2[1], sw2[2] + 0.4], sc, false);
+  else if (sl === 'rolled') sleeve = [...limb([P, E, lerp(E, W, 0.18)], [sw2[0] + 1, sw2[1] + 0.6, sw2[1] + 1.4], sc, false)];
+  else if (sl === 'short') sleeve = limb([P, lerp(P, E, 0.5)], [sw2[0] + 0.6, sw2[0] + 0.2], sc, false);
+  let out = inked(`arm-${side < 0 ? 'R' : 'L'}`, [...bare, ...handShapes]);
+  if (sleeve.length) out += inked(`sleeve-${side < 0 ? 'R' : 'L'}`, sleeve);
+  if (sl === 'rolled') { const a = lerp(E, W, 0.18), n = [-dir[1], dir[0]]; out += line(`M${pt([a[0] + n[0] * 5, a[1] + n[1] * 5])}L${pt([a[0] - n[0] * 5, a[1] - n[1] * 5])}`, 0.7); }
+  if (sl === 'long' && c.cuff) { const a = lerp(E, W, 0.76), n = [-dir[1], dir[0]]; out += line(`M${pt([a[0] + n[0] * 4.6, a[1] + n[1] * 4.6])}L${pt([a[0] - n[0] * 4.6, a[1] - n[1] * 4.6])}`, 0.7); }
+  if (open) { const u = dir, v = [-dir[1], dir[0]], r = b.hand, at = (a, b2) => pt([W[0] + u[0] * a * r + v[0] * b2 * r, W[1] + u[1] * a * r + v[1] * b2 * r]);
+    out += line(`M${at(1.7, -0.36)}L${at(2.75, -0.4)}M${at(1.7, 0.33)}L${at(2.75, 0.36)}`, 0.5); }
+  if (!open) { const C = [W[0] + dir[0] * b.hand * 0.9, W[1] + dir[1] * b.hand * 0.9]; out += line(`M${pt([C[0] - side * 0.6, C[1] - 1.6])}q${f(side * 1.2)},1.4 0,3`, 0.5); }
+  return { svg: out, W, dir, E };
+}
+
+function legs(b, c) {
+  const tr = c.bottomColor, skin = SKIN[c.skin][0], H = (s) => [s * b.hipX, b.crotch - 4], K = (s) => [s * (b.hipX + 0.4), b.knee], A = (s) => [s * (b.hipX + 0.8), b.ankle];
+  let parts = [], over = '';
+  if (c.bottom === 'trousers') {
+    parts = [{ d: `M${-b.hipX - 6.6},${b.wy}L${b.hipX + 6.6},${b.wy}L${b.hipX + 7},${b.crotch - 2}L${-b.hipX - 7},${b.crotch - 2}Z`, fill: tr },
+      ...limb([H(-1), K(-1), A(-1)], b.legW, tr), ...limb([H(1), K(1), A(1)], b.legW, tr)];
+    over = line(`M0,${b.crotch - 1}L0,${b.crotch + 3}`, 0.6);
+  } else if (c.bottom === 'shorts' || c.bottom === 'skirt') {
+    const skinLegs = [...limb([H(-1), K(-1), A(-1)], b.legW.map((w) => w - 3.2), skin), ...limb([H(1), K(1), A(1)], b.legW.map((w) => w - 3.2), skin)];
+    const top = inked('legs-skin', skinLegs);
+    const hemY = c.bottom === 'skirt' ? b.knee - 4 : (b.crotch + b.knee) / 2 + 2;
+    const flare = c.bottom === 'skirt' ? 9 : 2.5;
+    const shape = c.bottom === 'skirt'
+      ? [{ d: `M${-b.hipX - 6.4},${b.wy}L${b.hipX + 6.4},${b.wy}L${b.hipX + 6.6 + flare},${hemY}Q0,${hemY + 3} ${-b.hipX - 6.6 - flare},${hemY}Z`, fill: tr }]
+      : [{ d: `M${-b.hipX - 6.4},${b.wy}L${b.hipX + 6.4},${b.wy}L${b.hipX + 6.6 + flare},${hemY}L1,${hemY}L0,${b.crotch}L-1,${hemY}L${-b.hipX - 6.6 - flare},${hemY}Z`, fill: tr }];
+    const socks = c.socks ? inked('socks', [...limb([[-(b.hipX + 0.8), b.ankle - 7], A(-1)], [b.legW[2] - 2.4, b.legW[2] - 2.2], c.socks), ...limb([[b.hipX + 0.8, b.ankle - 7], A(1)], [b.legW[2] - 2.4, b.legW[2] - 2.2], c.socks)]) : '';
+    return `<g id="legs">${top}${socks}${inked('bottom', shape)}${shoes(b, c)}</g>`;
+  }
+  return `<g id="legs">${inked('trousers', parts)}${over}${shoes(b, c)}</g>`;
+}
+function shoes(b, c) {
+  const s = (side) => { const x = side * (b.hipX + 1.8), y = b.ankle; return { d: `M${x - 6.2},${y + 5}C${x - 6.6},${y - 2.2} ${x + 6.6},${y - 2.2} ${x + 6.4 + side * 1.4},${y + 5}Q${x + side * 0.6},${y + 6.8} ${x - 6.2},${y + 5}Z`, fill: c.shoes }; };
+  return inked('shoes', [s(-1), s(1)]) + line(`M${-(b.hipX + 1.6) - 4.4},${b.ankle + 3.9}L${-(b.hipX + 1.6) + 4.9},${b.ankle + 3.9}M${b.hipX + 1.6 - 4.4},${b.ankle + 3.9}L${b.hipX + 1.6 + 5.9},${b.ankle + 3.9}`, 0.45, '#FFFFFF', ' opacity="0.55"');
+}
+
+function torso(b, c, sw) {
+  const sy = b.sy, ww = c.belly ? sw - 1 : sw - (c.fem ? 6.5 : 4.5), hw = c.belly ? sw - 2.5 : sw - (c.fem ? 4 : 4.8), hy = c.hem ?? b.hy;
+  const d = `M-5,${sy - 3}Q${-sw + 1},${sy - 2.5} ${-sw},${sy + 3}L${-ww},${b.wy}${c.belly ? `Q${-ww - 3},${(b.wy + hy) / 2} ${-hw},${hy}` : `L${-hw},${hy}`}Q0,${hy + 1.6} ${hw},${hy}${c.belly ? `Q${ww + 3},${(b.wy + hy) / 2} ${ww},${b.wy}` : `L${ww},${b.wy}`}L${sw},${sy + 3}Q${sw - 1},${sy - 2.5} 5,${sy - 3}Z`;
+  return { d, ww, hw, hy };
+}
+
+// Head in its own frame: chin at (0,0), top of skull at (0,-40), half width 19 (the young head is the same drawing scaled).
+const HEAD = 'M-19,-22C-19,-46 19,-46 19,-22C19,-10 8.5,-0.8 0,0C-8.5,-0.8 -19,-10 -19,-22Z';
+function face(c) {
+  const iris = c.iris || '#5A3A2A';
+  let s = '';
+  // blush
+  s += `<ellipse cx="-12.2" cy="-10.6" rx="3.4" ry="1.7" fill="#FF7F86" opacity="0.32"/><ellipse cx="12.2" cy="-10.6" rx="3.4" ry="1.7" fill="#FF7F86" opacity="0.32"/>`;
+  for (const side of [-1, 1]) {
+    const x = side * 8, kind = c.eyes === 'wink' ? (side < 0 ? 'happy' : 'round') : (c.eyes || 'round');
+    if (kind === 'happy') { s += line(`M${x - 3.2},-16Q${x},-20.6 ${x + 3.2},-16`, 1.25); continue; }
+    const ry = kind === 'almond' ? 3.6 : kind === 'calm' ? 3.3 : 4.15, cy = kind === 'calm' ? -15.9 : -16.6;
+    s += `<ellipse cx="${x}" cy="${cy}" rx="3.05" ry="${ry}" fill="#FFFFFF"/>`;
+    s += `<ellipse cx="${x + side * 0.2}" cy="${cy + 0.5}" rx="2.55" ry="${ry - 0.55}" fill="${iris}"/>`;
+    s += `<ellipse cx="${x + side * 0.2}" cy="${cy + 1}" rx="1.35" ry="${ry * 0.48}" fill="${INK}"/>`;
+    s += `<circle cx="${x - 0.9}" cy="${cy - 1.2}" r="1.05" fill="#FFFFFF"/><circle cx="${x + 1.0}" cy="${cy + 2.2}" r="0.45" fill="#FFFFFF"/>`;
+    // upper lash: thick lid line with a flick at the outer corner (calm: a heavier, lower lid)
+    const top = cy - ry - 0.6;
+    if (kind === 'calm') s += `<path d="M${x - 3.6},${cy - 1.2}Q${x},${top - 0.8} ${x + 3.6},${cy - 1.2}L${x + 3.6},${top - 2}L${x - 3.6},${top - 2}Z" fill="${SKIN[c.skin][0]}"/>` + line(`M${x - side * 3.5},${cy - 0.6}Q${x - side * 1},${cy - 2.6} ${x + side * 3.8},${cy - 1.4}`, 1.2);
+    else s += line(`M${x - side * 3.4},${cy - 0.8}Q${x - side * 2.4},${top} ${x + side * 1.2},${top + 0.4}Q${x + side * 3.2},${top + 1} ${x + side * 3.9},${cy - 2}`, 1.15);
+    if (c.fem) s += line(`M${x + side * 3.5},${cy - 2.7}l${side * 1.5},-1.1`, 0.8) + (kind === 'almond' ? line(`M${x + side * 3.6},${cy - 1.6}l${side * 1.6},-0.2`, 0.7) : '');
+  }
+  if (c.freckles) s += [[-12, -11.4], [-10.4, -10.4], [-13.4, -10], [12, -11.4], [10.4, -10.4], [13.4, -10]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.42" fill="#C0703F"/>`).join('');
+  // brows
+  const by = c.brow ?? -25;
+  s += line(`M-11,${by + 0.6}Q-8,${by - 1.2} -5,${by + 0.2}`, c.thickBrow ? 1.6 : 1.2, c.browColor || INK);
+  s += line(`M11,${by + 0.6}Q8,${by - 1.2} 5,${by + 0.2}`, c.thickBrow ? 1.6 : 1.2, c.browColor || INK);
+  // nose: a small shade tick
+  s += line('M0.4,-11.6l-0.8,1.2l0.9,0.3', 0.6, SKIN[c.skin][1]);
+  // mouth
+  if (c.mouth === 'grin') s += line('M-3.4,-6.4Q0,-3.6 3.4,-6.4', 0.9);
+  else if (c.mouth === 'smirk') s += line('M-3.2,-5.6Q0.6,-3.8 3.6,-7', 0.9) + line('M3.2,-7.4l0.9,0.9', 0.6);
+  else if (c.mouth === 'small') s += `<path d="M-2.4,-6.2Q0,-5.8 2.4,-6.2Q1.6,-3.6 0,-3.6Q-1.6,-3.6 -2.4,-6.2Z" fill="#8A2E3B" stroke="${INK}" stroke-width="0.6" stroke-linejoin="round"/>`;
+  else if (c.mouth === 'big') s += `<path d="M-4.6,-7Q0,-6.4 4.6,-7Q3.6,-1.4 0,-1.4Q-3.6,-1.4 -4.6,-7Z" fill="#8A2E3B" stroke="${INK}" stroke-width="0.7" stroke-linejoin="round"/><path d="M-4,-6.8Q0,-6.3 4,-6.8L3.7,-5.6Q0,-5.2 -3.7,-5.6Z" fill="#FFFFFF"/><path d="M-2.4,-2.4Q0,-4.2 2.4,-2.4Q1.2,-1.6 0,-1.6Q-1.2,-1.6 -2.4,-2.4Z" fill="#F07A7A"/>`;
+  else s += `<path d="M-3.8,-6.6Q0,-6.1 3.8,-6.6Q2.8,-2.2 0,-2.2Q-2.8,-2.2 -3.8,-6.6Z" fill="#8A2E3B" stroke="${INK}" stroke-width="0.7" stroke-linejoin="round"/><path d="M-2,-3.1Q0,-4.6 2,-3.1Q1,-2.4 0,-2.4Q-1,-2.4 -2,-3.1Z" fill="#F07A7A"/>`;
+  return `<g id="face">${s}</g>`;
+}
+
+const HAIR = {
+  // Each returns { back, front } path data in the head frame.
+  rosa: () => ({ back: 'M-17,-12C-23,-14 -22,-4 -16,-6Z', front: 'M-20.5,-17C-22,-47 22,-47 20.5,-17L18.5,-21C16,-29 6,-31 -1,-27C-6,-31 -14,-29 -18.5,-21Z' }),
+  kiran: () => ({ back: '', front: 'M-20.5,-17C-23,-44 -12,-50 -2,-50C6,-55 22,-53 24,-41C25,-33 22,-24 21,-17L18.5,-22C18,-29 14,-32 9,-30C6,-35 0,-36 -5,-31C-9,-34 -15,-30 -18.5,-21Z' }),
+  juno: () => ({ back: 'M8,-38C22,-46 33,-36 30,-18C28,-8 34,-2 36,2C28,0 22,-8 22,-18C22,-28 16,-34 8,-34Z', front: 'M-20.5,-16C-22,-47 22,-47 20.5,-16L18.5,-20L16,-24L13,-21.5L10,-26L6.5,-22.5L3,-27L-0.5,-23L-4,-27L-7.5,-22.5L-11,-26L-14,-21.5L-17,-24L-18.5,-19Z' }),
+  otto: () => ({ back: '', front: 'M-19.4,-12.6C-22.4,-15 -20.6,-18 -22.4,-21C-20.4,-22 -21.6,-26 -18.6,-28.4C-18.2,-24 -17.6,-20 -17.2,-16Z M19.4,-12.6C22.4,-15 20.6,-18 22.4,-21C20.4,-22 21.6,-26 18.6,-28.4C18.2,-24 17.6,-20 17.2,-16Z' }),
+  sunny: () => ({ back: '', front: 'M-20.5,-18C-21,-34 -17,-42 -14,-44L-12,-50L-8,-45L-4,-53L0,-46L5,-54L8,-46L13,-51L14,-44C18,-41 21,-34 20.5,-18L18,-24C10,-29 -10,-29 -18,-24Z' }),
+  nia: () => ({ back: 'M-21,-26C-30,-30 -30,-44 -22,-48C-22,-58 -10,-62 -3,-57C3,-63 16,-61 18,-52C27,-52 30,-40 23,-33C26,-28 24,-22 21,-21Z', front: 'M-20.5,-18C-22,-46 22,-46 20.5,-18L18.6,-22C16,-27 14,-26 12,-28C10,-26 7,-28 5,-29C3,-27 0,-29 -2,-29C-4,-27 -7,-29 -9,-28C-11,-26 -14,-27 -16,-26C-17,-24 -18,-23 -18.6,-21Z' }),
+  mika: () => ({ back: 'M-21.5,-24C-24,-50 24,-50 21.5,-24L22.5,-3C17,-1.5 -17,-1.5 -22.5,-3Z', front: 'M-21.5,-20C-23,-48 23,-48 21.5,-20L21.8,-3L17.5,-3L17.2,-17L16,-24.6L-16,-24.6L-17.2,-17L-17.5,-3L-21.8,-3Z' }),
+  max: () => ({ back: '', front: 'M-20.6,-16C-25,-18 -26,-25 -23,-28C-27,-32 -25,-39 -20,-40C-21,-46 -15,-51 -9,-49C-7,-55 2,-56 5,-51C10,-55 18,-51 18,-46C24,-46 27,-39 24,-34C28,-30 26,-22 21,-20L20.6,-16L18.6,-21C17,-26 14,-25 12,-28C9,-25 6,-28 3,-29C0,-26 -4,-28 -6,-28C-9,-25 -13,-28 -15,-26C-17,-24 -18,-23 -18.6,-21Z' }),
+  omar: () => ({ back: '', front: 'M-20.3,-17C-22,-40 -17,-48 -6,-48.5C0,-52 14,-51.5 19,-44.5C22,-39 21.4,-27 20.3,-17L18.6,-23C16,-30 7,-32 -3,-31L-6,-28.5L-9,-31C-14,-30 -17,-27 -18.6,-22Z' }),
+  lina: () => ({ back: 'M-9,-50a11,10 0 1 1 22,0a11,10 0 1 1 -22,0Z', front: 'M-21,-18C-23,-50 23,-50 21,-18L19,-14C18,-22 14,-29 1,-31C0,-29 0.5,-28 0,-26C-3,-30 -14,-29 -17,-20L-19,-14Z M-19.4,-16C-22.6,-9 -20.4,-3 -23,3C-19.4,1 -17.6,-6 -17.6,-14Z M19.4,-16C22.6,-9 20.4,-3 23,3C19.4,1 17.6,-6 17.6,-14Z' }),
+  sana: () => ({ back: 'M-23,-24C-26,-52 26,-52 23,-24C25,-10 24,-1 30,8C18,12 -18,12 -30,8C-24,-1 -25,-10 -23,-24Z', front: 'M-23,-24C-26,-52 26,-52 23,-24C24,-14 22,-4 18,0C12,4 -12,4 -18,0C-22,-4 -24,-14 -23,-24Z M0,-29C-10,-29 -16.6,-26 -17,-19C-17.6,-10 -10,-1.5 0,-0.6C10,-1.5 17.6,-10 17,-19C16.6,-26 10,-29 0,-29Z' }),
+  kai: () => ({ back: '', front: 'M-20.5,-17C-21,-26 -21,-36 -17,-41C-12,-50 4,-55 16,-49C24,-45 27,-36 25,-27C24,-23 22,-21 20.5,-17L19,-24C16,-30 12,-27 7,-31C2,-26 -6,-29 -10,-25C-13,-27 -16,-24 -18.5,-19Z' }),
+};
+
+function headGroup(c, b, chinY) {
+  const s = b.h / 40, skin = SKIN[c.skin], hair = HAIR[c.id]();
+  let g = '';
+  if (hair.back) g += inked('hair-back', [{ d: hair.back, fill: c.hairBackColor || c.hairColor }]);
+  // ears, head
+  g += inked('head', [{ d: 'M-18,-24C-23,-26 -23.5,-14 -17.5,-12Z', fill: skin[0] }, { d: 'M18,-24C23,-26 23.5,-14 17.5,-12Z', fill: skin[0] }, { d: HEAD, fill: skin[0] }]);
+  // jaw shade under the hair line
+  g += face(c);
+  if (c.beard) g += inked('beard', [{ d: 'M-18.6,-20C-18,-8 -9,-0.6 0,0C9,-0.6 18,-8 18.6,-20C17,-12 12,-6 7,-5.4C4,-8.4 -4,-8.4 -7,-5.4C-12,-6 -17,-12 -18.6,-20Z', fill: c.hairColor }], 0.8) + `<path d="M-3.8,-6.6Q0,-6.1 3.8,-6.6Q2.8,-3 0,-3Q-2.8,-3 -3.8,-6.6Z" fill="#8A2E3B" stroke="${INK}" stroke-width="0.6"/>`;
+  if (c.mustache) g += inked('mustache', [{ d: 'M0,-8.6C-3,-11 -8,-10.4 -9,-7.4C-6,-8.6 -3,-7.6 0,-7.2C3,-7.6 6,-8.6 9,-7.4C8,-10.4 3,-11 0,-8.6Z', fill: c.hairColor }], 0.6);
+  if (hair.front) g += inked('hair', [{ d: hair.front, fill: c.hairColor, rule: c.id === 'sana' ? 'evenodd' : undefined }]);
+  if (c.streak) g += `<path d="${c.streak}" fill="${c.streakColor}"/>`;
+  if (c.greyTemples) g += `<path d="M-19.8,-18L-18.6,-22C-18.4,-24 -18,-25 -17.6,-26L-19.6,-25Z M19.8,-18L18.6,-23C18.4,-24.5 18.2,-25.5 17.8,-26.5L19.7,-25Z" fill="#C9C6CF"/>`;
+  if (c.hairShine) g += line(c.hairShine, 1.0, '#FFFFFF', ' opacity="0.35"');
+  if (c.glasses) g += `<g id="glasses" fill="none" stroke="${c.glasses}" stroke-width="1.3"><circle cx="-8.2" cy="-16.4" r="6.3"/><circle cx="8.2" cy="-16.4" r="6.3"/><path d="M-1.9,-17.2Q0,-18.6 1.9,-17.2"/></g>`;
+  if (c.hat) g += HATS[c.hat](c);
+  if (c.hairStick) g += line('M-10,-58L15,-43', 1.6, c.hairStick) + `<circle cx="-10" cy="-58" r="1.6" fill="${c.hairStick}" stroke="${INK}" stroke-width="0.5"/>`;
+  return `<g id="head-${c.id}" transform="translate(0,${f(chinY)}) scale(${f(s)})">${g}</g>`;
+}
+
+const HATS = {
+  toque: () => inked('hat', [{ d: 'M-17.5,-28L-17,-37L17,-37L17.5,-28Q0,-26 -17.5,-28Z', fill: '#FFFFFF' }, { d: 'M-16,-36C-24,-40 -24,-54 -15,-55C-15,-64 -4,-67 1,-61C6,-67 17,-64 16,-55C25,-54 24,-40 16,-36Z', fill: '#FFFFFF' }]) + line('M-6,-37Q-7,-46 -5,-53M6,-37Q7,-46 5,-53', 0.6, '#C9C2D4'),
+  baker: () => inked('hat', [{ d: 'M-18.5,-27L-18,-34L18,-34L18.5,-27Q0,-25 -18.5,-27Z', fill: '#FFFFFF' }, { d: 'M-18,-33C-24,-36 -22,-49 -8,-49C0,-52 18,-50 22,-41C25,-36 21,-33 18,-33Z', fill: '#FFFFFF' }]) + line('M-17.6,-30.5L17.6,-30.5', 1.4, '#F48FB1'),
+  visor: (c) => inked('hat', [{ d: 'M-20.4,-28.5L-20,-33Q0,-36.6 20,-33L20.4,-28.5Q0,-31.6 -20.4,-28.5Z', fill: c.hatColor }, { d: 'M-21.4,-29Q0,-32.6 21.4,-29Q23.6,-26.6 18.6,-26.2Q0,-29 -18.6,-26.2Q-23.6,-26.6 -21.4,-29Z', fill: c.hatColor2 }]) + `<g id="leaf"><path d="M12,-33C15,-39 21,-39 22,-36C19,-33 15,-32 12,-33Z" fill="#5BAE3A" stroke="${INK}" stroke-width="0.6"/></g>`,
+  headphones: (c) => line('M-21.6,-20C-25,-50 25,-50 21.6,-20', 2.6, INK) + line('M-21.6,-20C-25,-50 25,-50 21.6,-20', 1.2, '#4B4B6B') + inked('cups', [{ d: 'M-26,-26Q-26,-31 -22,-31L-19.6,-31L-19.6,-12L-22,-12Q-26,-12 -26,-17Z', fill: '#22223B' }, { d: 'M26,-26Q26,-31 22,-31L19.6,-31L19.6,-12L22,-12Q26,-12 26,-17Z', fill: '#22223B' }], 0.7) + `<rect x="-25" y="-27" width="3" height="11" rx="1.4" fill="${c.accent}"/><rect x="22" y="-27" width="3" height="11" rx="1.4" fill="${c.accent}"/>`,
+  bandana: (c) => inked('hat', [{ d: 'M-20.6,-24L-20,-32Q0,-36 20,-32L20.6,-24Q0,-27.6 -20.6,-24Z', fill: c.hatColor }, { d: 'M19.6,-29C24,-31 28,-35 29,-30C27,-28 24,-27.6 20.4,-27Z', fill: c.hatColor }, { d: 'M20.2,-27C24,-27 28,-24 26,-20C23,-22 21,-24 20,-25Z', fill: c.hatColor }]) + `<circle cx="-12" cy="-28.6" r="0.8" fill="#FFFFFF"/><circle cx="-4" cy="-30" r="0.8" fill="#FFFFFF"/><circle cx="4" cy="-30" r="0.8" fill="#FFFFFF"/><circle cx="12" cy="-28.6" r="0.8" fill="#FFFFFF"/>`,
+};
+
+// Props, drawn at the hand centre C with the forearm direction dir (pointing from elbow to hand).
+const PROPS = {
+  spoon: (C) => inked('prop', [{ d: seg([C[0] + 1, C[1] + 5], [C[0] - 2, C[1] - 19], 2, 1.6), fill: '#C98F44' }, { d: `M${C[0] - 2.6},${C[1] - 31}C${C[0] + 2.2},${C[1] - 31} ${C[0] + 2.4},${C[1] - 19} ${C[0] - 2},${C[1] - 19}C${C[0] - 6.6},${C[1] - 19} ${C[0] - 7},${C[1] - 31} ${C[0] - 2.6},${C[1] - 31}Z`, fill: '#E0A85A' }]) + `<ellipse cx="${C[0] - 2.4}" cy="${C[1] - 26}" rx="2" ry="3.2" fill="#E5533D"/>` + line(`M${C[0] - 6},${C[1] - 34}q-1.6,-2 0,-4q1.6,-2 0,-4M${C[0] - 1},${C[1] - 35}q-1.6,-2 0,-4q1.6,-2 0,-4`, 0.6, '#9AA3AE'),
+  ladle: (C) => inked('prop', [{ d: seg([C[0] + 1, C[1] + 5], [C[0] - 3, C[1] - 26], 1.6, 1.4), fill: '#B8BFC9' }, { d: `M${C[0] - 9},${C[1] - 27}Q${C[0] - 3},${C[1] - 18} ${C[0] + 3},${C[1] - 27}Z`, fill: '#D3D8DF' }]) + `<path d="M${C[0] - 7},${C[1] - 26}Q${C[0] - 3},${C[1] - 21} ${C[0] + 1},${C[1] - 26}" fill="#E5533D"/>`,
+  chai: (C) => inked('prop', [{ d: `M${C[0] - 3.6},${C[1] - 11}L${C[0] + 3.6},${C[1] - 11}L${C[0] + 2.8},${C[1] - 2}L${C[0] - 2.8},${C[1] - 2}Z`, fill: '#E7F2F4' }], 0.7) + `<path d="M${C[0] - 3.3},${C[1] - 8}L${C[0] + 3.3},${C[1] - 8}L${C[0] + 2.8},${C[1] - 2.3}L${C[0] - 2.8},${C[1] - 2.3}Z" fill="#B9773F"/>` + line(`M${C[0] - 1},${C[1] - 13}q-1.4,-2 0,-4q1.4,-2 0,-4M${C[0] + 1.6},${C[1] - 13}q-1.4,-2 0,-4`, 0.6, '#9AA3AE'),
+  kettle: (C) => inked('prop2', [{ d: `M${C[0] - 7},${C[1] + 15}C${C[0] - 8},${C[1] + 6} ${C[0] + 8},${C[1] + 6} ${C[0] + 7},${C[1] + 15}L${C[0] + 7.6},${C[1] + 18}Q0,0 ${C[0] - 7.6},${C[1] + 18}Z`.replace('Q0,0', `Q${C[0]},${C[1] + 20}`), fill: '#C7CDD6' }, { d: `M${C[0] + 6},${C[1] + 14}L${C[0] + 13},${C[1] + 8}L${C[0] + 13.6},${C[1] + 9.4}L${C[0] + 7},${C[1] + 17}Z`, fill: '#C7CDD6' }, { d: `M${C[0] - 2},${C[1] + 8.4}Q${C[0]},${C[1] + 6.4} ${C[0] + 2},${C[1] + 8.4}Z`, fill: '#2B2433' }]) + line(`M${C[0] - 5},${C[1] + 9}Q${C[0]},${C[1] - 3} ${C[0] + 5},${C[1] + 9}`, 1.1),
+  smoothie: (C) => inked('prop', [{ d: `M${C[0] - 4.6},${C[1] - 15}L${C[0] + 4.6},${C[1] - 15}L${C[0] + 3.4},${C[1] + 2}L${C[0] - 3.4},${C[1] + 2}Z`, fill: '#FFB74D' }, { d: `M${C[0] - 5.4},${C[1] - 15}Q${C[0]},${C[1] - 21} ${C[0] + 5.4},${C[1] - 15}Z`, fill: '#FFF3E0' }, { d: seg([C[0] + 1, C[1] - 17], [C[0] + 4, C[1] - 26], 1.3, 1.3), fill: '#F25F8C' }, { circle: [C[0] - 4, C[1] - 17, 3], fill: '#FFD54F' }], 0.75) + line(`M${C[0] - 5.4},${C[1] - 17}L${C[0] - 2.6},${C[1] - 17}M${C[0] - 4},${C[1] - 19.6}L${C[0] - 4},${C[1] - 14.4}`, 0.4, '#F9A825') + `<path d="M${C[0] - 4},${C[1] - 9}h8" stroke="#8CCB3F" stroke-width="2.2"/>`,
+  rollingpin: (C) => inked('prop', [{ d: seg([C[0] - 6, C[1] + 7], [C[0] + 7, C[1] - 18], 5.2, 5.2), fill: '#E8B86B' }, { d: seg([C[0] + 7, C[1] - 18], [C[0] + 9, C[1] - 22], 2, 2), fill: '#C98F44' }, { d: seg([C[0] - 6, C[1] + 7], [C[0] - 8, C[1] + 11], 2, 2), fill: '#C98F44' }]),
+  spatula: (C) => inked('prop', [{ d: seg([C[0], C[1] + 4], [C[0] + 2, C[1] - 16], 1.6, 1.4), fill: '#2B2D42' }, { d: `M${C[0] - 3},${C[1] - 16}L${C[0] + 7},${C[1] - 16}L${C[0] + 7.5},${C[1] - 26}L${C[0] - 2.5},${C[1] - 26}Z`, fill: '#C7CDD6' }]) + line(`M${C[0] + 0.5},${C[1] - 18.5}L${C[0] + 1},${C[1] - 24}M${C[0] + 4},${C[1] - 18.5}L${C[0] + 4.5},${C[1] - 24}`, 0.5, '#8E96A3'),
+  basket: (C) => inked('prop2', [{ d: `M${C[0] - 10},${C[1] + 9}L${C[0] + 10},${C[1] + 9}L${C[0] + 8},${C[1] + 20}Q${C[0]},${C[1] + 22} ${C[0] - 8},${C[1] + 20}Z`, fill: '#D9A45B' }, { circle: [C[0] - 5, C[1] + 7.6, 3.4], fill: '#E53935' }, { circle: [C[0] + 1, C[1] + 6.8, 3.6], fill: '#FFB300' }, { d: `M${C[0] + 4},${C[1] + 9}C${C[0] + 4},${C[1] + 2} ${C[0] + 7},${C[1] - 1} ${C[0] + 9},${C[1] + 1}C${C[0] + 8},${C[1] + 4} ${C[0] + 7},${C[1] + 7} ${C[0] + 7},${C[1] + 9}Z`, fill: '#43A047' }]) + line(`M${C[0] - 8},${C[1] + 9}Q${C[0] - 6},${C[1] - 5} ${C[0]},${C[1] - 2}Q${C[0] + 6},${C[1] - 5} ${C[0] + 8},${C[1] + 9}`, 1.2, '#A8722F') + line(`M${C[0] - 9},${C[1] + 13}L${C[0] + 9},${C[1] + 13}M${C[0] - 8.5},${C[1] + 16.5}L${C[0] + 8.5},${C[1] + 16.5}`, 0.5, '#A8722F'),
+  hanger: (C) => line(`M${C[0]},${C[1] + 2}q0,3 2,3q2,0 2,-2`, 0.8, '#9AA3AE') + inked('prop', [{ d: `M${C[0] + 2},${C[1] + 6}L${C[0] + 13},${C[1] + 11}L${C[0] - 9},${C[1] + 11}Z`, fill: '#C9A36B' }, { d: `M${C[0] - 4},${C[1] + 11}L${C[0] + 8},${C[1] + 11}L${C[0] + 13},${C[1] + 34}Q${C[0] + 2},${C[1] + 37} ${C[0] - 9},${C[1] + 34}Z`, fill: '#F7C6D9' }]) + line(`M${C[0] - 4},${C[1] + 19}Q${C[0] + 2},${C[1] + 21} ${C[0] + 9},${C[1] + 19}`, 0.6),
+  bags: (C) => inked('prop2', [{ d: `M${C[0] - 9},${C[1] + 6}L${C[0] + 2},${C[1] + 6}L${C[0] + 3},${C[1] + 21}L${C[0] - 10},${C[1] + 21}Z`, fill: '#FF6B6B' }, { d: `M${C[0] - 2},${C[1] + 9}L${C[0] + 9},${C[1] + 9}L${C[0] + 10},${C[1] + 22}L${C[0] - 3},${C[1] + 22}Z`, fill: '#FFD166' }]) + line(`M${C[0] - 6},${C[1] + 6}Q${C[0] - 3},${C[1] - 1} ${C[0]},${C[1] + 6}M${C[0] + 1},${C[1] + 9}Q${C[0] + 3},${C[1]} ${C[0] + 6},${C[1] + 9}`, 0.8) + `<circle cx="${C[0] + 3.6}" cy="${C[1] + 15.6}" r="2" fill="#FF6B6B"/>`,
+  map: (C) => inked('prop', [{ d: `M${C[0] - 8},${C[1] - 18}L${C[0] - 2},${C[1] - 16}L${C[0] + 4},${C[1] - 18}L${C[0] + 10},${C[1] - 16}L${C[0] + 10},${C[1] - 2}L${C[0] + 4},${C[1] - 4}L${C[0] - 2},${C[1] - 2}L${C[0] - 8},${C[1] - 4}Z`, fill: '#FFFFFF' }], 0.7) + line(`M${C[0] - 2},${C[1] - 16}L${C[0] - 2},${C[1] - 2}M${C[0] + 4},${C[1] - 18}L${C[0] + 4},${C[1] - 4}`, 0.5, '#9AA3AE') + `<path d="M${C[0] - 6},${C[1] - 8}Q${C[0] + 1},${C[1] - 14} ${C[0] + 8},${C[1] - 10}" fill="none" stroke="#3BA7E5" stroke-width="1" stroke-dasharray="1.2 1"/><circle cx="${C[0] + 8}" cy="${C[1] - 10}" r="1.4" fill="#FF6B6B"/>`,
+  keyfob: (C) => line(`M${C[0]},${C[1] - 3}L${C[0]},${C[1] - 8}`, 0.6, '#9AA3AE') + inked('prop', [{ d: `M${C[0] - 5.5},${C[1] - 13}L${C[0]},${C[1] - 19}L${C[0] + 5.5},${C[1] - 13}L${C[0] + 4.5},${C[1] - 13}L${C[0] + 4.5},${C[1] - 7.5}L${C[0] - 4.5},${C[1] - 7.5}L${C[0] - 4.5},${C[1] - 13}Z`, fill: '#E3B23C' }, { d: seg([C[0] + 3, C[1] - 1], [C[0] + 11, C[1] - 7], 1.4, 1.4), fill: '#D7DBE2' }, { circle: [C[0] + 2.2, C[1] - 0.2, 2], fill: '#D7DBE2' }], 0.65) + `<rect x="${C[0] - 1.2}" y="${C[1] - 12}" width="2.4" height="4.5" fill="#23395B"/>`,
+  folder: (C) => inked('prop2', [{ d: `M${C[0] - 4},${C[1] - 4}L${C[0] + 9},${C[1] - 6}L${C[0] + 11},${C[1] + 13}L${C[0] - 2},${C[1] + 15}Z`, fill: '#E3B23C' }], 0.7),
+  scissors: (C) => line(`M${C[0] - 2},${C[1] - 3}L${C[0] + 5},${C[1] - 22}M${C[0] + 3},${C[1] - 3}L${C[0] - 1},${C[1] - 22}`, 1.3, '#B76E79') + `<circle cx="${C[0] - 2.4}" cy="${C[1] + 0.4}" r="2.2" fill="none" stroke="${INK}" stroke-width="1"/><circle cx="${C[0] + 3.6}" cy="${C[1] + 0.4}" r="2.2" fill="none" stroke="${INK}" stroke-width="1"/>` + inked('comb', [{ d: `M${C[0] + 7},${C[1] - 6}L${C[0] + 9},${C[1] - 24}L${C[0] + 11.6},${C[1] - 24}L${C[0] + 9.6},${C[1] - 6}Z`, fill: '#F06292' }], 0.6),
+  bottle: (C) => inked('prop', [{ d: `M${C[0] - 4},${C[1] - 13}L${C[0] + 4},${C[1] - 13}L${C[0] + 4},${C[1] + 2}Q${C[0]},${C[1] + 3} ${C[0] - 4},${C[1] + 2}Z`, fill: '#F2A541' }, { d: `M${C[0] - 4.6},${C[1] - 18}L${C[0] + 4.6},${C[1] - 18}L${C[0] + 4.6},${C[1] - 13}L${C[0] - 4.6},${C[1] - 13}Z`, fill: '#FFFFFF' }], 0.7) + `<rect x="${C[0] - 4}" y="${C[1] - 10}" width="8" height="6" fill="#FFFFFF"/><path d="M${C[0] - 1},${C[1] - 9.4}h2v1.6h1.6v2h-1.6v1.6h-2v-1.6h-1.6v-2h1.6z" fill="#2BB39B"/>`,
+  phone: (C) => inked('prop', [{ d: `M${C[0] - 4.6},${C[1] - 18}Q${C[0] - 4.6},${C[1] - 20} ${C[0] - 2.6},${C[1] - 20}L${C[0] + 2.6},${C[1] - 20}Q${C[0] + 4.6},${C[1] - 20} ${C[0] + 4.6},${C[1] - 18}L${C[0] + 4.6},${C[1] - 1}L${C[0] - 4.6},${C[1] - 1}Z`, fill: '#22223B' }], 0.7) + `<rect x="${C[0] - 3.4}" y="${C[1] - 18.4}" width="6.8" height="14" rx="0.8" fill="#2EE6D6"/><path d="M${C[0] - 2},${C[1] - 13}l2,-2.6l2,2.6M${C[0]},${C[1] - 15.4}v6" stroke="#22223B" stroke-width="0.8" fill="none"/>` + line(`M${C[0] + 6},${C[1] - 20}q2,2 0,4M${C[0] + 8},${C[1] - 21.4}q3,3.4 0,6.8`, 0.6, '#4A6CF7'),
+};
+
+// Clothing details drawn over the torso.
+const DETAILS = {
+  chefcoat: (b, c, t, sw) => `<g id="coat-details">${[0, 1, 2].map((i) => `<circle cx="-4.2" cy="${b.sy + 10 + i * 8}" r="1.1" fill="#E3E0EA" stroke="${INK}" stroke-width="0.5"/><circle cx="4.2" cy="${b.sy + 10 + i * 8}" r="1.1" fill="#E3E0EA" stroke="${INK}" stroke-width="0.5"/>`).join('')}${line(`M-7.5,${b.sy + 4}L7.5,${b.sy + 5}L7,${t.hy}`, 0.6, '#BDB6CB')}</g>`
+    + inked('neckerchief', [{ d: `M-6,${b.sy - 2.4}Q0,${b.sy + 1.6} 6,${b.sy - 2.4}L4,${b.sy + 2.6}Q0,${b.sy + 4} -4,${b.sy + 2.6}Z`, fill: c.accent }, { d: `M-1.6,${b.sy + 2}L1.6,${b.sy + 2}L3,${b.sy + 9}L0,${b.sy + 7.6}L-3,${b.sy + 9}Z`, fill: c.accent }], 0.7),
+  apronBib: (b, c, t) => inked('apron', [{ d: `M-8.5,${b.sy + 4}L8.5,${b.sy + 4}L9,${b.wy}L${t.hw + 1},${b.wy + 26}Q0,${b.wy + 28} ${-t.hw - 1},${b.wy + 26}L-9,${b.wy}Z`, fill: c.apron }], 0.8) + line(`M-8.5,${b.sy + 4}L-12,${b.sy - 2}M8.5,${b.sy + 4}L12,${b.sy - 2}`, 1.3, c.apron) + line(`M-6,${b.wy + 4}h12v7h-12z`, 0.6) + (c.apronMark ? `<g transform="translate(0,${b.sy + 13})">${c.apronMark}</g>` : ''),
+  apronWaist: (b, c, t) => inked('apron', [{ d: `M${-t.ww - 1.4},${b.wy - 1}L${t.ww + 1.4},${b.wy - 1}L${t.ww + 3},${b.wy + (c.apronLen || 16)}Q0,${b.wy + (c.apronLen || 16) + 2} ${-t.ww - 3},${b.wy + (c.apronLen || 16)}Z`, fill: c.apron }], 0.8) + `<path d="M${-t.ww - 1.4},${b.wy - 1}L${t.ww + 1.4},${b.wy - 1}L${t.ww + 1.6},${b.wy + 1.6}L${-t.ww - 1.6},${b.wy + 1.6}Z" fill="${c.apronBand || c.apron}" stroke="${INK}" stroke-width="0.6"/>`,
+  collar: (b, c) => inked('collar', [{ d: `M-5.6,${b.sy - 2.6}L0,${b.sy + 4}L-1,${b.sy + 5.6}L-7.6,${b.sy + 1}Z`, fill: c.collar || '#FFFFFF' }, { d: `M5.6,${b.sy - 2.6}L0,${b.sy + 4}L1,${b.sy + 5.6}L7.6,${b.sy + 1}Z`, fill: c.collar || '#FFFFFF' }], 0.6),
+  blazer: (b, c, t) => inked('shirt', [{ d: `M-5,${b.sy - 3}L5,${b.sy - 3}L4,${b.wy - 6}L0,${b.wy - 2}L-4,${b.wy - 6}Z`, fill: '#FFFFFF' }], 0.6)
+    + inked('tie', [{ d: `M-1.6,${b.sy}L1.6,${b.sy}L1.1,${b.sy + 2.4}L2.6,${b.wy - 10}L0,${b.wy - 7}L-2.6,${b.wy - 10}L-1.1,${b.sy + 2.4}Z`, fill: c.accent }], 0.55)
+    + inked('lapels', [{ d: `M-5.6,${b.sy - 3}L-9,${b.sy + 3}L-6.4,${b.sy + 5}L-8.6,${b.sy + 8}L-3.8,${b.wy - 5}L-4.4,${b.sy - 2}Z`, fill: c.top }, { d: `M5.6,${b.sy - 3}L9,${b.sy + 3}L6.4,${b.sy + 5}L8.6,${b.sy + 8}L3.8,${b.wy - 5}L4.4,${b.sy - 2}Z`, fill: c.top }], 0.6)
+    + `<circle cx="-2" cy="${b.wy + 1}" r="1" fill="${c.accent}" stroke="${INK}" stroke-width="0.4"/>` + line(`M-3.8,${b.wy - 5}L-1.4,${t.hy}M${t.ww + 0},${b.wy + 4}h-5`, 0.6) + `<path d="M${t.ww - 5},${b.sy + 10}h4" stroke="#FFFFFF" stroke-width="1.2"/>`,
+  tunic: (b, c, t) => line(`M-4.5,${b.sy - 2}Q0,${b.sy + 4} 4.5,${b.sy - 2}`, 0.7) + line(`M5,${b.sy + 1}L5,${t.hy}`, 0.6) + [0, 1, 2, 3].map((i) => `<circle cx="7" cy="${b.sy + 6 + i * 7}" r="0.9" fill="${c.accent}"/>`).join('') + `<path d="M${-t.ww + 1},${b.sy + 14}h7v7h-7z" fill="${c.accent}" stroke="${INK}" stroke-width="0.5" opacity="0.9"/>`,
+  labcoat: (b, c, t) => inked('scrubs', [{ d: `M-6,${b.sy - 1}L6,${b.sy - 1}L3,${b.sy + 14}L-3,${b.sy + 14}Z`, fill: c.accent }], 0.6) + inked('lapels', [{ d: `M-6,${b.sy - 2.6}L-10,${b.sy + 5}L-7,${b.sy + 7}L-3,${b.sy + 15}L-3,${t.hy}L-7,${t.hy}L-9,${b.sy + 8}Z`, fill: '#FFFFFF' }, { d: `M6,${b.sy - 2.6}L10,${b.sy + 5}L7,${b.sy + 7}L3,${b.sy + 15}L3,${t.hy}L7,${t.hy}L9,${b.sy + 8}Z`, fill: '#FFFFFF' }], 0.6) + `<rect x="5.4" y="${b.sy + 12}" width="6" height="7" rx="1" fill="#FFFFFF" stroke="${INK}" stroke-width="0.5"/><path d="M7.6,${b.sy + 13}h1.6v1.8h1.8v1.6h-1.8v1.8h-1.6v-1.8h-1.8v-1.6h1.8z" fill="${c.accent}"/>` + line(`M${-t.ww + 1},${b.wy + 4}h5`, 0.6),
+  hoodie: (b, c, t) => inked('hood', [{ d: `M-10,${b.sy - 2}Q-12,${b.sy - 6} -6,${b.sy - 5}L6,${b.sy - 5}Q12,${b.sy - 6} 10,${b.sy - 2}Q0,${b.sy + 5} -10,${b.sy - 2}Z`, fill: c.top2 }], 0.6) + line(`M-2.6,${b.sy + 1}L-3,${b.sy + 10}M2.6,${b.sy + 1}L3,${b.sy + 10}`, 0.6, '#FFFFFF') + inked('pocket', [{ d: `M-9,${b.wy - 2}L9,${b.wy - 2}L11,${t.hy - 3}L-11,${t.hy - 3}Z`, fill: c.top }], 0.6) + `<path d="M${-t.hw},${t.hy - 2}L${t.hw},${t.hy - 2}" stroke="${c.top2}" stroke-width="2.4"/>`,
+  polo: (b, c, t) => DETAILS.collar(b, c) + line(`M0,${b.sy + 4}L0,${b.sy + 11}`, 0.6) + `<circle cx="0" cy="${b.sy + 7}" r="0.6" fill="${INK}"/><circle cx="0" cy="${b.sy + 10}" r="0.6" fill="${INK}"/>` + inked('badge', [{ d: `M5,${b.sy + 9}h8v4.4h-8z`, fill: '#FFFFFF' }], 0.5) + `<path d="M6.2,${b.sy + 11.2}h5.6" stroke="${c.accent}" stroke-width="1.2"/>` + line(`M-6,${b.sy - 2}Q-3,${b.sy + 14} 6,${b.sy + 9}`, 0.8, c.accent),
+  tee: (b, c) => line(`M-5,${b.sy - 2.4}Q0,${b.sy + 2.6} 5,${b.sy - 2.4}`, 0.7) + (c.teeMark ? `<g transform="translate(0,${b.sy + 14})">${c.teeMark}</g>` : ''),
+  cardigan: (b, c, t) => inked('tee', [{ d: `M-5.4,${b.sy - 2.8}L5.4,${b.sy - 2.8}L4,${t.hy}L-4,${t.hy}Z`, fill: '#FFFFFF' }], 0.6),
+  blazerShort: (b, c, t) => inked('top-in', [{ d: `M-5.4,${b.sy - 3}L5.4,${b.sy - 3}L4,${b.wy}L-4,${b.wy}Z`, fill: c.top2 }], 0.6) + inked('lapels', [{ d: `M-5.6,${b.sy - 3}L-9,${b.sy + 4}L-4,${b.wy}L-4.4,${b.sy - 2}Z`, fill: c.top }, { d: `M5.6,${b.sy - 3}L9,${b.sy + 4}L4,${b.wy}L4.4,${b.sy - 2}Z`, fill: c.top }], 0.6)
+    + line(`M-7,${b.sy - 3}C-4,${b.sy + 10} -10,${b.wy - 6} -8,${b.wy + 2}M7,${b.sy - 3}C4,${b.sy + 10} 10,${b.wy - 6} 8,${b.wy + 2}`, 1.5, '#F2D14B') + line(`M-7,${b.sy - 3}C-4,${b.sy + 10} -10,${b.wy - 6} -8,${b.wy + 2}M7,${b.sy - 3}C4,${b.sy + 10} 10,${b.wy - 6} 8,${b.wy + 2}`, 0.35, INK, ' stroke-dasharray="0.6 1.4"'),
+};
+
+function figure(c) {
+  const b = BASES[c.base], sw = c.sw ?? (c.base === 'young' ? 16 : c.fem ? 18.5 : 21);
+  const t = torso(b, c, sw);
+  const chinY = b.sy - (c.base === 'young' ? 4.5 : 7);
+  const [lp, rp] = c.pose; // screen-left arm, screen-right arm
+  const L = arm(b, c, -1, lp, sw), R = arm(b, c, 1, rp, sw);
+  const handC = (A) => [A.W[0] + A.dir[0] * b.hand * 0.9, A.W[1] + A.dir[1] * b.hand * 0.9];
+  const skin = SKIN[c.skin];
+  let s = `<ellipse cx="0" cy="1.2" rx="${sw + 6}" ry="3.4" fill="#2B2433" opacity="0.12"/>`;
+  s += legs(b, c);
+  { const hu = HAIR[c.id]().under; if (hu) s += `<g transform="translate(0,${f(chinY)}) scale(${f(b.h / 40)})">${inked('hair-under', [{ d: hu, fill: c.hairColor }])}</g>`; }
+  s += inked('neck', [{ d: `M-4.6,${chinY - 4}L4.6,${chinY - 4}L5,${b.sy}L-5,${b.sy}Z`, fill: skin[1] }], 0.8);
+  s += `<g id="torso">${inked('top', [{ d: t.d, fill: c.top }])}${c.details.map((k) => DETAILS[k](b, c, t, sw)).join('')}</g>`;
+  if (c.flour) s += `<g id="flour" fill="#FFFFFF" opacity="0.85"><ellipse cx="4.6" cy="${b.wy + 9}" rx="2.6" ry="2.2"/>${[[-1.6, -3.6], [0.4, -4.4], [2.4, -4.2], [4.2, -3.2]].map(([x, y]) => `<ellipse cx="${4.6 + x * 0.9}" cy="${b.wy + 9 + y}" rx="0.7" ry="1.3"/>`).join('')}<ellipse cx="7.6" cy="${b.wy + 9.4}" rx="0.7" ry="1.2" transform="rotate(-40 7.6 ${b.wy + 9.4})"/><circle cx="-5" cy="${b.wy + 16}" r="0.8"/><circle cx="-3" cy="${b.wy + 18}" r="0.5"/></g>`;
+  if (c.tape) s += line(`M-8,${b.sy - 2}C-7,${b.sy + 10} -9,${b.sy + 18} -8,${b.sy + 26}M8,${b.sy - 2}C7,${b.sy + 10} 9,${b.sy + 18} 8,${b.sy + 22}`, 2.2, '#F2D14B') + line(`M-8,${b.sy - 2}C-7,${b.sy + 10} -9,${b.sy + 18} -8,${b.sy + 26}M8,${b.sy - 2}C7,${b.sy + 10} 9,${b.sy + 18} 8,${b.sy + 22}`, 0.4, INK, ' stroke-dasharray="0.5 1.5"');
+  if (c.headphones) s += inked('headphones', [{ d: `M-11,${b.sy - 3}Q0,${b.sy + 6} 11,${b.sy - 3}L11,${b.sy - 0.6}Q0,${b.sy + 8.6} -11,${b.sy - 0.6}Z`, fill: '#22223B' }, { circle: [-11, b.sy - 1.6, 3.6], fill: c.accent }, { circle: [11, b.sy - 1.6, 3.6], fill: c.accent }], 0.7);
+  s += headGroup(c, b, chinY);
+  // props held below the hand go behind the arm, raised ones in front of it
+  const propL = c.props[0] ? PROPS[c.props[0]](handC(L)) : '', propR = c.props[1] ? PROPS[c.props[1]](handC(R)) : '';
+  s += `<g id="prop-back">${['hang', 'rest'].includes(lp) ? propL : ''}${['hang', 'rest'].includes(rp) ? propR : ''}</g>`;
+  s += `<g id="arms">${L.svg}${R.svg}</g>`;
+  s += `<g id="prop">${['hang', 'rest'].includes(lp) ? '' : propL}${['hang', 'rest'].includes(rp) ? '' : propR}</g>`;
+  return s;
+}
+
+// Face-only drawing (for pins and cards): the head with hat, centred on the face.
+function headOnly(c) {
+  const b = { ...BASES.adult, h: 40 }, hu = HAIR[c.id]().under;
+  return (hu ? inked('hair-under', [{ d: hu, fill: c.hairColor }]) : '') + headGroup(c, b, 0);
+}
+
+// The 12 business mascots. base = which skeleton (and which existing rig it re-skins); pose = [screen-left arm, screen-right arm];
+// props = [in the screen-left hand, in the screen-right hand]; sid = the website's fixed section id.
+const CAST = [
+  { id: 'rosa', sid: 'restaurant', name: 'Chef Rosa', section: 'Restaurant', color: '#E5533D', glyph: 'restaurant', base: 'adult', fem: true, skin: 's4',
+    hairColor: '#3B2A2A', hat: 'toque', top: '#FFFFFF', sleeve: 'long', cuff: true, details: ['chefcoat'], accent: '#E5533D', bottom: 'trousers', bottomColor: '#3A3A48', shoes: '#2B2433',
+    pose: ['wave', 'raise'], props: [null, 'spoon'], iris: '#5A3A2A', mouth: 'big',
+    personality: 'Proud of every dish; remembers how you like it.', greeting: 'Welcome in! Today\'s special just came off the stove. Table for one?' },
+  { id: 'kiran', sid: 'cafe', name: 'Kiran', section: 'Café & Chai', color: '#14897C', glyph: 'cafe', base: 'adult', skin: 's3',
+    hairColor: '#1E1A24', hairShine: 'M-6,-40Q2,-44 10,-41', top: '#F3E6CF', sleeve: 'rolled', details: ['collar', 'apronBib'], collar: '#F3E6CF', apron: '#14897C', bottom: 'trousers', bottomColor: '#6B4E3D', shoes: '#4A3428',
+    pose: ['hang', 'raise'], props: ['kettle', 'chai'], iris: '#4A2E22', eyes: 'calm', mouth: 'grin',
+    personality: 'Calm, pours slow, knows every regular by name.', greeting: 'Chai\'s hot and fresh. Sit for two minutes?' },
+  { id: 'juno', sid: 'juice', name: 'Juno', section: 'Juice & Smoothies', color: '#7CB82F', glyph: 'juice', base: 'young', fem: true, skin: 's2',
+    hairColor: '#7A3B1E', hat: 'visor', hatColor: '#8CCB3F', hatColor2: '#6FAE2A', top: '#FF9F1C', sleeve: 'short', details: ['tee', 'apronWaist'], apron: '#8CCB3F', apronLen: 12, bottom: 'shorts', bottomColor: '#4F7FC2', shoes: '#F25F8C', socks: '#FFFFFF',
+    pose: ['raise', 'hip'], props: ['smoothie', null], iris: '#2F7A3A',
+    personality: 'Bubbly; invents a new blend every morning.', greeting: 'Mango or green? I\'ll blend you something fresh!' },
+  { id: 'otto', sid: 'bakery', name: 'Grandpa Otto', section: 'Bakery & Sweets', color: '#8C5A3C', glyph: 'bakery', base: 'adult', skin: 's1', belly: true,
+    hairColor: '#F2F0F5', mustache: true, hat: 'baker', eyes: 'happy', flour: true, top: '#F7F1E3', sleeve: 'rolled', details: ['collar', 'apronBib'], collar: '#F7F1E3', apron: '#E8B86B', bottom: 'trousers', bottomColor: '#7A6A5A', shoes: '#4A3428',
+    pose: ['hip', 'raise'], props: [null, 'rollingpin'], browColor: '#D8D4DE', thickBrow: true,
+    personality: 'Gentle; up at 4 a.m.; always saves you the warm one.', greeting: 'Smell that? Fresh out of the oven. Come, try one.' },
+  { id: 'sunny', sid: 'streetfood', name: 'Sunny', section: 'Street Food', color: '#E8A317', glyph: 'streetfood', base: 'adult', skin: 's4',
+    hairColor: '#1E1A24', hat: 'bandana', hatColor: '#E63946', top: '#FFC93C', sleeve: 'short', details: ['tee', 'apronWaist'], apron: '#E63946', apronLen: 20, bottom: 'trousers', bottomColor: '#2B2D42', shoes: '#F5F5F5',
+    pose: ['raise', 'wave'], props: ['spatula', null], iris: '#3A2418', eyes: 'wink', mouth: 'big',
+    personality: 'Fast hands, big laugh, never burns a thing.', greeting: 'Hot and crispy, just for you. Spicy or mild?' },
+  { id: 'nia', sid: 'grocery', name: 'Auntie Nia', section: 'Grocery & Kirana', color: '#2E8B57', glyph: 'grocery', base: 'adult', fem: true, skin: 's5',
+    hairColor: '#2A1E1E', glasses: '#B5452E', top: '#2E8B57', sleeve: 'long', details: ['cardigan', 'apronWaist'], apron: '#F4D35E', apronLen: 26, bottom: 'skirt', bottomColor: '#5B4A8B', shoes: '#5B3A29',
+    pose: ['wave', 'hang'], props: [null, 'basket'], iris: '#3A2418',
+    personality: 'Knows every price; finds what you forgot.', greeting: 'Need milk? It\'s fresh today, and mangoes are on offer!' },
+  { id: 'mika', sid: 'boutique', name: 'Mika', section: 'Fashion Boutique', color: '#7B4BA8', glyph: 'fashion', base: 'adult', fem: true, skin: 's1', sw: 17.5,
+    hairColor: '#1C1826', streak: 'M10,-41C14,-38 16,-30 16.4,-24.6L13.6,-24.6C13.4,-31 12,-37 10,-41Z', streakColor: '#B39DDB', hairShine: 'M-12,-40Q-4,-45 6,-42',
+    top: '#7B4BA8', top2: '#F7C6D9', sleeve: 'long', details: ['blazerShort'], bottom: 'skirt', bottomColor: '#F2B134', shoes: '#2B2433',
+    pose: ['hip', 'raise'], props: [null, 'hanger'], iris: '#3D2C5C', eyes: 'almond', mouth: 'small',
+    personality: 'Sharp eye for colour, honest about fit.', greeting: 'That colour would look amazing on you. Want to try it on?' },
+  { id: 'max', sid: 'mall', name: 'Max', section: 'Shopping Mall', color: '#F28C28', glyph: 'mall', base: 'young', skin: 's1',
+    hairColor: '#C4502A', top: '#F28C28', sleeve: 'short', details: ['polo'], collar: '#FFFFFF', accent: '#2B6CB0', bottom: 'trousers', bottomColor: '#3E4A61', shoes: '#2B6CB0',
+    pose: ['raise', 'hang'], props: ['map', 'bags'], iris: '#2E6B8A', freckles: true,
+    personality: 'Knows every floor and every sale.', greeting: 'Looking for something? Third floor has a sale. Follow me!' },
+  { id: 'omar', sid: 'realestate', name: 'Omar', section: 'Real Estate', color: '#23395B', glyph: 'realestate', base: 'adult', skin: 's3',
+    hairColor: '#2E2228', beard: true, hairShine: 'M-4,-44.5Q5,-48.6 15,-44', top: '#23395B', sleeve: 'long', cuff: true, details: ['blazer'], accent: '#E3B23C', bottom: 'trousers', bottomColor: '#23395B', shoes: '#4A2E22',
+    pose: ['hang', 'raise'], props: ['folder', 'keyfob'], iris: '#3A2418', mouth: 'grin',
+    personality: 'Patient and straight: shows you the sunny side and the leaky tap.', greeting: 'Looking for a place? I have the keys to three, just round the corner.' },
+  { id: 'lina', sid: 'salon', name: 'Lina', section: 'Salon & Spa', color: '#E35D9A', glyph: 'salon', base: 'adult', fem: true, skin: 's2', sw: 17.5,
+    hairColor: '#8E3B5E', hairShine: 'M-14,-38Q-6,-46 8,-43', hairStick: '#F2B134', top: '#B39DDB', sleeve: 'short', details: ['tunic'], accent: '#E35D9A', bottom: 'trousers', bottomColor: '#3D3350', shoes: '#E35D9A',
+    pose: ['raise', 'rest'], props: ['scissors', null], iris: '#5C2E44', eyes: 'almond',
+    personality: 'Calm hands, big ideas; you leave feeling new.', greeting: 'Sit, relax. Shall we try something new today?' },
+  { id: 'sana', sid: 'pharmacy', name: 'Sana', section: 'Pharmacy', color: '#1AA3C2', glyph: 'pharmacy', base: 'adult', fem: true, skin: 's3',
+    hairColor: '#3BB8D4', top: '#FFFFFF', sleeve: 'long', cuff: true, details: ['labcoat'], accent: '#16708A', bottom: 'trousers', bottomColor: '#16708A', shoes: '#F2F2F2', hem: -64,
+    pose: ['rest', 'raise'], props: [null, 'bottle'], iris: '#3A2418', mouth: 'small',
+    personality: 'Clear and kind; explains every dose twice.', greeting: 'Not feeling well? Tell me, and I\'ll find you the right thing.' },
+  { id: 'kai', sid: 'electronics', name: 'Kai', section: 'Electronics & Mobile', color: '#3D5AFE', glyph: 'electronics', base: 'young', skin: 's4',
+    hairColor: '#1C1826', streak: 'M14,-48C20,-45 24,-38 23.6,-30L21.6,-26C21.6,-33 19,-40 14,-48Z', streakColor: '#2EE6D6',
+    top: '#3D5AFE', top2: '#2A44D0', sleeve: 'long', cuff: true, details: ['hoodie'], hat: 'headphones', accent: '#2EE6D6', bottom: 'trousers', bottomColor: '#22223B', shoes: '#F5F5F5',
+    pose: ['raise', 'wave'], props: ['phone', null], iris: '#22223B', mouth: 'smirk',
+    personality: 'Tech whiz; fixes your phone before your tea cools.', greeting: 'Cracked screen? Give me ten minutes.' },
+];
+
+function torsoExtras(c) { let s = '';
+  if (c.flour) s += `<g id="flour" fill="#FFFFFF" opacity="0.85"><ellipse cx="4.6" cy="${b.wy + 9}" rx="2.6" ry="2.2"/>${[[-1.6, -3.6], [0.4, -4.4], [2.4, -4.2], [4.2, -3.2]].map(([x, y]) => `<ellipse cx="${4.6 + x * 0.9}" cy="${b.wy + 9 + y}" rx="0.7" ry="1.3"/>`).join('')}<ellipse cx="7.6" cy="${b.wy + 9.4}" rx="0.7" ry="1.2" transform="rotate(-40 7.6 ${b.wy + 9.4})"/><circle cx="-5" cy="${b.wy + 16}" r="0.8"/><circle cx="-3" cy="${b.wy + 18}" r="0.5"/></g>`;
+  if (c.tape) s += line(`M-8,${b.sy - 2}C-7,${b.sy + 10} -9,${b.sy + 18} -8,${b.sy + 26}M8,${b.sy - 2}C7,${b.sy + 10} 9,${b.sy + 18} 8,${b.sy + 22}`, 2.2, '#F2D14B') + line(`M-8,${b.sy - 2}C-7,${b.sy + 10} -9,${b.sy + 18} -8,${b.sy + 26}M8,${b.sy - 2}C7,${b.sy + 10} 9,${b.sy + 18} 8,${b.sy + 22}`, 0.4, INK, ' stroke-dasharray="0.5 1.5"');
+  if (c.headphones) s += inked('headphones', [{ d: `M-11,${b.sy - 3}Q0,${b.sy + 6} 11,${b.sy - 3}L11,${b.sy - 0.6}Q0,${b.sy + 8.6} -11,${b.sy - 0.6}Z`, fill: '#22223B' }, { circle: [-11, b.sy - 1.6, 3.6], fill: c.accent }, { circle: [11, b.sy - 1.6, 3.6], fill: c.accent }], 0.7);
+  return s; }
+const ID = 'mika';
+// The business mascots' rig (19 Oct). The look is the design session's own generator (mascots.mjs and cast.mjs, pasted in
+// above unchanged by make_mascot.mjs); this only drives its parts: arms by two-bone IK to each clip's wrist targets (the
+// design's own arm() draws them: armJoints is pointed at the solved joints), legs from planted feet, the head turning at the
+// chin, and a face with the talk states (mouth closed/half/open/round/big, blink, wink, happy eyes, brows, a glance).
+// Units are the design's: cm, y down, ground at 0. The rig contract is the other friends' (CLIPS, make, apply, step;
+// .head and .contact; scripts/build-rigs.mjs injects the camera mode at the two marked lines).
+const c = CAST.find((x) => x.id === ID), b = BASES[c.base], sw = c.sw ?? (c.base === 'young' ? 16 : c.fem ? 18.5 : 21);
+const SK = SKIN[c.skin], TOR = torso(b, c, sw), CHIN = [0, b.sy - (c.base === 'young' ? 4.5 : 7)], HS = b.h / 40;
+const PIV = { '-1': [-(sw - 3), b.sy + 3], 1: [sw - 3, b.sy + 3] };   // shoulder pivots, as the design's armJoints
+const ease = (k) => (k = Math.max(0, Math.min(1, k))) < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+const step = (t) => Math.floor(t * 12 + 1e-6) / 12;   // hold each drawing for 1/12 s, as the other friends
+const mixN = (a, b2, k) => a + (b2 - a) * k;
+
+// ---- The skeleton ------------------------------------------------------------------------------------------------------
+// A design pose by name (the design's POSES) as a wrist target from the shoulder pivot: [dx, dy, hand].
+function poseArm(side, name, hand = name === 'wave' ? 'open' : 'fist') {
+  const r = (d) => d * Math.PI / 180, [a1, a2] = POSES[name], P = PIV[side];
+  const E = [P[0] + side * Math.sin(r(a1)) * b.upper, P[1] + Math.cos(r(a1)) * b.upper];
+  return [E[0] + side * Math.sin(r(a2)) * b.fore - P[0], E[1] + Math.cos(r(a2)) * b.fore - P[1], hand];
+}
+// Two-bone IK from P to the target, the elbow on the outer side (away from the body), as the design draws every pose.
+function solveArm(P, T, side) {
+  const L1 = b.upper, L2 = b.fore, dx = T[0] - P[0], dy = T[1] - P[1], d0 = Math.hypot(dx, dy) || 1e-6;
+  const d = Math.max(Math.abs(L1 - L2) + 0.01, Math.min(L1 + L2 - 0.01, d0)), ux = dx / d0, uy = dy / d0;
+  const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  const E1 = [P[0] + ux * a - uy * h, P[1] + uy * a + ux * h], E2 = [P[0] + ux * a + uy * h, P[1] + uy * a - ux * h];
+  // the elbow out and low, as the design draws every pose (the other solution throws it up over the shoulder)
+  const score = (E) => side * E[0] + E[1];
+  return { E: score(E1) >= score(E2) ? E1 : E2, W: [P[0] + ux * d, P[1] + uy * d] };
+}
+function solveLeg(H, A, side) {   // knee out a little when the hips sink
+  const L1 = Math.hypot(0.4, b.knee - HIP0[1]), L2 = Math.hypot(0.4, b.ankle - b.knee), dx = A[0] - H[0], dy = A[1] - H[1], d0 = Math.hypot(dx, dy) || 1e-6;
+  const d = Math.min(L1 + L2 - 0.01, d0), ux = dx / d0, uy = dy / d0, a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  const K1 = [H[0] + ux * a - uy * h, H[1] + uy * a + ux * h], K2 = [H[0] + ux * a + uy * h, H[1] + uy * a - ux * h];
+  return side * K1[0] >= side * K2[0] ? K1 : K2;
+}
+const HIP0 = [b.hipX, b.crotch - 4];
+
+// ---- The design's parts, driven -----------------------------------------------------------------------------------------
+// The face with talk states (the design's face(), plus blink, glance, the round mouth, brows and blush); headGroup() calls it.
+let FS = {};
+face = (cc) => faceAt(cc, FS);
+function faceAt(cc, st) {
+  const iris = cc.iris || '#5A3A2A', blink = st.blink || 0, lk = st.look || [0, 0], br = st.brows;
+  let s = `<ellipse cx="-12.2" cy="-10.6" rx="3.4" ry="1.7" fill="#FF7F86" opacity="${f(0.32 + 0.4 * (st.blush || 0))}"/><ellipse cx="12.2" cy="-10.6" rx="3.4" ry="1.7" fill="#FF7F86" opacity="${f(0.32 + 0.4 * (st.blush || 0))}"/>`;
+  const eyes = st.eyes || (cc.eyes === 'wink' ? 'round' : cc.eyes) || 'round';   // a design's wink plays in clips, not all day
+  for (const side of [-1, 1]) {
+    const x = side * 8, kind = eyes === 'wink' ? (side < 0 ? 'happy' : 'round') : eyes;
+    if (kind === 'happy') { s += line(`M${x - 3.2},-16Q${x},-20.6 ${x + 3.2},-16`, 1.25); continue; }
+    const ry = kind === 'almond' ? 3.6 : kind === 'calm' ? 3.3 : 4.15, cy = kind === 'calm' ? -15.9 : -16.6, top = cy - ry - 0.6;
+    if (blink >= 0.85) { s += line(`M${x - 3.4},${cy + 0.4}Q${x},${cy + 1.6} ${x + 3.4},${cy + 0.4}`, 1.15); continue; }   // shut
+    const ix = x + side * 0.2 + lk[0], iy = cy + 0.5 + lk[1];
+    s += `<clipPath id="ec${side < 0 ? 'L' : 'R'}${FS.uid}"><ellipse cx="${x}" cy="${cy}" rx="3.05" ry="${ry}"/></clipPath><ellipse cx="${x}" cy="${cy}" rx="3.05" ry="${ry}" fill="#FFFFFF"/>`;
+    s += `<g clip-path="url(#ec${side < 0 ? 'L' : 'R'}${FS.uid})"><ellipse cx="${f(ix)}" cy="${f(iy)}" rx="2.55" ry="${f(ry - 0.55)}" fill="${iris}"/><ellipse cx="${f(ix)}" cy="${f(iy + 0.5)}" rx="1.35" ry="${f(ry * 0.48)}" fill="${INK}"/>` +
+      `<circle cx="${f(x - 0.9 + lk[0] * 0.5)}" cy="${f(cy - 1.2 + lk[1] * 0.5)}" r="1.05" fill="#FFFFFF"/><circle cx="${f(x + 1.0 + lk[0] * 0.5)}" cy="${f(cy + 2.2 + lk[1] * 0.5)}" r="0.45" fill="#FFFFFF"/>` +
+      '</g>';
+    // the lid coming down: skin over the top of the eye, a little larger than the white, as a lid clipped to the white's own
+    // edge left that soft edge showing as a pale ring
+    if (blink > 0) { const L = cy - ry - 1 + (2 * ry + 1) * blink, RX = 3.45, RY = ry + 0.4, k = Math.min(1, Math.abs(L - cy) / RY), dx = RX * Math.sqrt(1 - k * k);
+      if (L > cy - RY) s += `<path d="M${f(x - dx)},${f(L)}A${RX},${f(RY)} 0 ${L > cy ? 1 : 0} 1 ${f(x + dx)},${f(L)}Z" fill="${SK[0]}"/>`; }
+    const lid = cy - ry - 0.6 + (2 * ry) * blink;
+    if (kind === 'calm') s += line(`M${x - 3.6},${f(Math.max(cy - 1.2, lid))}Q${x},${f(lid - 0.8)} ${x + 3.6},${f(Math.max(cy - 1.2, lid))}`, 1.3);
+    else s += line(`M${x - side * 3.4},${f(cy - 0.8 + (2 * ry) * blink * 0.5)}Q${x - side * 2.4},${f(lid)} ${x + side * 1.2},${f(lid + 0.4)}Q${x + side * 3.2},${f(lid + 1)} ${x + side * 3.9},${f(cy - 2 + 2 * ry * blink * 0.5)}`, 1.15);
+    if (cc.fem) s += line(`M${x + side * 3.5},${f(cy - 2.7 + 2 * ry * blink * 0.5)}l${side * 1.5},-1.1`, 0.8);
+  }
+  if (cc.freckles) s += [[-12, -11.4], [-10.4, -10.4], [-13.4, -10], [12, -11.4], [10.4, -10.4], [13.4, -10]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.42" fill="#C0703F"/>`).join('');
+  // brows: up (surprised, excited), sad (inner ends up), angry (inner ends down), tilt (one up: curious, thinking)
+  const by = (cc.brow ?? -25) + (br === 'up' ? -2.4 : br === 'angry' ? 1.2 : 0), inner = br === 'sad' ? -1.8 : br === 'angry' ? 1.6 : 0;
+  const bw = cc.thickBrow ? 1.6 : 1.2, bc = cc.browColor || INK;
+  for (const side of [-1, 1]) { const lift = br === 'tilt' && side > 0 ? -2.2 : 0;
+    s += line(`M${side * 11},${f(by + 0.6 + lift)}Q${side * 8},${f(by - 1.2 + lift + inner * 0.4)} ${side * 5},${f(by + 0.2 + lift + inner)}`, bw, bc); }
+  s += line('M0.4,-11.6l-0.8,1.2l0.9,0.3', 0.6, SK[1]);
+  // mouth: closed is the design's own closed mouth (grin or smirk), else a soft smile; flat is for sad and worried moods
+  const m = st.mouth || 'closed', closed = cc.mouth === 'grin' || cc.mouth === 'smirk' ? cc.mouth : 'smile';
+  const red = '#8A2E3B', mk = (d, extra = '') => `<path d="${d}" fill="${red}" stroke="${INK}" stroke-width="0.7" stroke-linejoin="round"/>${extra}`;
+  if (m === 'closed' || m === 'smile' || m === 'grin' || m === 'smirk' || m === 'flat') { const k = m === 'closed' ? closed : m;
+    if (k === 'smirk') s += line('M-3.2,-5.6Q0.6,-3.8 3.6,-7', 0.9) + line('M3.2,-7.4l0.9,0.9', 0.6);
+    else if (k === 'grin') s += line('M-3.4,-6.4Q0,-3.6 3.4,-6.4', 0.9);
+    else if (k === 'flat') s += line('M-2.6,-5.0Q0,-6.2 2.6,-5.0', 0.9);
+    else s += line('M-2.8,-5.8Q0,-4.2 2.8,-5.8', 0.9); }
+  else if (m === 'half') s += mk('M-2.6,-6.2Q0,-5.8 2.6,-6.2Q1.8,-3.4 0,-3.4Q-1.8,-3.4 -2.6,-6.2Z');
+  else if (m === 'round') s += `<ellipse cx="0" cy="-4.6" rx="1.9" ry="2.4" fill="${red}" stroke="${INK}" stroke-width="0.7"/>`;
+  else if (m === 'big') s += mk('M-4.6,-7Q0,-6.4 4.6,-7Q3.6,-1.4 0,-1.4Q-3.6,-1.4 -4.6,-7Z', `<path d="M-4,-6.8Q0,-6.3 4,-6.8L3.7,-5.6Q0,-5.2 -3.7,-5.6Z" fill="#FFFFFF"/>`);
+  else s += mk('M-3.8,-6.6Q0,-6.1 3.8,-6.6Q2.8,-2.2 0,-2.2Q-2.8,-2.2 -3.8,-6.6Z', `<path d="M-2,-3.1Q0,-4.6 2,-3.1Q1,-2.4 0,-2.4Q-1,-2.4 -2,-3.1Z" fill="#F07A7A"/>`);
+  return `<g id="face">${s}</g>`;
+}
+// Legs from joints (the design's legs() and shoes() with each hip, knee and ankle given; the waist block moves with the body).
+function legsAt(J, body) {
+  const tr = c.bottomColor, skin = SK[0], [L, R] = J;
+  const shoe = (A, side) => ({ d: `M${f(A[0] - 6.2)},${f(A[1] + 5)}C${f(A[0] - 6.6)},${f(A[1] - 2.2)} ${f(A[0] + 6.6)},${f(A[1] - 2.2)} ${f(A[0] + 6.4 + side * 1.4)},${f(A[1] + 5)}Q${f(A[0] + side * 0.6)},${f(A[1] + 6.8)} ${f(A[0] - 6.2)},${f(A[1] + 5)}Z`, fill: c.shoes });
+  const shoes = inked('shoes', [shoe([L.A[0] - 1, L.A[1]], -1), shoe([R.A[0] + 1, R.A[1]], 1)]);
+  const leg = (j, w) => limb([j.H, j.K, j.A], w, null);
+  if (c.bottom === 'trousers') {
+    const parts = [...leg(L, b.legW), ...leg(R, b.legW)].map((p) => ({ ...p, fill: tr }));
+    return `<g id="legs">${inked('trousers', parts)}${shoes}</g>` + `<g transform="${body}">${inked('waist', [{ d: `M${-b.hipX - 6.6},${b.wy}L${b.hipX + 6.6},${b.wy}L${b.hipX + 7},${b.crotch - 2}L${-b.hipX - 7},${b.crotch - 2}Z`, fill: tr }])}${line(`M0,${b.crotch - 1}L0,${b.crotch + 3}`, 0.6)}</g>`;
+  }
+  const skinLegs = [...leg(L, b.legW.map((w) => w - 3.2)), ...leg(R, b.legW.map((w) => w - 3.2))].map((p) => ({ ...p, fill: skin }));
+  const hemY = c.bottom === 'skirt' ? b.knee - 4 : (b.crotch + b.knee) / 2 + 2, flare = c.bottom === 'skirt' ? 9 : 2.5;
+  const shape = c.bottom === 'skirt'
+    ? [{ d: `M${-b.hipX - 6.4},${b.wy}L${b.hipX + 6.4},${b.wy}L${b.hipX + 6.6 + flare},${hemY}Q0,${hemY + 3} ${-b.hipX - 6.6 - flare},${hemY}Z`, fill: tr }]
+    : [{ d: `M${-b.hipX - 6.4},${b.wy}L${b.hipX + 6.4},${b.wy}L${b.hipX + 6.6 + flare},${hemY}L1,${hemY}L0,${b.crotch}L-1,${hemY}L${-b.hipX - 6.6 - flare},${hemY}Z`, fill: tr }];
+  const socks = c.socks ? inked('socks', [L, R].flatMap((j) => limb([[j.A[0], j.A[1] - 7], j.A], [b.legW[2] - 2.4, b.legW[2] - 2.2], c.socks))) : '';
+  return `<g id="legs">${inked('legs-skin', skinLegs)}${socks}${shoes}</g><g transform="${body}">${inked('bottom', shape)}</g>`;
+}
+
+// ---- One drawing ---------------------------------------------------------------------------------------------------------
+const REST = { x: 0, y: 0, rot: 0, breath: 0, tilt: 0, armL: poseArm(-1, 'rest'), armR: poseArm(1, 'rest'), footL: [0, 0], footR: [0, 0],
+  eyes: null, blink: 0, look: [0, 0], brows: null, mouth: 'closed', blush: 0 };
+const drawing = () => `<g class="root"><ellipse class="contact" cx="0" cy="1.2" rx="${sw + 6}" ry="3.4" fill="#2B2433" opacity="0.12"/><g class="fig"></g></g>`;
+let uid = 0;
+function apply(svg, p) {
+  p = { ...REST, ...p };
+  const id = svg.dataset.uid || (svg.dataset.uid = 'm' + (uid++));
+  // the body: shifted, bobbing (y down), leaning about the waist, breathing (the chest lifts a little)
+  const k = 1 + 0.012 * p.breath, body = `translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.rot)} 0 ${b.wy}) translate(0 ${b.wy}) scale(1 ${f(k)}) translate(0 ${-b.wy})`;
+  const T = (q) => { const a = p.rot * Math.PI / 180, y = b.wy + (q[1] - b.wy) * k, dx = q[0], dy = y - b.wy;
+    return [p.x + dx * Math.cos(a) - dy * Math.sin(a), p.y + b.wy + dx * Math.sin(a) + dy * Math.cos(a)]; };
+  // legs: hips ride with the body, ankles stay planted (plus the clip's foot moves)
+  const J = [-1, 1].map((side) => { const H = T([side * HIP0[0], HIP0[1]]), A = [side * (b.hipX + 0.8) + (side < 0 ? p.footL : p.footR)[0], b.ankle + (side < 0 ? p.footL : p.footR)[1]];
+    return { H, K: solveLeg(H, A, side), A }; });
+  // arms: the design's arm(), its joints solved here
+  const arms = {}, joints = {};
+  for (const side of [-1, 1]) { const v = side < 0 ? p.armL : p.armR, P0 = PIV[side], P = T(P0), { E, W } = solveArm(P, [P[0] + v[0], P[1] + v[1]], side); joints[side] = { P, E, W }; }
+  armJoints = (bb, side) => joints[side];
+  for (const side of [-1, 1]) arms[side] = arm(b, c, side, (side < 0 ? p.armL : p.armR)[2] === 'open' ? 'wave' : 'rest', sw);
+  // head: turns at the chin, which rides with the body
+  const ch = T(CHIN); FS = { ...p, uid: id + 'f' };
+  const hu = HAIR[c.id]().under, headT = `translate(${f(ch[0])} ${f(ch[1])}) rotate(${f(p.rot + p.tilt)}) scale(${f(HS)})`;
+  const head = headGroup(c, b, 0).replace(/^<g id="head-[^"]*" transform="[^"]*">/, `<g class="head" transform="${headT}">`);
+  const handC = (A) => [A.W[0] + A.dir[0] * b.hand * 0.9, A.W[1] + A.dir[1] * b.hand * 0.9];
+  const props = [-1, 1].map((side, i) => c.props[i] ? { svg: PROPS[c.props[i]](handC(arms[side])), behind: arms[side].W[1] > arms[side].E[1] + 2 } : null);
+  let s = legsAt(J, body);
+  if (hu) s += `<g transform="${headT}">${inked('hair-under', [{ d: hu, fill: c.hairColor }])}</g>`;
+  s += `<g transform="${body}">${inked('neck', [{ d: `M-4.6,${CHIN[1] - 4}L4.6,${CHIN[1] - 4}L5,${b.sy}L-5,${b.sy}Z`, fill: SK[1] }], 0.8)}` +
+    `<g id="torso">${inked('top', [{ d: TOR.d, fill: c.top }])}${c.details.map((d) => DETAILS[d](b, c, TOR, sw)).join('')}</g>` +
+    torsoExtras(c) + '</g>';
+  s += head + `<g id="prop-back">${props.filter((q) => q && q.behind).map((q) => q.svg).join('')}</g>`;
+  s += `<g id="arms">${arms[-1].svg}${arms[1].svg}</g><g id="prop">${props.filter((q) => q && !q.behind).map((q) => q.svg).join('')}</g>`;
+  svg.querySelector('.fig').innerHTML = s;
+}
+
+// ---- Clips: generic, original gestures (no borrowed gags), each named by its talk word in build-rigs.mjs ----------------
+// The free hand is the one without a prop (the screen-left one when both hold something); the prop hand shows it.
+// With a prop in each hand, the one the design raises is the one that waves and shows (a hanging kettle or bag stays down).
+const RAISED = (i) => ['raise', 'wave', 'hold'].includes(c.pose[i]);
+const FREE = !c.props[0] ? -1 : !c.props[1] ? 1 : RAISED(0) ? -1 : 1, PROPH = c.props[0] && c.props[1] ? FREE : c.props[0] ? -1 : 1;
+// Idle holds each arm the design's way: a raised prop at the chest (it points up, so a hanging arm hid it), a hanging one
+// down, a hand on the hip on the hip; a free hand otherwise rests.
+const IDLE_ARM = (i) => { const side = i ? 1 : -1, d = c.pose[i];
+  return c.props[i] ? poseArm(side, ['raise', 'wave', 'hold'].includes(d) ? 'hold' : d === 'hip' ? 'hip' : 'hang') : poseArm(side, d === 'hip' ? 'hip' : 'rest'); };
+const armKey = (side) => (side < 0 ? 'armL' : 'armR');
+const blinkAt = (t, t0) => (t >= t0 && t < t0 + 0.17 ? 1 : 0);
+function idle(t) {   // 6 s: breathing, a weight shift, two blinks, a glance and back, a small head tilt
+  const br = (Math.sin(t * Math.PI * 2 / 3) + 1) / 2, sh = Math.sin(t * Math.PI * 2 / 6);
+  return { breath: br, x: sh * 0.5, rot: sh * 0.6, tilt: Math.sin(t * Math.PI * 2 / 6 + 1) * 2,
+    armL: [IDLE_ARM(0)[0] - sh * 0.4, IDLE_ARM(0)[1], 'fist'], armR: [IDLE_ARM(1)[0] - sh * 0.4, IDLE_ARM(1)[1], 'fist'],
+    blink: Math.max(blinkAt(t, 1.6), blinkAt(t, 4.1)), look: t > 2.5 && t < 3.4 ? [1, -0.3] : [0, 0] };
+}
+function hi(t) {   // 3 s: the free hand up to a wave, three waves, happy eyes, a big smile, "hi" with an open mouth
+  const up = ease(t / 0.4), down = ease((t - 2.5) / 0.4), w = poseArm(FREE, 'wave', 'open'), r = IDLE_ARM(FREE < 0 ? 0 : 1);
+  const k = up * (1 - down), sway = Math.sin(t * Math.PI * 2 * 1.6) * 3.5 * k;
+  return { ...idle(t), [armKey(FREE)]: [mixN(r[0], w[0] + FREE * sway, k), mixN(r[1], w[1], k), k > 0.5 ? 'open' : 'fist'],
+    eyes: k > 0.5 ? 'happy' : null, mouth: t > 0.5 && t < 1.1 ? 'open' : 'closed', tilt: -3 * k * FREE, blink: 0 };
+}
+function welcome(t) {   // 3 s: both arms open wide, a small lean in, a big happy face
+  const k = ease(t / 0.5) * (1 - ease((t - 2.4) / 0.5)), open = (side) => { const w = poseArm(side, 'hold', 'open'), r = IDLE_ARM(side < 0 ? 0 : 1);
+    return [mixN(r[0], w[0] + side * 8, k), mixN(r[1], w[1] - 6, k), k > 0.5 ? 'open' : 'fist']; };
+  return { ...idle(t), armL: open(-1), armR: open(1), rot: 0, y: -0.6 * k, eyes: k > 0.6 ? 'happy' : null, mouth: t > 0.6 && t < 1.6 ? 'big' : 'closed', blush: k * 0.5, blink: 0 };
+}
+function show(t) {   // 3.5 s: the prop hand lifts what it holds towards you, a glance at it, then at you, a smile
+  const k = ease(t / 0.5) * (1 - ease((t - 2.9) / 0.5)), h = poseArm(PROPH, 'hold'), r = IDLE_ARM(PROPH < 0 ? 0 : 1);
+  return { ...idle(t), [armKey(PROPH)]: [mixN(r[0], h[0], k), mixN(r[1], h[1] - 4, k), 'fist'], look: t < 1.4 ? [PROPH * 1.2, 0.6] : [0, 0],
+    tilt: PROPH * 3 * k, mouth: t > 1.6 && t < 2.3 ? 'half' : 'closed', brows: k > 0.5 ? 'up' : null };
+}
+function yes(t) {   // 2.5 s: the free fist pumps twice, a little hop, a big open smile
+  const k = ease(t / 0.3) * (1 - ease((t - 2.0) / 0.4)), r = IDLE_ARM(FREE < 0 ? 0 : 1), up = poseArm(FREE, 'raise'), pump = Math.max(0, Math.sin((t - 0.3) * Math.PI * 2 / 0.6)) * 4;
+  return { ...idle(t), [armKey(FREE)]: [mixN(r[0], up[0], k), mixN(r[1], up[1] + pump, k), 'fist'], y: -Math.max(0, Math.sin(t * Math.PI * 2 / 0.6)) * 1.2 * k,
+    eyes: k > 0.5 ? 'happy' : null, mouth: k > 0.5 ? 'big' : 'closed', brows: 'up', blink: 0 };
+}
+function think(t) {   // 3.5 s: the free hand to the chin, a glance up and away, one brow up, a small hum
+  const k = ease(t / 0.6) * (1 - ease((t - 2.9) / 0.5)), r = IDLE_ARM(FREE < 0 ? 0 : 1), P = PIV[FREE], chin = [FREE * 4 - P[0], CHIN[1] + 5 - P[1]];   // under the chin, its own side
+  const hand = !c.props[FREE < 0 ? 0 : 1];   // a hand that holds something (a map, a key) stays put: it would cover the face
+  return { ...idle(t), ...(hand ? { [armKey(FREE)]: [mixN(r[0], chin[0], k), mixN(r[1], chin[1], k), 'fist'] } : {}), look: [-FREE * 1.2 * k, -1 * k], brows: k > 0.5 ? 'tilt' : null,
+    tilt: FREE * 4 * k, mouth: t > 1.4 && t < 2.2 ? 'round' : 'closed' };
+}
+function laugh(t) {   // 2.5 s: eyes shut with joy, the head back a little, the shoulders bouncing, mouth open
+  const k = ease(t / 0.3) * (1 - ease((t - 2.0) / 0.4)), bounce = Math.abs(Math.sin(t * Math.PI * 2 / 0.4)) * k;
+  return { ...idle(t), y: -bounce * 1.0, tilt: -4 * k, eyes: k > 0.4 ? 'happy' : null, mouth: k > 0.4 ? (Math.sin(t * Math.PI * 2 / 0.4) > 0 ? 'big' : 'open') : 'closed', blush: k * 0.6, blink: 0 };
+}
+// [name, note, fn, length s]: the talk words map to these in build-rigs.mjs (wave, welcome, show, yes, think, laugh)
+const CLIPS = [
+  ['Idle', 'breathes, shifts, blinks, glances', idle, 6],
+  ['Hi!', 'a wave with the free hand', hi, 3],
+  ['Welcome!', 'arms open wide', welcome, 3],
+  ['Show', 'holds up what they hold', show, 3.5],
+  ['Yes!', 'a fist pump and a hop', yes, 2.5],
+  ['Think', 'hand to chin, eyes up', think, 3.5],
+  ['Laugh', 'a happy laugh', laugh, 2.5],
+];
+
+const P = new URLSearchParams('mode=ar&capture=1');
+const mode = P.get('mode') || 'sheet';
+// room for a chef's hat and arms flung wide: the AR simulator counts any ink on the card's edge as cut off
+const VB = [-b.H * 0.46, -(b.H + 36), b.H * 0.92, b.H + 44];   // room for a raised prop, a tall hat and the wide welcome
+const make = (holder) => { holder.setAttribute('viewBox', VB.join(' ')); holder.innerHTML = drawing(); return holder; };
+let render, loopLen = 1e9;
+if (mode === 'ar') {
+// The camera mode that scripts/build-rigs.mjs pastes into each approved rig page, in front of the
+// rig's own modes (it runs inside `if (mode === 'ar') { ... }`, with the rig's CLIPS, make(), apply()
+// and step() in scope). One friend on a transparent page over the app's camera view.
+//
+// Two ways to say where he stands:
+// - saath.place(x, y, h, rot): the app projects him (far away, at his GPS spot) and passes his feet
+//   (x, y) in its pixels, his height h in pixels and his turn rot in degrees.
+// - Floor mode (saath.floor*): the page tracks the phone itself and pins him to a spot on the floor.
+//   deviceorientation in Chrome on Android is the gyroscope plus gravity, no compass, at 60 Hz, so
+//   he doesn't slide with the camera. Flow: scan the floor (radar), lock a spot (the ring stays
+//   put), call him: he appears on the ring, does his arrival, says hi, and stays right there.
+//   Why he can still slide a little: notes/ar-stability.md.
+// Drawings still change on 2s.
+const A = window.SAATH_AR;
+for (const id of ['title', 'sheet', 'street']) { const e = document.getElementById(id); if (e) e.style.display = 'none'; }
+document.documentElement.style.background = 'transparent'; document.body.style.background = 'transparent';
+const NS = 'http://www.w3.org/2000/svg';
+// The floor marks (radar and ring) go under him.
+const marks = document.createElementNS(NS, 'svg');
+Object.assign(marks.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' });
+document.body.appendChild(marks);
+const svg = make(document.createElementNS(NS, 'svg'));
+const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+svg.setAttribute('width', vb[2]); svg.setAttribute('height', vb[3]);
+Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', overflow: 'visible', transformOrigin: '0 0', visibility: 'hidden' });
+document.body.appendChild(svg);
+// Rigs that draw their lines with CSS (classes in this page's <style>, widths in --lw from ink()) keep both
+// inside the <svg> too, so a copy of the <svg> alone, like the AR page's picture of him, still has its lines: the
+// page's styles, and line widths for him at 400 px tall (layout() sets them for his size on screen, and those win).
+if (typeof ink === 'function') {
+  const probe = document.createElementNS(NS, 'svg'), own = document.createElementNS(NS, 'style');
+  ink(probe, 400 / A.tall);
+  svg.setAttribute('data-ink', '');
+  own.textContent = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n') + '\nsvg[data-ink]{' + probe.style.cssText + '}';
+  svg.prepend(own);
+}
+const q = document.createElement('div'); q.textContent = '?';
+Object.assign(q.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -50%)', color: '#F9BC4D',
+  fontFamily: 'system-ui, Roboto, sans-serif', fontWeight: '900', textShadow: '0 0 0.12em rgba(249,188,77,.95), 0 0 0.3em rgba(249,188,77,.6)' });
+document.body.appendChild(q);
+const bubble = document.createElement('div');
+Object.assign(bubble.style, { position: 'absolute', display: 'none', transform: 'translate(-50%, -100%)', maxWidth: '230px', padding: '10px 14px',
+  background: '#fff', border: '2.5px solid #111318', borderRadius: '18px', boxShadow: '3px 3px 0 #111318',
+  font: '800 16px system-ui, Roboto, sans-serif', color: '#111318', textAlign: 'center', whiteSpace: 'nowrap' });
+document.body.appendChild(bubble);
+const post = (m) => { try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m)); } catch (e) {} };
+const idx = (name) => { const i = CLIPS.findIndex((c) => c[0] === name); if (i < 0) throw new Error('rig has no clip ' + name); return i; };
+const R = { idle: idx(A.roles.idle), hi: idx(A.roles.hi), arrive: idx(A.roles.arrive), extras: A.roles.extras.map(idx) };
+const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.idle ? 'idle' : 'extra');
+let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
+// Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
+let faceOn = {}, afterTalk = null;
+
+// The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
+// S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.
+const zoom = () => (window.visualViewport && visualViewport.scale > 0 ? visualViewport.scale : 1);
+const view = () => (window.visualViewport ? [visualViewport.width, visualViewport.height] : [document.documentElement.clientWidth, document.documentElement.clientHeight]);
+
+// at = [x, y, h, rot] in visible CSS pixels: feet, height, turn.
+const layout = () => {
+  q.style.display = mystery && !quiet && at ? 'block' : 'none';
+  if (!at) { svg.style.visibility = 'hidden'; bubble.style.display = 'none'; return; }
+  const s = at[2] / A.tall;
+  svg.style.visibility = '';
+  svg.style.transform = 'translate(' + at[0] + 'px,' + at[1] + 'px) rotate(' + at[3] + 'deg) scale(' + s * flip + ',' + s + ') translate(' + (vb[0] - A.ground[0]) + 'px,' + (vb[1] - A.ground[1]) + 'px)';
+  if (typeof ink === 'function') ink(svg, s);
+  q.style.fontSize = Math.round(at[2] * 0.22) + 'px';
+  if (mystery && !quiet) mark();
+};
+const begin = (i, t) => {
+  cur = i; since = t;
+  if (i === R.idle) rest = 7 + Math.random() * 7;
+  // On the floor his hello is a speech bubble over his head while he waves.
+  const talk = fl.on && i === R.hi && !!fl.hello;
+  if (talk) bubble.textContent = fl.hello;
+  bubble.style.display = talk ? 'block' : 'none';
+  post({ type: 'clip', role: roleOf(i), name: CLIPS[i][0] });
+};
+const mark = () => { const r = svg.querySelector('.head').getBoundingClientRect(); q.style.left = r.left + r.width / 2 + 'px'; q.style.top = r.top + r.height * 0.55 + 'px'; };
+
+// ---- Floor mode -------------------------------------------------------------------------------
+// ARM: the phone is held this far in front of where you turn (your body), so turning swings it
+// round, as a VR headset models the neck. Ignoring that made him slide as you turned.
+// LEAD_S: on the S24 the camera picture reaches the screen sooner than this WebView does (measured
+// from a screen recording, 17 Oct), so he is drawn where the phone will be that long from now, or
+// he trails behind the floor. Negative would draw him that long in the past instead.
+const D2R = Math.PI / 180, SCAN_S = 1.6, RING_M = 0.42, ARM_M = 0.3, LEAD_S = 0.015;
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = (v) => { const n = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / n, v[1] / n, v[2] / n]; };
+const fl = { on: false, state: 'off', eye: 1.4, tallM: 1.3, vfov: 72.7, cam: null, src: '', hit: null, d: null,
+  anchor: null, pos: null, scan: 0, lastF: null, lastT: 0, sent: '', hello: '' };
+// Recent orientations, oldest first: [time in s, camera frame]. Not smoothed: the gyroscope is
+// already smooth, and smoothing only made him lag behind the floor.
+const hist = [];
+// a and b blended (k 0-1), or carried on past b (k > 1), as a square frame.
+const blend = (a, b, k) => {
+  const mix = (u, v) => [0, 1, 2].map((i) => u[i] + (v[i] - u[i]) * k);
+  const f = unit(mix(a.fwd, b.fwd)), u0 = mix(a.up, b.up), d = dot(u0, f);
+  const up = unit([u0[0] - d * f[0], u0[1] - d * f[1], u0[2] - d * f[2]]);
+  return { fwd: f, up, right: cross(f, up) };
+};
+// The orientation at time t (s), blended between the readings either side of it (they come at
+// 60 Hz). Past the newest one it carries on at the latest turning speed, by at most 50 ms, and only
+// while readings keep coming: Chrome sends none once the phone stops turning. The speed is taken
+// over at least 10 ms, as two readings close together would blow up their difference.
+const camAt = (t, now) => {
+  let j = 0;
+  while (j < hist.length && hist[j][0] < t) j++;
+  if (j === 0) return hist[0][1];
+  if (j < hist.length) return blend(hist[j - 1][1], hist[j][1], (t - hist[j - 1][0]) / (hist[j][0] - hist[j - 1][0]));
+  const [t1, b] = hist[j - 1];
+  let i = j - 2;
+  while (i >= 0 && t1 - hist[i][0] < 0.01) i--;
+  const a = hist[i];
+  if (!a || now - t1 > 0.03 || t1 - a[0] > 0.05) return b;
+  return blend(a[1], b, 1 + Math.min(t - t1, 0.05) / (t1 - a[0]));
+};
+// The camera's right, up and forward in a world with z up (W3C deviceorientation, Z-X'-Y'' angles).
+const fromAngles = (a, b, g) => {
+  a *= D2R; b *= D2R; g *= D2R;
+  const cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
+  return { right: [cA * cG - sA * sB * sG, cG * sA + cA * sB * sG, -cB * sG], up: [-cB * sA, cA * cB, sB], fwd: [-(cG * sA * sB + cA * sG), -(sA * sG - cA * cG * sB), -cB * cG] };
+};
+// The same from the app's heading, elevation and clockwise roll (degrees), used if no events come.
+const fromApp = (h, e, r) => {
+  h *= D2R; e *= D2R; r *= D2R;
+  const f = [Math.sin(h) * Math.cos(e), Math.cos(h) * Math.cos(e), Math.sin(e)], r0 = [Math.cos(h), -Math.sin(h), 0];
+  const u0 = [r0[1] * f[2] - r0[2] * f[1], r0[2] * f[0] - r0[0] * f[2], r0[0] * f[1] - r0[1] * f[0]], c = Math.cos(r), s = Math.sin(r);
+  return { fwd: f, up: [u0[0] * c + r0[0] * s, u0[1] * c + r0[1] * s, u0[2] * c + r0[2] * s], right: [r0[0] * c - u0[0] * s, r0[1] * c - u0[1] * s, r0[2] * c - u0[2] * s] };
+};
+addEventListener('deviceorientation', (e) => {
+  if (e.alpha === null || e.beta === null) return;
+  hist.push([performance.now() / 1000, fromAngles(e.alpha, e.beta, e.gamma || 0)]);
+  if (hist.length > 40) hist.shift();
+  fl.src = 'device';
+});
+// Where the camera is: ARM_M in front of you (you stand at 0, 0), at eye height (the floor is z = -eye).
+const lens = () => { const f = flat(fl.cam.fwd); return [ARM_M * f[0], ARM_M * f[1], 0]; };
+// A world point on screen, in visible CSS pixels, or null behind the camera.
+const project = (P) => {
+  const c = fl.cam, o = lens(), v = [P[0] - o[0], P[1] - o[1], P[2] - o[2]], z = dot(v, c.fwd);
+  if (z < 0.05) return null;
+  const [W, H] = view(), f = H / 2 / Math.tan((fl.vfov * D2R) / 2);
+  return [W / 2 + (f * dot(v, c.right)) / z, H / 2 - (f * dot(v, c.up)) / z];
+};
+const flat = (v) => { const n = Math.hypot(v[0], v[1]) || 1; return [v[0] / n, v[1] / n, 0]; };
+// A circle of radius r on the floor around P, as an SVG path.
+const circle = (P, r, n) => {
+  let d = '';
+  for (let i = 0; i <= n; i++) { const a = (i / n) * 2 * Math.PI, p = project([P[0] + r * Math.cos(a), P[1] + r * Math.sin(a), P[2]]); if (!p) return ''; d += (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }
+  return d + 'Z';
+};
+// A flat circle of radius r round floor point P, drawn as an ellipse centred on P's own projection.
+// (A circle's projected middle drifts towards you, which would leave his feet off-centre.)
+const disc = (P, r, attrs) => {
+  const c = project(P), R = flat(fl.cam.right), F = flat(fl.cam.fwd);
+  const a = project([P[0] + r * R[0], P[1] + r * R[1], P[2]]), b = project([P[0] - r * R[0], P[1] - r * R[1], P[2]]);
+  const n = project([P[0] - r * F[0], P[1] - r * F[1], P[2]]), f = project([P[0] + r * F[0], P[1] + r * F[1], P[2]]);
+  if (!c || !a || !b || !n || !f) return '';
+  const lx = a[0] - b[0], ly = a[1] - b[1], rx = Math.hypot(lx, ly) / 2;
+  const ry = Math.abs(((n[0] - f[0]) / 2) * (ly / (2 * rx)) - ((n[1] - f[1]) / 2) * (lx / (2 * rx)));
+  const at2 = c[0].toFixed(1) + ' ' + c[1].toFixed(1);
+  return '<ellipse cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" rx="' + rx.toFixed(1) + '" ry="' + Math.max(1, ry).toFixed(1) +
+    '" transform="rotate(' + (Math.atan2(ly, lx) / D2R).toFixed(1) + ' ' + at2 + ')" ' + attrs + '/>';
+};
+const say = (state) => {
+  const m = { type: 'floor', state, scan: Math.round(Math.min(1, fl.scan / SCAN_S) * 20) / 20, d: fl.d === null ? null : Math.round(fl.d * 10) / 10, src: fl.src };
+  const key = JSON.stringify(m);
+  if (key !== fl.sent) { fl.sent = key; post(m); }
+};
+// Radar while scanning, the ring once the floor is found (pinned once locked).
+const drawMarks = (t) => {
+  let html = '';
+  if (fl.state === 'scan' && fl.hit) {
+    const sweep = (t * 200) % 360;
+    [0.3, 0.6, 0.9].forEach((r) => { const d = circle(fl.hit, r, 36); if (d) html += '<path d="' + d + '" fill="none" stroke="rgba(120,230,255,.75)" stroke-width="2"/>'; });
+    let wedge = '';
+    const c = project(fl.hit);
+    for (let i = 0; i <= 10; i++) { const a = (sweep - i * 4) * D2R, p = project([fl.hit[0] + 0.9 * Math.cos(a), fl.hit[1] + 0.9 * Math.sin(a), fl.hit[2]]); if (p) wedge += 'L' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }
+    if (c && wedge) html += '<path d="M' + c[0].toFixed(1) + ' ' + c[1].toFixed(1) + wedge + 'Z" fill="rgba(120,230,255,.35)"/>';
+  } else if ((fl.state === 'found' && fl.hit) || fl.state === 'locked') {
+    const P = fl.state === 'found' ? fl.hit : fl.anchor, ok = fl.state !== 'found' || (fl.d >= 0.8 && fl.d <= 4);
+    const pulse = 1 + 0.05 * Math.sin(t * 5);
+    html += disc(P, RING_M * pulse, 'fill="' + (ok ? 'rgba(255,196,87,.28)' : 'rgba(255,255,255,.14)') + '" stroke="' + (ok ? '#FFB43C' : '#fff') + '" stroke-width="4"' + (ok ? '' : ' stroke-dasharray="10 8"'));
+    if (ok) {
+      // Two footprints, and on a locked spot a faint second ring.
+      const side = flat([fl.cam.right[0], fl.cam.right[1], 0]);
+      [-1, 1].forEach((k) => { const d = circle([P[0] + side[0] * 0.1 * k, P[1] + side[1] * 0.1 * k, P[2]], 0.055, 12); if (d) html += '<path d="' + d + '" fill="#FFC457"/>'; });
+      if (fl.state !== 'found') html += disc(P, RING_M * (1.25 + 0.15 * ((t * 0.8) % 1)), 'fill="none" stroke="rgba(255,226,166,' + (0.8 - 0.8 * ((t * 0.8) % 1)).toFixed(2) + ')" stroke-width="2"');
+    }
+  } else if (fl.pos) {
+    // His shadow on the floor, in perspective, so he stands on it rather than over it.
+    const d = disc(fl.pos, 0.17, 'fill="rgba(25,18,12,.5)" filter="url(#sh)"');
+    if (d) html += '<defs><filter id="sh" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter></defs>' + d;
+  }
+  marks.innerHTML = html;
+};
+// Each frame in floor mode: track the floor, move him along his path, put him on screen.
+const floorFrame = (t) => {
+  if (fl.src === 'device') { const now = performance.now() / 1000; fl.cam = camAt(now + LEAD_S, now); }
+  if (!fl.cam) { marks.innerHTML = ''; return; }
+  const F = fl.cam.fwd, o = lens();
+  if (F[2] < -0.08) { const k = fl.eye / -F[2]; fl.hit = [o[0] + k * F[0], o[1] + k * F[1], -fl.eye]; fl.d = k * Math.hypot(F[0], F[1]); }
+  else { fl.hit = null; fl.d = null; }
+  const dt = Math.min(0.1, t - fl.lastT);
+  if (fl.state === 'scan') {
+    // Scanning counts while you point at floor 0.8-4 m ahead and move slowly, like a radar sweep.
+    const turn = fl.lastF ? Math.acos(Math.min(1, dot(F, fl.lastF))) / Math.max(dt, 1e-3) : 0;
+    if (fl.d !== null && fl.d >= 0.8 && fl.d <= 4 && turn < 1.2) fl.scan += dt; else fl.scan = Math.max(0, fl.scan - dt * 0.5);
+    if (fl.scan >= SCAN_S) fl.state = 'found';
+  }
+  fl.lastF = F; fl.lastT = t;
+  if (fl.pos && fl.state !== 'scan' && fl.state !== 'found' && fl.state !== 'locked') {
+    const feet = project(fl.pos), head = project([fl.pos[0], fl.pos[1], fl.pos[2] + fl.tallM]);
+    if (feet && head) {
+      const h = Math.hypot(head[0] - feet[0], head[1] - feet[1]), rot = Math.atan2(head[0] - feet[0], feet[1] - head[1]) / D2R;
+      at = [feet[0], feet[1], h, rot];
+    } else at = null;
+    layout();
+    if (bubble.style.display === 'block' && at) { const top = head ? Math.max(70, head[1] - 12) : 70; bubble.style.left = Math.max(125, Math.min(view()[0] - 125, (head || feet)[0])) + 'px'; bubble.style.top = top + 'px'; }
+  } else { at = null; layout(); }
+  drawMarks(t);
+  say(fl.state);
+};
+
+window.saath = {
+  play: (roles) => { queue = roles.map((r) => R[r]).filter((i) => typeof i === 'number'); begin(queue.length ? queue.shift() : R.idle, clock); shown = ''; },
+  // Talking: a face laid over whatever clip plays, from his next drawing. f = {mouth: 'closed'|'half'|'open', mood}
+  // in the shared names, which SAATH_AR.mouths and .moods turn into this rig's own parts (a mood's `closed` replaces
+  // his usual closed mouth). Unknown names are ignored, as a wrong part name blanks every mouth or eye. null ends it
+  // and starts any clip held for later; false (he was cut off, or the reply failed) ends it and drops that clip.
+  face: (f) => {
+    const { closed, ...mood } = f && Object.hasOwn(A.moods, f.mood) ? A.moods[f.mood] : {};
+    const mouth = f && (f.mouth === 'closed' && closed ? closed : Object.hasOwn(A.mouths, f.mouth) ? A.mouths[f.mouth] : null);
+    faceOn = f ? { ...mood, ...(mouth ? { mouth } : {}) } : {};
+    if (f === false) afterTalk = null;
+    else if (!f && afterTalk !== null) { queue = []; begin(afterTalk, clock); afterTalk = null; shown = ''; }
+  },
+  // A gesture from the reply, by its word (SAATH_AR.actions). One that hides or shuts his face (SAATH_AR.later)
+  // waits until he stops talking.
+  act: (word) => {
+    if (!Object.hasOwn(A.actions, word)) return;
+    if (A.later.includes(word) && faceOn.mouth) { afterTalk = idx(A.actions[word]); return; }
+    queue = []; begin(idx(A.actions[word]), clock); shown = '';
+  },
+  now: () => ({ clip: CLIPS[cur][0], face: faceOn }),   // for tests
+  // Not met yet: a dark silhouette with a glowing "?", still breathing.
+  mystery: (on) => { mystery = !!on; svg.style.filter = on ? 'brightness(0)' : ''; svg.style.opacity = on ? '0.86' : ''; q.style.display = mystery && !quiet && at ? 'block' : 'none'; shown = ''; },
+  quiet: (on) => { quiet = !!on; q.style.display = mystery && !quiet && at ? 'block' : 'none'; },
+  head: () => { const r = svg.querySelector('.head').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; },
+  // Stops the clock on the idle drawing at time t (for portraits).
+  still: (t) => { held = true; cur = R.idle; since = 0; shown = ''; draw(t); },
+  // The app's pixels are the page's CSS pixels times the WebView's zoom.
+  place: (x, y, h, rot) => { if (fl.on) return; const z = zoom(); at = [x / z, y / z, h / z, rot || 0]; flip = 1; layout(); },
+  hide: () => { if (fl.on) return; at = null; layout(); },
+  // Floor mode. eye: how high the phone is (m); tallM: his height (m).
+  floorStart: (o) => {
+    Object.assign(fl, o, { on: true, state: 'scan', scan: 0, anchor: null, pos: null, sent: '' });
+    at = null; flip = 1; bubble.style.display = 'none';
+    // His own flat shadow is drawn for a level view; on the floor he gets one in perspective instead.
+    const own = svg.querySelector('.contact'); if (own) own.style.display = 'none';
+    layout();
+  },
+  floorEye: (eye) => { fl.eye = eye; },
+  floorLock: () => { if (fl.state !== 'found' || !fl.hit || fl.d < 0.8 || fl.d > 4) return false; fl.anchor = fl.hit.slice(); fl.state = 'locked'; say('locked'); return true; },
+  // He appears right on the ring, does his arrival there, says hi, and stays on that spot.
+  floorCall: (hello) => {
+    if (fl.state !== 'locked' || !fl.cam) return false;
+    fl.hello = hello || '';
+    fl.pos = fl.anchor.slice();
+    fl.state = 'greet'; flip = 1; queue = [R.hi]; begin(R.arrive, clock); shown = '';
+    return true;
+  },
+  floorReset: () => { if (fl.on) Object.assign(fl, { state: 'scan', scan: 0, anchor: null, pos: null }); at = null; bubble.style.display = 'none'; layout(); },
+  floorOff: () => { fl.on = false; fl.state = 'off'; marks.innerHTML = ''; at = null; bubble.style.display = 'none'; layout(); },
+  // The app's own orientation, used only if the WebView sends no deviceorientation events.
+  orient: (h, e, r) => { if (fl.src !== 'device') { fl.cam = fromApp(h, e, r); fl.src = 'app'; } },
+};
+render = (t) => { if (!held) draw(t); };
+const draw = (t) => {
+  clock = t;
+  if (fl.on) floorFrame(t);
+  const len = CLIPS[cur][3];
+  if (cur !== R.idle && t - since >= len) {
+    if (fl.on && fl.state === 'greet' && cur === R.hi) { fl.state = 'stay'; begin(R.idle, t); }   // said hi: he stays
+    else begin(queue.length ? queue.shift() : R.idle, t);
+  } else if (cur === R.idle && !mystery && !faceOn.mouth && !queue.length && R.extras.length && t - since >= rest && (!fl.on || fl.state === 'stay')) begin(R.extras[Math.floor(Math.random() * R.extras.length)], t);
+  const loop = cur === R.idle;
+  const lt = loop ? (t - since) % CLIPS[cur][3] : t - since, s = step(lt), key = cur + ':' + s;
+  if (key === shown) return;   // a new drawing only every 1/12 s
+  shown = key;
+  apply(svg, Object.assign(CLIPS[cur][2](s), faceOn));   // the clip poses him; a talking face wins
+  if (mystery && !quiet && at) mark();
+};
+addEventListener('resize', layout);
+if (window.visualViewport) visualViewport.addEventListener('resize', layout);
+layout();
+const t0 = performance.now();
+(function loop() { render((performance.now() - t0) / 1000); requestAnimationFrame(loop); })();
+post({ type: 'ready' });
+
+} else if (mode === 'one') {
+  document.getElementById('title').style.display = 'none';
+  const sheet = document.getElementById('sheet'); sheet.style.cssText = 'grid-template-columns:1fr;grid-template-rows:1fr;padding:10px';
+  const [name, note, fn, len] = CLIPS[+P.get('clip') || 0], svg = make(document.createElementNS('http://www.w3.org/2000/svg', 'svg'));
+  const cell = document.createElement('div'); cell.className = 'cell'; cell.appendChild(svg); cell.insertAdjacentHTML('beforeend', `<b>${name}</b><span>${note}</span>`); sheet.appendChild(cell);
+  svg.style.height = '92vh'; loopLen = len;
+  render = (t) => apply(svg, fn(step(t % len)));
+} else if (mode === 'pose') {
+  document.getElementById('title').style.display = 'none'; document.getElementById('sheet').style.display = 'none';
+  const svg = make(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); svg.id = 'pose';
+  svg.style.cssText = 'position:absolute;left:0;top:0;width:100vw;height:100vh;overflow:visible'; document.body.appendChild(svg);
+  render = () => apply(svg, { ...REST, ...JSON.parse(P.get('p') || '{}') });
+} else {
+  const sheet = document.getElementById('sheet');
+  const svgs = CLIPS.map(([name, note]) => {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const svg = make(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); cell.appendChild(svg);
+    cell.insertAdjacentHTML('beforeend', `<b>${name}</b><span>${note}</span>`); sheet.appendChild(cell); return svg;
+  });
+  render = (t) => CLIPS.forEach(([, , fn, len], i) => apply(svgs[i], fn(step(t % len))));
+}
+window.renderAt = render;
+if (!P.get('capture')) { const t0 = performance.now(); (function loop() { const t = (performance.now() - t0) / 1000; render(t % loopLen); requestAnimationFrame(loop); })(); }
+else render(0);
+window.__ready = true;
+
+</script>
+</body>
+</html>

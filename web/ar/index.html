@@ -6,7 +6,7 @@
 <title>Saath AR camera</title>
 <!--
   Saath's AR camera: a friend standing on your real floor, tracked by ARCore through Chrome's WebXR.
-  The app opens it in Chrome at a friend's spot: ?friend=doraemon|nobita|shinchan|goku|michael|dwight|holt
+  The app opens it in Chrome at a friend's spot: ?friend=<mascot id: rosa|kiran|juno|otto|sunny|nia|mika|max|omar|lina|sana|kai>&shop=<slug>
   &name=&tall=(metres)&return=<a deep link back into the app>.
   - you choose their spot: a gold ring sits where the middle of the screen meets the floor (ARCore's hit
     test), 1.2-5 m away, and a tap calls them there (18 Oct: the automatic spot took over a minute in a
@@ -52,6 +52,15 @@
                       to { box-shadow: 0 0 0 26px rgba(47, 141, 246, 0), 0 10px 24px rgba(47, 141, 246, .35); } }
   #hint { margin-top: 10px; font-size: 13px; font-weight: 700; text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
   #credit { margin-top: 6px; font-size: 10.5px; font-weight: 600; opacity: .85; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
+  /* The shop's menu card (19 Oct): the items he names, at the shop's own prices; the only words shown while he talks. */
+  #menu { width: min(320px, 100%); box-sizing: border-box; margin-bottom: 12px; padding: 10px 12px 8px; border-radius: 16px; background: #fff;
+          color: var(--ink); border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font: 700 15px system-ui, Roboto, sans-serif; }
+  #menu[hidden] { display: none; }
+  #menu .shop { font-size: 12px; opacity: .6; margin: 0 6px 4px; }
+  #menu .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 6px; border-radius: 8px; }
+  #menu .row.on { background: var(--gold); }
+  #menu .row.out { opacity: .5; }
+  #menu .when { font-size: 11px; font-weight: 600; opacity: .6; margin: 4px 6px 0; }
 </style>
 </head>
 <body>
@@ -61,6 +70,7 @@
 <a id="home" href="#" role="button">Back to Saath</a>
 <div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div>
   <div id="talk" hidden>
+    <div id="menu" hidden aria-live="polite"></div>
     <button id="mic" type="button" aria-label="Hold to talk"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.2"
       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
     <div id="hint" role="status">Hold to talk</div>
@@ -77,8 +87,8 @@ import { createTalk } from '../talk/talk.js';
 
 const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
 // Which friend, from the app (src/friends.ts): only the rigs there are; the name is only ever used as text. An id
-// not in this list is a bug (the app sends only these), so it says so rather than quietly showing Nobita.
-const FRIENDS = ['doraemon', 'nobita', 'shinchan', 'goku', 'michael', 'dwight', 'holt'], FRIEND = Q.get('friend') ?? 'nobita';
+// not in this list is a bug (the app sends only these), so it says so rather than quietly showing another mascot.
+const FRIENDS = ['rosa', 'kiran', 'juno', 'otto', 'sunny', 'nia', 'mika', 'max', 'omar', 'lina', 'sana', 'kai'], FRIEND = Q.get('friend') ?? 'juno';
 if (!FRIENDS.includes(FRIEND)) { document.body.textContent = `Unknown friend: ${FRIEND}`; throw new Error(`unknown friend ${FRIEND}`); }
 const NAME = (Q.get('name') || FRIEND).slice(0, 24), TALL_M = Number(Q.get('tall')) || 1.4;   // their height in metres
 const BACK = Q.get('return');   // a deep link back into the app, if it opened this page
@@ -154,7 +164,7 @@ const rasterise = () => {
   dirty = false;
   const c = svg.cloneNode(true);
   c.removeAttribute('style'); c.setAttribute('width', PX_W); c.setAttribute('height', PX_H); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  // His hidden parts (spare hands, Nobita's dog) stay out of the copy: the same picture, less to parse and draw. Not
+  // His hidden parts (spare hands, unused props) stay out of the copy: the same picture, less to parse and draw. Not
   // one holding an id: a gradient or clip in a hidden part can still be used by a shown one.
   for (const e of c.querySelectorAll(':is([style*="display:none"], [style*="display: none"]):not([id], :has([id]))')) e.remove();
   // A part hidden and shown again keeps an empty style="": no effect on the picture, but it made one drawing two texts.
@@ -241,9 +251,53 @@ const place = (pos, now) => {
   });
   rig.renderAt(now); cardDrawn = true;   // his drawing waited until now (AR): its clock first, so his hi plays from the start
   rig.saath.play(['hi']);
-  tip(`${NAME} is here! Walk around him.`);
+  tip(`${NAME} is here! Walk around to see them.`);
   showBack();
   talkEl.hidden = false; overlay.classList.add('talk');
+};
+
+// ---- The shop's menu (19 Oct): opened as /ar/?shop=<slug> from a shop's page, he answers from that shop's live menu,
+// and when he talks about it a card shows the items he names at the shop's own prices, "updated N min ago". It is read
+// with the site's public key from the Supabase project behind the talk API (the <meta name="saath-api"> talk.js uses);
+// on the laptop there is no such meta, and no card. Shop names and items are the owner's text: set as text, never HTML.
+const SHOP = /^[a-z0-9-]{3,40}$/.test(Q.get('shop') ?? '') ? Q.get('shop') : null;
+const apiMeta = document.querySelector('meta[name="saath-api"]');
+const REST = SHOP && apiMeta?.content ? `${new URL(apiMeta.content).origin}/rest/v1` : null;
+const menuEl = document.getElementById('menu');
+let shop = null, named = new Set(), menuUntil = Infinity;
+// Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
+const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,menu_items(name,price,available,sort,updated_at)`,
+  { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
+  .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
+loadShop();
+const rupees = (p) => `₹${Number(p) % 1 ? Number(p).toFixed(2) : Number(p)}`;
+const ago = (t) => {
+  const m = Math.round((Date.now() - Date.parse(t)) / 60000);
+  return m < 1 ? 'updated just now' : m < 60 ? `updated ${m} min ago` : m < 1440 ? `updated ${Math.round(m / 60)} h ago` : `updated ${Math.round(m / 1440)} days ago`;
+};
+// An item counts as named by its full name, or by its last word when that word is 4+ letters ("the chai" names Masala Chai).
+const said = (text, name) => { const t = text.toLowerCase(), n = name.toLowerCase(), last = n.split(/\s+/).pop(); return t.includes(n) || (last.length >= 4 && new RegExp(`\\b${last.replace(/[^a-z0-9]/g, '')}\\b`).test(t)); };
+const row = (cls, a, b) => { const d = document.createElement('div'); d.className = cls; d.append(Object.assign(document.createElement('span'), { textContent: a }), Object.assign(document.createElement('span'), { textContent: b })); return d; };
+const drawMenu = () => {
+  const items = shop?.menu_items ?? [], on = items.filter((i) => named.has(i.name)), show = (on.length ? on : items).slice(0, 4);
+  if (!show.length) { menuEl.hidden = true; return; }
+  const latest = show.reduce((a, i) => (i.updated_at > a ? i.updated_at : a), '');
+  menuEl.replaceChildren(Object.assign(document.createElement('div'), { className: 'shop', textContent: shop.name }),
+    ...show.map((i) => row(`row${named.has(i.name) ? ' on' : ''}${i.available ? '' : ' out'}`, i.name, i.available ? rupees(i.price) : 'sold out')),
+    Object.assign(document.createElement('div'), { className: 'when', textContent: ago(latest) }));
+  menuEl.hidden = false;
+};
+const openMenu = () => { if (!REST) return; named = new Set(); menuUntil = Infinity; loadShop().then(drawMenu); };
+// It goes when you ask the next question, or 8 s after he finishes.
+const menuState = (s) => { if (s === 'listening') { menuEl.hidden = true; named = new Set(); } else if (s === 'idle') menuUntil = performance.now() + 8000; };
+const menuTick = () => {   // each frame while the card shows: highlight what his current sentence names
+  if (menuEl.hidden) return;
+  if (performance.now() > menuUntil) { menuEl.hidden = true; return; }
+  const text = talk.cloud()?.text;
+  if (!text || !shop) return;
+  const before = named.size;
+  for (const i of shop.menu_items) if (said(text, i.name)) named.add(i.name);
+  if (named.size !== before) drawMenu();
 };
 
 // Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face to his voice. No words
@@ -254,11 +308,11 @@ const talkEl = document.getElementById('talk'), hintEl = document.getElementById
 const talkTimes = {}, HOLD = 'Hold to talk', LISTENING = 'Listening… let go to send';
 let heard = '', error = '', listening = false, thinking = false;
 const hint = () => { hintEl.textContent = listening ? LISTENING : thinking ? `${NAME} is thinking…` : error || HOLD; };
-const talk = createTalk({ friend: FRIEND, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
-  if (type === 'state') { listening = data === 'listening'; thinking = data === 'thinking'; if (listening || thinking) error = ''; mic.classList.toggle('on', listening); hint(); }
+const talk = createTalk({ friend: FRIEND, shop: SHOP, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
+  if (type === 'state') { listening = data === 'listening'; thinking = data === 'thinking'; if (listening || thinking) error = ''; mic.classList.toggle('on', listening); hint(); menuState(data); }
   else if (type === 'heard') heard = data;
   else if (type === 'error') { error = data; hint(); }
-  else if (type === 'cue') rig.saath.act(data.action);
+  else if (type === 'cue') { rig.saath.act(data.action); if (data.menu) openMenu(); }
   else if (type === 'timing') { if (data.name === 'heard') for (const k in talkTimes) delete talkTimes[k]; talkTimes[data.name] = data.ms; }
 } });
 // His face while talking, given to the rig only when it changes (it shows from his next drawing).
@@ -301,10 +355,11 @@ const update = (now, cam, est) => {
   if (DEBUG) hud.textContent = (floorY === null ? '' : `floor ${(cam.y - floorY).toFixed(2)} m below` + (placedAt === null ? '' : ` · ${NAME} ${dist.toFixed(2)} m away`))
     + (Object.keys(talkTimes).length ? ' · ' + Object.entries(talkTimes).map(([k, ms]) => `${k} ${ms}`).join(' ') + ' ms' : '');
   if (placedAt === null) return;
+  menuTick();
   const k = now - placedAt;
   close = dist < NEAR_M || (close && dist < CLEAR_M);
   overlay.classList.toggle('close', close);
-  tip(close ? 'You’re too close — step back a little' : k < 3.6 ? `${NAME} is here! Walk around him.` : '');   // then only him and the mic
+  tip(close ? 'You’re too close — step back a little' : k < 3.6 ? `${NAME} is here! Walk around to see them.` : '');   // then only him and the mic
   card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
   for (const s of shadows) s.material.opacity = Math.min(1, k / 0.35);
   figure.rotation.y = Math.atan2(cam.x - figure.position.x, cam.z - figure.position.z);
@@ -336,7 +391,7 @@ const update = (now, cam, est) => {
 
 // ---- His spot: you choose it (the user, 18 Oct: "ask the user to set the point on the floor"). The gold ring sits where
 // the middle of the screen meets a surface facing up, and a tap calls him there. Only 1.2-5 m away (the user: "floor point
-// at least 1 to 5 metres"): nearer, he filled the screen and looked stuck on it; Nobita fills most of the screen's height
+// at least 1 to 5 metres"): nearer, he filled the screen and looked stuck on it; a 1.4 m mascot fills most of the screen's height
 // at 1.2 m, a fifth at 5 m. The automatic spot this replaces (the floor by your feet first, then seen floor 2.5 m ahead)
 // took over a minute in a cluttered room, and you didn't know where he would come.
 // The ring stays RING_S after the middle of the screen leaves its spot (a hit test missing a frame, a shaky hand), so a
@@ -353,7 +408,8 @@ const aim = (p, cam, now) => {
 // For tests: what the page is doing.
 window.state = () => ({ placed: placedAt !== null, at: figure.position.toArray().map((v) => +v.toFixed(3)), ring: reticle.visible,
   ringAt: reticle.visible ? new THREE.Vector3().setFromMatrixPosition(reticle.matrix).toArray().map((v) => +v.toFixed(3)) : null, close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
-  backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent });
+  backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent,
+  menu: menuEl.hidden ? null : [...menuEl.querySelectorAll('.row')].map((r) => (r.classList.contains('on') ? '*' : '') + r.firstChild.textContent) });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);

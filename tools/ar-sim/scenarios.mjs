@@ -10,8 +10,9 @@
 //   talk: what you say, press: s held, s | jump: {camera | anchor: [dx, dy, dz]} (a map re-fix, or one anchor moving)
 //   lose: true on any step: no tracking during it.
 
-export const FRIENDS = { doraemon: ['Doraemon', 1.29], nobita: ['Nobita', 1.4], shinchan: ['Shin-chan', 1.0], goku: ['Goku', 1.75],
-  michael: ['Michael', 1.75], dwight: ['Dwight', 1.87], holt: ['Captain Holt', 1.83] };   // src/friends.ts
+export const FRIENDS = { juno: ['Juno', 1.4], rosa: ['Chef Rosa', 1.72], kiran: ['Kiran', 1.72], otto: ['Grandpa Otto', 1.72],
+  sunny: ['Sunny', 1.72], nia: ['Auntie Nia', 1.72], mika: ['Mika', 1.72], max: ['Max', 1.4], omar: ['Omar', 1.72],
+  lina: ['Lina', 1.72], sana: ['Sana', 1.72], kai: ['Kai', 1.4] };   // src/friends.ts, scripts/build-rigs.mjs
 
 export const ROOMS = {
   open: { x: [-2, 2], z: [-4.5, 0.8], h: 2.6, eye: 1.45, start: [0, 0.3],
@@ -70,6 +71,8 @@ export const SCENARIOS = {
     ...[[0.05, 0, 0], [0.08, 0, 0], [0, 0, -0.15], [-0.18, 0, 0.06], [0.24, 0, 0.18]].flatMap((camera) => [{ jump: { camera } }, { hold: 3 }]),
   ] },
   talk: { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { talk: 'what are you doing', press: 1.5, s: 14 }, { hold: 1 }] },
+  // A shop's page opened him (?shop=): asked a price, he names the item and the menu card shows it at the shop's price.
+  'shop-menu': { room: 'open', ringWithin: 5, shop: true, script: [...FIND, { hold: 3 }, { talk: 'how much is the chai?', press: 1.5, s: 12 }, { hold: 16 }] },   // his reply, then 8 s for the card to go
   // The quick pass over every friend (run.mjs all-friends): out, every gesture, one question.
   'friend-pass': { room: 'open', ringWithin: 5, script: [...FIND, { hold: 4 }, { clips: true }, { talk: 'hi', press: 1.2, s: 12 }] },
 };

@@ -1,18 +1,11 @@
 // Turns Claude's streamed reply into what a friend says and does, and checks what the page sends.
 // Pure functions for the talk server (web/talk/server.mjs). Tests: node --test "web/talk/*.test.mjs"
-import { MASCOTS } from './prompts.mjs';
+import { MASCOTS, mascotActions, mascotAlone } from './prompts.mjs';
 
 export const EMOTIONS = ['neutral', 'happy', 'excited', 'surprised', 'curious', 'sad', 'worried', 'sleepy'];
-// Each friend's gesture words; scripts/build-rigs.mjs maps the same words to his clips.
-export const ACTIONS = {
-  doraemon: ['wave', 'gadget', 'fly', 'cheer', 'mouse', 'door', 'ufufu', 'janken'],
-  nobita: ['wave', 'late', 'call', 'nap', 'aim', 'cheer', 'pray', 'splat', 'lazy', 'dog'],
-  shinchan: ['wave', 'dance', 'pose', 'cheer', 'chocobi', 'toss', 'hmm'],
-  goku: ['wave', 'blast', 'teleport', 'cheer', 'eat', 'huh', 'shock'],
-  michael: ['wave', 'cheer', 'stare', 'panic', 'shout', 'pout', 'mug', 'guns'],
-  dwight: ['wave', 'question', 'false', 'glasses', 'grin', 'karate', 'panic'],
-  holt: ['wave', 'salute', 'sideeye', 'vindication', 'celebrate', 'dance', 'outburst'],
-};
+// Each mascot's gesture words, by its id (web/talk/prompts.mjs MASCOTS); scripts/build-rigs.mjs maps the same words to
+// its rig's clips. web/serve.mjs and the hosted function check a warm-up's id against these.
+export const ACTIONS = Object.fromEntries(Object.keys(MASCOTS).map((id) => [id, mascotActions(mascotAlone(id))]));
 // The prompt asks for 1-3 sentences; 5 leaves room for short ones like "Ha ha!" so a joke keeps its punchline. A
 // listening turn ([emotion|action|long], up to about a minute of talk) is capped by words instead: the prompt asks for
 // about 100 and Haiku writes about 180, so 170 (a minute at the voices' measured pace, 2.8 words/s) is where it stops.
@@ -30,7 +23,7 @@ export function checkInput(body) {
   const { friend, shop, text, history = [] } = body ?? {};
   if (shop !== undefined && friend !== undefined) throw new Error('send a friend or a shop, not both');
   if (shop !== undefined) { if (typeof shop !== 'string' || !/^[\w-]{1,64}$/.test(shop)) throw new Error('unknown shop'); }
-  else if (!Object.hasOwn(ACTIONS, friend ?? '') && !Object.hasOwn(MASCOTS, friend ?? '')) throw new Error('unknown friend');   // a friend, or a business mascot by its id
+  else if (!Object.hasOwn(ACTIONS, friend ?? '')) throw new Error('unknown friend');   // a business mascot by its id
   const said = typeof text === 'string' ? redact(text.trim()) : '';
   if (!said || said.length > 300) throw new Error('say something (up to 300 characters)');
   const ok = Array.isArray(history) && history.length <= 8 && history.length % 2 === 0 &&
@@ -50,8 +43,9 @@ export const clean = (s) => s.replace(/\*[^*]*\*/g, ' ').replace(/\[[^\]]*\]/g, 
 
 // A sentence that would read out a phone number, an email or a link is dropped, and so is one asking a child to keep
 // a secret or hide something from their grown-ups, even as a joke (Haiku said "don't tell Mom, okay?" and "our
-// secret" in tests, 18 Oct), one asking their name, age or school (a first name is used only if offered; Michael asked
-// "What's your name?", 18 Oct; a mascot "Could you tell me your first name?", 19 Oct), or one with a swear word, even a mild one a child asked for (Michael said "Hot damn!"),
+// secret" in tests, 18 Oct), one asking their name, age or school (a first name is used only if offered; a character
+// asked "What's your name?", 18 Oct, and a mascot "Could you tell me your first name?", 19 Oct), or one with a swear
+// word, even a mild one a child asked for (a character said "Hot damn!"),
 // or one naming a delivery app (the contest's IP rule, 19 Oct: a shop's mascot says "delivery apps").
 export const safe = (s) => !/\d(?:[\s-]?\d){7,}|[^\s@]+@[^\s@]+\.[^\s@]+|https?:\/\/|www\.|\b[\w-]+\.(?:com|in|org|net|io|co)\b/i.test(s)
   && !/\bour (?:little |tiny |special |own )?secret\b|\b(?:don['’]?t|do not) tell\b|\bkeep (?:it |this |that )?(?:a |our )?(?:little )?secret\b|\bbetween (?:us|you and me)\b/i.test(s)
