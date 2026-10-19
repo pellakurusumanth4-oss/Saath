@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS shops (
     'grocery', 'streetfood', 'boutique', 'mall', 'realestate', 'salon', 'pharmacy', 'bookstore', 'electronics',
     'gym', 'hotel')),
   -- the host at the door: a character / mascot id (its AR rig is /ar/rigs/<friend>.html)
-  friend text NOT NULL DEFAULT 'nobita' CHECK (friend ~ '^[a-z0-9-]{2,30}$'),
+  friend text NOT NULL DEFAULT 'juno' CHECK (friend ~ '^[a-z0-9-]{2,30}$'),
   lat double precision NOT NULL CHECK (lat BETWEEN -90 AND 90),
   lng double precision NOT NULL CHECK (lng BETWEEN -180 AND 180),
   story text NOT NULL DEFAULT '' CHECK (char_length(story) <= 400),
@@ -214,13 +214,13 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 
 -- Made-up demo shops at public places (no real business names), claimable once.
 INSERT INTO shops (slug, name, section, friend, lat, lng, story, special, status, status_note, owner, claimable) VALUES
-  ('wada-chai-katta', 'Wada Chai Katta', 'cafe', 'doraemon', 18.51935, 73.85575,
+  ('wada-chai-katta', 'Wada Chai Katta', 'cafe', 'kiran', 18.51935, 73.85575,
    'A tiny chai stall a short walk from the Shaniwar Wada gate. Cutting chai, bun maska and gossip since forever.',
    'Cutting chai + bun maska for ₹40', 'open', 'Fresh bun maska just out', NULL, true),
-  ('sarasbaug-misal-house', 'Sarasbaug Misal House', 'restaurant', 'nobita', 18.50105, 73.85345,
+  ('sarasbaug-misal-house', 'Sarasbaug Misal House', 'restaurant', 'rosa', 18.50105, 73.85345,
    'Spicy misal near the Sarasbaug garden gate. Nap-friendly benches outside.',
    'Misal pav with an extra pav, ₹90', 'busy', 'About a 10 min wait', NULL, true),
-  ('parvati-snack-stop', 'Parvati Snack Stop', 'streetfood', 'goku', 18.49850, 73.84985,
+  ('parvati-snack-stop', 'Parvati Snack Stop', 'streetfood', 'sunny', 18.49850, 73.84985,
    'Fuel for the Parvati Hill steps: vada pav, lassi and bhel at the bottom of the climb.',
    'Two vada pav + lassi for ₹75', 'open', '', NULL, true)
 ON CONFLICT (slug) DO NOTHING;

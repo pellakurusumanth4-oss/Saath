@@ -21,7 +21,7 @@ UPDATE shops SET friend = CASE section
     WHEN 'streetfood' THEN 'sunny' WHEN 'grocery' THEN 'nia' WHEN 'boutique' THEN 'mika' WHEN 'mall' THEN 'max'
     WHEN 'realestate' THEN 'omar' WHEN 'salon' THEN 'lina' WHEN 'pharmacy' THEN 'sana' WHEN 'electronics' THEN 'kai'
     ELSE 'juno' END
-  WHERE friend IN ('doraemon', 'nobita', 'shinchan', 'goku', 'michael', 'dwight', 'holt');
+  WHERE friend NOT IN ('rosa', 'kiran', 'juno', 'otto', 'sunny', 'nia', 'mika', 'max', 'omar', 'lina', 'sana', 'kai');
 
 INSERT INTO shops (slug, name, section, friend, lat, lng, story, special, status, status_note, owner, claimable) VALUES
   ('wada-gate-juice-bar', 'Wada Gate Juice Bar', 'juice', 'juno', 18.520245, 73.855307,
