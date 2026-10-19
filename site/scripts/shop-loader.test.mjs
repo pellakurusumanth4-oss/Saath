@@ -41,6 +41,9 @@ test('a shop row becomes what the mascot prompts take, its live facts in the SHO
   assert.match(live, /- Saath walkers get a free papad/);
   assert.match(live, /- Parking \(\$1\.50 an hour\)/);
   assert.match(mascotPrompt(shop), /Area: Sarasbaug, Swargate/);
+  assert.doesNotMatch(mascotPrompt(shop), /Hours:/);   // none given: the mascot doesn't guess
+  const timed = await loadShop(fakeDb({ ...row, hours: 'Mon–Sat, 8 am – 9 pm' }), 'sarasbaug-misal-house');
+  assert.match(mascotPrompt(timed), /Hours: Mon–Sat, 8 am – 9 pm/);
 });
 
 test("what the business does opens the story the mascot reads", async () => {

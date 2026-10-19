@@ -5,7 +5,7 @@ export async function loadShop(db, slug) {
   if (typeof slug !== 'string' || !/^[a-z0-9-]{3,40}$/.test(slug)) return null;
   const { data, error } = await db
     .from('shops')
-    .select('slug,name,section,friend,area,about,story,special,offers,status,status_note,menu_items(name,price,app_price,available,note,sort)')
+    .select('slug,name,section,friend,area,hours,about,story,special,offers,status,status_note,menu_items(name,price,app_price,available,note,sort)')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
@@ -14,6 +14,7 @@ export async function loadShop(db, slug) {
     name: data.name,
     section: data.section,
     area: data.area,
+    hours: data.hours ?? '',   // the owner's timings ("Mon–Sat, 8 am – 9 pm"): the mascot answers "when are you open?"
     // What the business does (the owner's line or two) opens its story: the prompts take both from the shop's block.
     story: [data.about, data.story].map((text) => (text ?? '').trim()).filter(Boolean).join(' '),
     special: data.special,
