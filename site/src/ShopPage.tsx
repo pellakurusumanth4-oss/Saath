@@ -7,6 +7,7 @@ import type { LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
+import Reviews from './Reviews';
 import { boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 
@@ -66,6 +67,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
             {menu.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}
           </div>
           <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>
+          <Reviews shop={shop} />
           {shop.story && <div className="story"><b>The story</b><p>{shop.story}</p></div>}
         </div>
         <div className="actions sticky">

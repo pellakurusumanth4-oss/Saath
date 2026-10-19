@@ -25,6 +25,15 @@ const PATHS: Record<string, ReactNode> = {
   share: <path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  north: <path d="M5 12l7-7 7 7M12 19V5" />,
+  turnLeft: <path d="M9 14L4 9l5-5M20 20v-7a4 4 0 0 0-4-4H4" />,
+  turnRight: <path d="M15 14l5-5-5-5M4 20v-7a4 4 0 0 1 4-4h12" />,
+  slightLeft: <path d="M17 17L7 7M7 17V7h10" />,
+  slightRight: <path d="M7 17L17 7M7 7h10v10" />,
+  uturn: <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" /></>,
+  vibrate: <><path d="M2 8l2 2-2 2 2 2-2 2M22 8l-2 2 2 2-2 2 2 2" /><rect x="8" y="5" width="8" height="14" rx="1" /></>,
 };
 
 export function Icon({ name, size = 20, color = 'currentColor', stroke = 2.2 }: { name: string; size?: number; color?: string; stroke?: number }) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapView from './MapView';
 import MapBoundary from './MapBoundary';
 import NearList from './NearList';
@@ -8,6 +8,17 @@ import OwnerPage from './OwnerPage';
 import BusinessPage from './BusinessPage';
 import TalkPanel from './TalkPanel';
 import SavedSheet from './SavedSheet';
+import Welcome from './Welcome';
+import RoutePreview from './RoutePreview';
+import WalkHud, { type WalkView } from './WalkHud';
+import ArrivedSheet from './ArrivedSheet';
+import CodeSheet from './CodeSheet';
+import ReviewSheet from './ReviewSheet';
+import { walkingRoute, type Route } from './route';
+import { unlockSound } from './walking';
+import LocationAsk from './LocationAsk';
+import InstallSheet from './InstallSheet';
+import { useInstall } from './install';
 import { useMe } from './hooks';
 import { orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
@@ -23,6 +34,10 @@ const useHash = () => {
   }, []);
   return hash;
 };
+
+/** localStorage / sessionStorage that never throws (private browsing, blocked storage). */
+const stored = (store: () => Storage, key: string) => { try { return store().getItem(key); } catch { return null; } };
+const store = (store: () => Storage, key: string, value: string) => { try { store().setItem(key, value); } catch { /* not kept */ } };
 
 const useDesktop = () => {
   const query = '(min-width: 1024px)';
@@ -49,10 +64,14 @@ const CATEGORIES: { label: string; sections: string[]; glyph?: string }[] = [
   { label: 'Services', sections: ['salon', 'realestate', 'gym', 'hotel'], glyph: 'salon' },
 ];
 
-type Walk = { shopId: string; from: LatLng | null; started: number };
+/** J4/J5: walking to a shop: the route preview, then turn by turn. */
+type Trip = { shopId: string; route: Route | null; walking: boolean; started: number };
+/** J6–J8: at the door: arrived, the counter code, the review, the saving. */
+type Door = { shopId: string; step: 'arrived' | 'code' | 'review' | 'saved'; metres: number | null; minutes: number | null; visit?: string; posted?: boolean };
 
 export default function App() {
-  const { me, locating, error, whereAmI, setMySpot } = useMe();
+  const { me, locating, error, denied, whereAmI, setMySpot } = useMe();
+  const { installed } = useInstall();
   const shops = useShops();
   const hash = useHash();
   const desktop = useDesktop();
@@ -61,9 +80,15 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
+  // J2/J3: the first-visit welcome, the kind location ask, "pick your spot", and the install sheet.
+  const [welcomed, setWelcomed] = useState(() => stored(() => localStorage, 'saath:welcomed') === '1');
+  const [asking, setAsking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const spotDraft = useRef<LatLng | null>(null);
   const [talkingId, setTalkingId] = useState<string | null>(null);
-  const [walk, setWalk] = useState<Walk | null>(null);
-  const [arrived, setArrived] = useState<{ shopId: string; metres: number | null; minutes: number | null } | null>(null);
+  const [trip, setTrip] = useState<Trip | null>(null);
+  const [walkView, setWalkView] = useState<WalkView | null>(null);
+  const [door, setDoor] = useState<Door | null>(null);
 
   const shopSlug = /^#\/shop\/([a-z0-9-]{3,40})$/.exec(hash)?.[1] ?? null;
   const page = shopSlug ? 'shop' : hash === '#/owner' ? 'owner' : hash === '#/business' ? 'business' : 'map';
@@ -94,10 +119,42 @@ export default function App() {
     whereAmI();
     if (me) focusOn(me);
   };
-  const onSetSpot = useCallback((spot: LatLng) => {
-    setMySpot(spot);
+  const onSpotMove = useCallback((spot: LatLng) => { spotDraft.current = spot; }, []);
+  const confirmSpot = () => {
+    if (spotDraft.current) setMySpot(spotDraft.current);
     setSettingSpot(false);
-  }, [setMySpot]);
+  };
+
+  // Ask for the location only when the browser would ask: no card when it's allowed, "pick your spot" when blocked.
+  const startLocation = useCallback(async () => {
+    store(() => sessionStorage, 'saath:asked', '1');
+    let state: PermissionState = 'prompt';
+    try { state = (await navigator.permissions.query({ name: 'geolocation' })).state; } catch { /* Safari: no answer, so ask */ }
+    if (state === 'granted') whereAmI();
+    else if (state === 'denied') setSettingSpot(true);
+    else setAsking(true);
+  }, [whereAmI]);
+  useEffect(() => {
+    if (welcomed && !me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
+    // Once, on arrival; later visits to the map use the locate button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Blocked, or a walk waiting for a position that didn't come: pick the spot by hand (each failed try opens it again).
+  useEffect(() => {
+    if (denied || (error && trip && !me)) setSettingSpot(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [denied, error]);
+  useEffect(() => {
+    if (!settingSpot) return;
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setSettingSpot(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [settingSpot]);
+  const openMap = () => {
+    store(() => localStorage, 'saath:welcomed', '1');
+    setWelcomed(true);
+    void startLocation();
+  };
 
   // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.
   useEffect(() => setTalkingId(null), [hash]);
@@ -114,36 +171,60 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meKey]);
 
-  // Walking to a shop: arriving within 30 m (or tapping "I'm here") shows what walking saved.
-  const walkShop = walk ? shops.find((shop) => shop.id === walk.shopId) ?? null : null;
-  const arrive = useCallback(() => {
-    if (!walk || !walkShop) return;
-    const metres = walk.from ? distanceM(walk.from, walkShop) : null;
-    setArrived({ shopId: walk.shopId, metres, minutes: metres === null ? null : Math.max(1, Math.round((Date.now() - walk.started) / 60000)) });
-    setWalk(null);
-  }, [walk, walkShop]);
+  // J4: Walk opens the route preview; without a location yet, the location step comes first.
+  const tripShop = trip ? shops.find((shop) => shop.id === trip.shopId) ?? null : null;
+  const startTrip = (shop: ShopWithMenu) => {
+    setDoor(null);
+    setTrip({ shopId: shop.id, route: null, walking: false, started: 0 });
+    if (!me) void startLocation();
+  };
   useEffect(() => {
-    if (!walk || !walkShop || !('geolocation' in navigator)) return;
-    const id = navigator.geolocation.watchPosition((position) => {
-      if (distanceM({ lat: position.coords.latitude, lng: position.coords.longitude }, walkShop) <= 30) arrive();
-    }, () => {}, { enableHighAccuracy: true, maximumAge: 5000 });
-    return () => navigator.geolocation.clearWatch(id);
-  }, [walk, walkShop, arrive]);
-
-  const arrivedShop = arrived ? shops.find((shop) => shop.id === arrived.shopId) ?? null : null;
-  const arrivedOrder = arrivedShop ? orderOf(arrivedShop, arrivedShop.menu) : null;
+    if (!trip || trip.route || !tripShop || !me) return;
+    let live = true;
+    void walkingRoute(me, tripShop, tripShop.name).then((route) => {
+      if (live) setTrip((t) => (t && t.shopId === tripShop.id ? { ...t, route } : t));
+    });
+    return () => { live = false; };
+  }, [trip, tripShop, me]);
+  const startWalking = () => {
+    unlockSound(); // inside the tap, so the chime may play later on iPhone
+    setTrip((t) => t && { ...t, walking: true, started: Date.now() });
+  };
+  const stopTrip = () => {
+    setTrip(null);
+    setWalkView(null);
+  };
+  // J6: at the door (two fixes within 25 m, or "I'm here"): the mascot comes out; the saving waits for the counter code.
+  const arrive = () => {
+    if (!trip || !tripShop) return;
+    setDoor({ shopId: trip.shopId, step: 'arrived', metres: trip.route?.metres ?? null, minutes: Math.max(1, Math.round((Date.now() - trip.started) / 60000)) });
+    setFocus({ spot: tripShop, key: `door:${tripShop.id}:${Date.now()}` });
+    stopTrip();
+  };
+  const doorShop = door ? shops.find((shop) => shop.id === door.shopId) ?? null : null;
+  const doorOrder = doorShop ? orderOf(doorShop, doorShop.menu) : null;
   const talking = talkingId ? shops.find((shop) => shop.id === talkingId) ?? null : null;
-  const cardOpen = !desktop && !!selected;
+  const busy = !!trip || !!door; // a walk or the door covers the shop card and the phone's search
+  const cardOpen = !desktop && !!selected && !busy;
   // The screen edges the city must stay clear of: the bars and sheet on a phone, the side panels on a desktop.
   const padding = desktop
-    ? { top: 20, bottom: 20, left: page === 'business' ? 660 : 424, right: page === 'business' ? 20 : 440 }
+    ? { top: trip?.walking ? 150 : 20, bottom: trip?.walking ? 190 : 20, left: page === 'business' ? 660 : 424, right: page === 'business' ? 20 : 440 }
+    : settingSpot ? { top: 90, bottom: 190, left: 0, right: 0 }
+    : trip?.walking ? { top: 150, bottom: 210, left: 0, right: 0 }
+    : trip ? { top: 70, bottom: Math.round(window.innerHeight * 0.5), left: 0, right: 0 }
+    : door ? { top: 80, bottom: Math.round(window.innerHeight * 0.42), left: 0, right: 0 }
     : { top: cardOpen ? 140 : 132, bottom: Math.round(window.innerHeight * (cardOpen ? 0.62 : 0.36)), left: 0, right: 0 };
+  const welcome = !welcomed && page === 'map';
+  const chrome = !welcome && !settingSpot && !busy; // the phone's search, chips and near list
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
-        <MapView me={me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)} focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
-          settingSpot={settingSpot} onSetSpot={onSetSpot} onPick={pick} padding={padding} />
+        <MapView me={walkView?.me ?? me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)} focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
+          settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={welcome || settingSpot ? () => {} : pick} padding={padding}
+          route={walkView?.route ?? (trip?.route ? { done: [], left: trip.route.line } : null)}
+          fit={trip?.route && !trip.walking ? { points: trip.route.line, key: `${trip.shopId}:${trip.route.metres}` } : null}
+          follow={!!trip?.walking} heading={walkView?.heading ?? null} />
       </MapBoundary>
 
       {desktop ? (
@@ -160,19 +241,22 @@ export default function App() {
         </aside>
       ) : (
         <>
-          {!cardOpen && (
+          {!cardOpen && chrome && (
             <header className="top">
               <Search query={query} setQuery={setQuery} logo />
               <Chips category={category} setCategory={setCategory} />
             </header>
           )}
-          {!cardOpen && (
+          {!cardOpen && chrome && (
             <>
               <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} floating />
               <div className="sheet glass-sheet near-sheet">
                 <div className="grabber" />
                 <NearList shops={shown} me={me} onPick={pick} />
-                <a className="for-business" href="#/business">For businesses →</a>
+                <div className="near-links">
+                  {!installed && <button type="button" onClick={() => setInstalling(true)}>Install app</button>}
+                  <a className="for-business" href="#/business">For businesses →</a>
+                </div>
               </div>
             </>
           )}
@@ -180,30 +264,45 @@ export default function App() {
       )}
 
       {error && <div className="notice" role="alert">{error}</div>}
-      {settingSpot && <div className="notice">Tap the map where you are</div>}
+      {settingSpot && (
+        <>
+          <div className="spot-hint glass" role="status"><Icon name="map" size={20} />Drag the map to where you are</div>
+          <div className="spot-actions">
+            <button type="button" className="btn-go" onClick={confirmSpot}><Icon name="check" size={19} />I’m here</button>
+            <button type="button" className="btn-ghost" onClick={onLocate}><Icon name="locate" size={19} />Use my location instead</button>
+          </div>
+        </>
+      )}
+      {welcome && <Welcome onOpen={openMap} onInstall={installed ? null : () => setInstalling(true)} />}
+      {asking && <LocationAsk onAllow={() => { setAsking(false); whereAmI(); }} onPick={() => { setAsking(false); setSettingSpot(true); }} />}
+      {installing && <InstallSheet onClose={() => setInstalling(false)} />}
 
-      {walk && walkShop && (
-        <div className="walk-bar glass" role="status">
-          <Icon name="walk" size={20} />
-          <span>Walking to <b>{walkShop.name}</b></span>
-          <a href={`https://www.google.com/maps/dir/?api=1&destination=${walkShop.lat},${walkShop.lng}&travelmode=walking`} target="_blank" rel="noreferrer">Directions</a>
-          <button type="button" className="btn-go small" onClick={arrive}>I’m here</button>
-          <button type="button" className="icon-btn" onClick={() => setWalk(null)} aria-label="Stop walking"><Icon name="close" size={18} /></button>
-        </div>
+      {trip && tripShop && !trip.walking && !settingSpot && !asking && (
+        <RoutePreview shop={tripShop} route={trip.route} onBack={stopTrip} onStart={startWalking} />
+      )}
+      {trip?.walking && trip.route && tripShop && (
+        <WalkHud key={trip.started} shop={tripShop} start={trip.route} onView={setWalkView} onArrive={arrive} onStop={stopTrip} />
+      )}
+      {door?.step === 'arrived' && doorShop && (
+        <ArrivedSheet shop={doorShop} onTalk={() => setTalkingId(doorShop.id)} onBought={() => setDoor({ ...door, step: 'code' })} onClose={() => setDoor(null)} />
       )}
 
-      {selected && page === 'map' && (
+      {selected && page === 'map' && !busy && (
         <ShopCard key={selected.id} shop={selected} me={me} layout={desktop ? 'panel' : 'sheet'}
           onClose={() => setSelectedId(null)}
           onTalk={() => setTalkingId(selected.id)}
-          onWalk={() => setWalk({ shopId: selected.id, from: me, started: Date.now() })} />
+          onWalk={() => startTrip(selected)} />
       )}
 
       {page === 'shop' && shopSlug && (
         <ShopPage key={shopSlug} slug={shopSlug} me={me} onTalk={setTalkingId} onWalk={(id) => {
           const shop = shops.find((s) => s.id === id);
-          if (shop) pick(shop);
-          setWalk({ shopId: id, from: me, started: Date.now() });
+          store(() => localStorage, 'saath:welcomed', '1'); // came from a shared shop link: no welcome over the walk
+          setWelcomed(true);
+          if (shop) {
+            pick(shop);
+            startTrip(shop);
+          }
           window.location.hash = '#/';
         }} />
       )}
@@ -211,8 +310,14 @@ export default function App() {
       {page === 'business' && <BusinessPage shops={shops} />}
 
       {talking && <TalkPanel shop={talking} onClose={() => setTalkingId(null)} />}
-      {arrivedShop && arrivedOrder && arrived && (
-        <SavedSheet shop={arrivedShop} order={arrivedOrder} metres={arrived.metres} minutes={arrived.minutes} onClose={() => setArrived(null)} />
+      {door?.step === 'code' && doorShop && (
+        <CodeSheet shop={doorShop} onBack={() => setDoor({ ...door, step: 'arrived' })} onVerified={(visit) => setDoor({ ...door, step: 'review', visit })} />
+      )}
+      {door?.step === 'review' && doorShop && door.visit && (
+        <ReviewSheet shop={doorShop} visit={door.visit} onDone={(posted) => setDoor({ ...door, step: 'saved', posted })} />
+      )}
+      {door?.step === 'saved' && doorShop && door.visit && (
+        <SavedSheet shop={doorShop} order={doorOrder} metres={door.metres} minutes={door.minutes} visit={door.visit} posted={!!door.posted} onClose={() => setDoor(null)} />
       )}
     </div>
   );

@@ -10,6 +10,7 @@ const steps = [
   ['20261019024000_demo_shops', "exists (select 1 from public.shops where slug = 'copper-ladle')"],
   ['20261019050000_city_day', "exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'shops' and column_name = 'board_lng')"],
   ['20261019120000_visits_reviews', "to_regprocedure('public.owner_visits(uuid,integer)') is not null"],
+  ['20261019140000_reviews_count_once', "to_regclass('public.content_reports') is not null"],
 ].map(([name, done]) => ({ name, done, sql: fs.readFileSync(path.join(root, 'supabase', 'migrations', `${name}.sql`), 'utf8') }));
 fs.writeFileSync(path.join(root, 'supabase', 'functions', 'setup-db', 'migrations.mjs'),
   `// Generated from supabase/migrations/ by site/scripts/setup-db-steps.mjs; do not edit by hand.\nexport default ${JSON.stringify(steps, null, 1)};\n`);

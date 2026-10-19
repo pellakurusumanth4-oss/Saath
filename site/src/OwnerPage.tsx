@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { Session } from '@supabase/supabase-js';
 import { MAP_STYLE } from '../../src/mapStyle';
@@ -7,8 +7,10 @@ import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
 import { MASCOTS } from './mascots';
-import { db, figureOf, hostOf, rupees, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type Status } from './shops';
+import { db, figureOf, hostOf, orderOf, rupees, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type Status } from './shops';
 import { Icon } from './ui';
+import { OwnerNav, TodayCode, TodayVisits, useOwnerDay } from './OwnerToday';
+import Reviews from './Reviews';
 
 const PUNE: LatLng = { lat: 18.5204, lng: 73.8567 };
 const ART = ['chai', 'misal', 'juice', 'bread', 'vadapav', 'pharmacy', 'phone', 'kurta', 'basket'];
@@ -40,7 +42,7 @@ export default function OwnerPage() {
           {session && <button type="button" className="owner-link-btn" onClick={() => void db.auth.signOut()}>Sign out</button>}
         </div>
         {session && <div className="owner-live"><i className="live-dot" />Live: visitors see every change within a second</div>}
-        <h1 className="owner-title">Your shop on Saath</h1>
+        {session !== null && <h1 className="owner-title"><small className="owner-hello">{greeting()}</small>Your shop on Saath</h1>}
         {session === undefined ? (
           <p className="note">Loading…</p>
         ) : session ? (
@@ -53,9 +55,15 @@ export default function OwnerPage() {
   );
 }
 
+const greeting = () => {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+};
+
 function SignIn() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [demoHint, setDemoHint] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,8 +82,13 @@ function SignIn() {
   };
 
   return (
-    <form className="owner-form owner-section" onSubmit={(event) => void submit(event)}>
-      <p className="owner-help">Sign in to change your billboard, menu, prices and how busy you are. Visitors see each change at once.</p>
+    <form className="owner-form owner-section owner-signin" onSubmit={(event) => void submit(event)}>
+      <div className="signin-sky" aria-hidden="true">
+        {MASCOTS.slice(0, 5).map((mascot, i) => <img key={mascot.id} src={`/mascots/${mascot.id}.png`} alt="" style={{ '--i': i } as CSSProperties} />)}
+      </div>
+      <p className="signin-kicker">FOR SHOP OWNERS</p>
+      <h1 className="signin-title">Run your shop on Saath</h1>
+      <p className="owner-help">Change prices, your billboard ad and how busy you are. People nearby see it at once.</p>
       <label>
         Email
         <input name="email" type="email" required autoComplete="email" />
@@ -84,10 +97,12 @@ function SignIn() {
         Password
         <input name="password" type="password" required minLength={8} autoComplete="current-password" />
       </label>
-      <div className="actions">
+      <div className="signin-actions">
         <button className="btn-dark" type="submit" value="signin" disabled={busy}>Sign in</button>
-        <button className="btn-ghost" type="submit" value="create" disabled={busy}>Create account</button>
+        <button className="btn-ghost" type="submit" value="create" disabled={busy}>Create an account</button>
       </div>
+      <button type="button" className="signin-demo" onClick={() => setDemoHint(true)}>Claim a demo shop to try it ›</button>
+      {demoHint && <p className="owner-help">Create an account (any email and an 8-character password), then claim a demo shop below.</p>}
       {message && <p className="owner-msg" role="alert">{message}</p>}
     </form>
   );
@@ -260,17 +275,24 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
   const setOrder = (next: Shop['usual_order']) => saveShop({ usual_order: next.filter((line) => line.qty > 0).slice(0, 6) });
   const mascot = hostOf(draft);
   const named = (id: string) => menu?.find((item) => item.id === id)?.name ?? 'an item';
+  const day = useOwnerDay(shop.id);
   const notInOrder = (menu ?? []).filter((item) => item.price !== null && item.app_price !== null && item.available && !draft.usual_order.some((line) => line.item === item.id));
 
   return (
     <div className="owner-editor">
+      <OwnerNav shop={draft} />
       <div className="owner-row">
         <b className="owner-shop-name">{draft.name}</b>
         <a className="btn-ghost small" href={`#/shop/${shop.slug}`} target="_blank" rel="noreferrer">Open my shop page ↗</a>
       </div>
       <p className="owner-state" role="status">{state}</p>
 
-      <section className="owner-section">
+      {/* Two columns on a computer (J11); one after the other on a phone. */}
+      <div className="owner-cols">
+      <div className="owner-col-a">
+      <TodayCode shop={draft} code={day.code} days={day.days} />
+
+      <section id="status" className="owner-section">
         <h3>Right now</h3>
         <div className="seg big" role="group" aria-label="Right now">
           {(['open', 'busy', 'closed'] as Status[]).map((status) => (
@@ -286,7 +308,7 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
         </label>
       </section>
 
-      <section className="owner-section">
+      <section id="billboard" className="owner-section">
         <h3>Your billboard on the map</h3>
         <Ad shop={draft} height={170} width="100%" off={draft.status === 'closed'} radius={16} />
         <p className="owner-help">Make your ad here: it lights up your billboard beside your shop.</p>
@@ -311,7 +333,7 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
         </div>
       </section>
 
-      <section className="owner-section">
+      <section id="mascot" className="owner-section">
         <h3>Your mascot</h3>
         <div className="owner-mascot">
           <img src={figureOf(mascot)} alt="" width={70} height={140} />
@@ -331,6 +353,10 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
           </label>
         </div>
       </section>
+
+      </div>
+      <div className="owner-col-b">
+      <TodayVisits days={day.days} saving={orderOf(draft, menu ?? [])?.saving ?? 0} />
 
       <section className="owner-section">
         <h3>Usual order</h3>
@@ -360,7 +386,7 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
         {menu && <Compare shop={draft} menu={menu} mode="compact" />}
       </section>
 
-      <section className="owner-section">
+      <section id="menu" className="owner-section">
         <h3>Menu</h3>
         <p className="owner-help">Your walk-in price, and what delivery apps charge for it if you know: visitors see the saving.</p>
         {menu === null ? (
@@ -434,6 +460,12 @@ function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Sh
           <PickSpot spot={shop} onPick={(spot) => saveShop({ lat: spot.lat, lng: spot.lng })} />
         </MapBoundary>
       </section>
+
+      <section id="reviews" className="owner-section owner-reviews">
+        <Reviews shop={draft} owner />
+      </section>
+      </div>
+      </div>
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );

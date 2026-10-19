@@ -65,7 +65,7 @@ const boardScale = (zoom: number) => (zoom < 15.8 ? 0 : Math.max(0.6, Math.min(1
 
 type Slot = { pin: HTMLElement; board: HTMLElement; markers: maplibregl.Marker[] };
 
-export default function MapView({ me, shops, selected, spotlight, focus, focusKey, settingSpot, onSetSpot, onPick, padding }: {
+export default function MapView({ me, shops, selected, spotlight, focus, focusKey, settingSpot, onSpotMove, onPick, padding, route = null, fit = null, follow = false, heading = null }: {
   me: LatLng | null;
   shops: ShopWithMenu[];
   /** The open shop's id: its billboard grows. */
@@ -75,11 +75,20 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
   focus: LatLng | null;
   /** Changes whenever focus is set again, even to the same spot, so the camera re-flies. */
   focusKey: string;
+  /** "Pick your spot": a pin stays at the map's centre and each stop of the map reports where it points. */
   settingSpot: boolean;
-  onSetSpot: (p: LatLng) => void;
+  onSpotMove: (p: LatLng) => void;
   onPick: (shop: ShopWithMenu) => void;
   /** The screen edges covered by bars, sheets and panels, so the camera keeps shops clear of them. */
   padding: Padding;
+  /** The walking route: the part walked (grey) and the part left (green). */
+  route?: { done: LatLng[]; left: LatLng[] } | null;
+  /** Points to frame once (the route preview); the key changes when they do. */
+  fit?: { points: LatLng[]; key: string } | null;
+  /** While walking the camera glides after "me". */
+  follow?: boolean;
+  /** The walker's heading in degrees, shown as a soft cone. */
+  heading?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -137,6 +146,66 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
   useEffect(() => {
     (mapRef.current?.getSource('saath-you') as maplibregl.GeoJSONSource | undefined)?.setData(youFeature(me));
   }, [ready, me]);
+
+  // The walking route on the ground, under the "you" dot: a white casing, the part walked in grey, the rest in green.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const line = (points: LatLng[]): FeatureCollection => ({ type: 'FeatureCollection', features: points.length < 2 ? [] : [
+      { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: points.map((p) => [p.lng, p.lat]) } }] });
+    if (!map.getSource('route-whole')) {
+      const layout = { 'line-cap': 'round', 'line-join': 'round' } as const;
+      for (const [id, color, width] of [['whole', '#FFFFFF', 16], ['done', '#B6C2CF', 9], ['left', '#16A34A', 9]] as const) {
+        map.addSource(`route-${id}`, { type: 'geojson', data: line([]) });
+        map.addLayer({ id: `route-${id}`, type: 'line', source: `route-${id}`, layout, paint: { 'line-color': color, 'line-width': width } }, 'you-halo');
+      }
+    }
+    const parts = { whole: route ? [...route.done, ...route.left.slice(1)] : [], done: route?.done ?? [], left: route?.left ?? [] };
+    for (const [id, points] of Object.entries(parts)) (map.getSource(`route-${id}`) as maplibregl.GeoJSONSource).setData(line(points));
+  }, [ready, route]);
+
+  // The route preview frames the whole walk, clear of the bars and the sheet (the map's padding adds to this margin).
+  const fitKey = fit?.key ?? '';
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fit || fit.points.length < 2) return;
+    const bounds = new maplibregl.LngLatBounds();
+    for (const p of fit.points) bounds.extend([p.lng, p.lat]);
+    map.fitBounds(bounds, { padding: 48, maxZoom: 17.6, pitch: 56, bearing: map.getBearing(), duration: reduced() ? 0 : 900 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, fitKey]);
+
+  // While walking the camera glides after the walker; a drag pauses that for 8 s so the visitor can look around.
+  const dragged = useRef(0);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const onDrag = () => { dragged.current = Date.now(); };
+    map.on('dragstart', onDrag);
+    return () => { map.off('dragstart', onDrag); };
+  }, [ready]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !follow || !me || Date.now() - dragged.current < 8000) return;
+    map.easeTo({ center: [me.lng, me.lat], duration: reduced() ? 0 : 900, easing: (t) => t });
+  }, [ready, follow, me]);
+
+  // The heading cone: one marker, turned with the map so it points along the street.
+  const cone = useRef<maplibregl.Marker | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !me || heading === null) {
+      cone.current?.remove();
+      cone.current = null;
+      return;
+    }
+    if (!cone.current) {
+      const el = document.createElement('div');
+      el.className = 'heading-cone';
+      cone.current = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' });
+    }
+    cone.current.setLngLat([me.lng, me.lat]).setRotation(heading).addTo(map);
+  }, [ready, me, heading]);
 
   // A pin and a billboard per shop; rebuilt only when shops come, go or move.
   const placeKey = shops.map((shop) => `${shop.id}:${shop.lat},${shop.lng},${shop.board_lat},${shop.board_lng}`).join('|');
@@ -252,22 +321,36 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusKey]);
 
-  // In "set my spot" mode, the next click on the map becomes my location.
+  // "Pick your spot": the pin stays at the map's centre (padding included) while the city is dragged under it; a tap
+  // glides the map there. The pin's tip, 4 px above its shadow, marks the spot.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !settingSpot) return;
-    map.getCanvas().style.cursor = 'crosshair';
+    const el = document.createElement('div');
+    el.className = 'spot-pin';
+    el.innerHTML = '<svg width="36" height="46" viewBox="0 0 36 46" aria-hidden="true"><ellipse cx="18" cy="43" rx="7" ry="2.5" fill="rgba(0,0,0,.25)"/><path d="M18 42 C10 30 4 24 4 16 A14 14 0 1 1 32 16 C32 24 26 30 18 42 Z" fill="#0E1726"/><circle cx="18" cy="16" r="6" fill="#5BE38F"/></svg>';
+    const pin = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 4] }).setLngLat(map.getCenter()).addTo(map);
+    const follow = () => pin.setLngLat(map.getCenter());
+    const report = () => {
+      const { lat, lng } = map.getCenter();
+      onSpotMove({ lat, lng });
+    };
     // MapLibre hears marker clicks before React can stop them: a tap on a pin or board is not a spot.
-    const choose = (event: MapMouseEvent) => {
+    const glide = (event: MapMouseEvent) => {
       if ((event.originalEvent.target as HTMLElement).closest('.pin, .board')) return;
-      onSetSpot({ lat: event.lngLat.lat, lng: event.lngLat.lng });
+      map.easeTo({ center: event.lngLat, duration: reduced() ? 0 : 400 });
     };
-    map.on('click', choose);
+    map.on('move', follow);
+    map.on('moveend', report);
+    map.on('click', glide);
+    report();
     return () => {
-      map.getCanvas().style.cursor = '';
-      map.off('click', choose);
+      map.off('move', follow);
+      map.off('moveend', report);
+      map.off('click', glide);
+      pin.remove();
     };
-  }, [ready, settingSpot, onSetSpot]);
+  }, [ready, settingSpot, onSpotMove]);
 
   const savings = useMemo(() => Object.fromEntries(shops.map((shop) => [shop.id, orderOf(shop, shop.menu)?.saving ?? 0])), [shops]);
 
