@@ -38,7 +38,12 @@ export default defineConfig(({ mode }) => {
     server: {
       fs: { allow: ['..'] },
     },
-    build: { outDir: '../dist', emptyOutDir: true },
+    // Two pages: the visitors' map (/) and the owner page (/owner/), each with its own bundle.
+    build: {
+      outDir: '../dist',
+      emptyOutDir: true,
+      rollupOptions: { input: { main: fileURLToPath(new URL('./index.html', import.meta.url)), owner: fileURLToPath(new URL('./owner/index.html', import.meta.url)) } },
+    },
     optimizeDeps: {
       exclude: ['kokoro-js', '@huggingface/transformers', 'onnxruntime-web', 'phonemizer'],
     },

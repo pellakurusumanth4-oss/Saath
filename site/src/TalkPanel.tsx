@@ -142,6 +142,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
 
   const pill = state === 'listening' ? 'Listening…' : state === 'thinking' ? `${name} is thinking…` : state === 'talking' ? `${name} is talking` : `Ask ${name} about ${shop.name}`;
   const row = named ?? shop.menu.find((item) => item.price !== null) ?? null;
+  const hasMenu = shop.menu.length > 0;
 
   return (
     <div className={`talk-screen is-${state}`} role="dialog" aria-modal="true" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
@@ -167,12 +168,13 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       {error && <p className="talk-error" role="alert">{error}</p>}
 
       <div className="talk-hints">
-        {HINTS.map((hint) => (
+        {/* A shop with no menu (registered on the owner page) has no saving to ask about. */}
+        {HINTS.filter((hint) => hasMenu || hint !== HINTS[0]).map((hint) => (
           <button key={hint.label} type="button" className="glass" aria-disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>
 
-      <div className="talk-card">
+      {hasMenu && <div className="talk-card">
         <Compare shop={shop} menu={shop.menu} mode="compact" />
         {row && (
           <div className="talk-named">
@@ -180,7 +182,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
             {named && <span className="talk-named-note">{name} is talking about this</span>}
           </div>
         )}
-      </div>
+      </div>}
 
       {typing && (
         <form className="talk-type" onSubmit={(event) => {
@@ -194,7 +196,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       )}
 
       <div className="talk-controls">
-        <a className="icon-btn glass round" href={`#/shop/${shop.slug}`} onClick={onClose} aria-label="See the menu"><Icon name="list" /></a>
+        <a className="icon-btn glass round" href={`/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>
         <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>

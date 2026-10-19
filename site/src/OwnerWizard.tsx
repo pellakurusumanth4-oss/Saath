@@ -1,20 +1,16 @@
-// The owner's guided setup (#/owner, for a new shop or a draft): the business in their words, its door on the map, its
-// mascot, its billboard, its menu, then meeting the mascot and publishing. It runs as a sheet (a panel on a computer)
-// over the live 3D city, so the owner watches their pin and billboard appear where visitors will see them. Each step
-// saves as it goes: the business words stay on this device until the shop has a spot (a shop row needs one), then
-// everything is saved to the shop, a draft that visitors don't see until it is published.
+// The owner's setup (/owner/): four short steps in the order the user asked for (19 Oct ~16:00): the business in their
+// own words with its timings, its mascot, its billboard, and last where it is. Nothing reaches the database until the
+// shop is placed: the answers stay on this device, then one insert puts the shop on the map, live. No prices are asked.
+// It runs as a sheet (a panel on a computer) over the 3D city, which shows only this shop.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { LatLng } from '../../src/geo';
-// The mascots' own greeting, personality and boundaries, as their agents have them (one source, the talk prompts).
-import { MASCOTS as AGENTS } from '../../web/talk/prompts.mjs';
-import { MASCOTS } from './mascots';
-import { ShopEditor } from './OwnerPage';
 import TalkPanel from './TalkPanel';
-import { boardOf, db, hostOf, portraitOf, SECTIONS, SHOP_COLUMNS, type MenuItem, type Shop, type ShopWithMenu } from './shops';
+import { BillboardFields, KindPicker, MascotHero, MascotPicker, agentOf, mascotFor, shortName } from './ownerParts';
+import { boardOf, db, hostOf, SECTIONS, SHOP_COLUMNS, type Shop, type ShopWithMenu } from './shops';
 import { Icon, Podium } from './ui';
 
-/** What the map shows while the owner sets up: their shop, the centre pin while they place it, and how much of a
- * phone's height the sheet covers. */
+/** What the map shows during the setup: the shop (a preview until it's placed), the centre pin while placing, the camera,
+ * and how much of a phone's height the sheet covers. */
 export type Stage = {
   shop: ShopWithMenu | null;
   onSpot: ((spot: LatLng) => void) | null;
@@ -23,143 +19,122 @@ export type Stage = {
   focus: { spot: LatLng; key: string } | null;
 };
 
-type Step = 'business' | 'place' | 'mascot' | 'billboard' | 'menu' | 'meet';
+type Step = 'business' | 'mascot' | 'billboard' | 'place';
+/** The "you're live" screen: tall enough for its mascot, title and two buttons on a phone. */
+const LIVE_SHEET = 0.8;
 const STEPS: { id: Step; label: string; sheet: number }[] = [
   { id: 'business', label: 'Your business', sheet: 0.86 },
-  { id: 'place', label: 'Where it is', sheet: 0.4 },
   { id: 'mascot', label: 'Your mascot', sheet: 0.74 },
-  { id: 'billboard', label: 'Your billboard', sheet: 0.52 },
-  { id: 'menu', label: 'Menu and prices', sheet: 0.86 },
-  { id: 'meet', label: 'Meet your mascot', sheet: 0.74 },
+  { id: 'billboard', label: 'Your billboard', sheet: 0.6 },
+  { id: 'place', label: 'Where it is', sheet: 0.44 },
 ];
 
-type Words = { name: string; section: string; about: string; story: string; area: string };
+/** The answers so far, kept on this device; id is the shop's own, made here so a retried insert can't make a second. */
+type Draft = Pick<Shop, 'name' | 'section' | 'about' | 'hours' | 'story' | 'area' | 'friend' | 'ad_headline' | 'ad_sub' | 'ad_color' | 'ad_art'>
+  & { id: string; step: Step };
 const NEW = 'saath:owner-new';
-const STEP = (id: string) => `saath:owner-step:${id}`;
-const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
-const keep = (key: string, value: string | null) => {
+/** The shop this device registered: the demo account is shared, so "my shop" is the one made here. */
+export const MINE = 'saath:owner-shop';
+export const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+export const keep = (key: string, value: string | null) => {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
   } catch { /* not kept */ }
 };
-const wordsOf = (shop: Shop | null): Words => {
-  if (shop) return { name: shop.name, section: shop.section, about: shop.about, story: shop.story, area: shop.area };
-  const blank = { name: '', section: '', about: '', story: '', area: '' };
-  try { return { ...blank, ...JSON.parse(read(NEW) ?? '{}') }; } catch { return blank; }
+const blank = (): Draft => ({ id: crypto.randomUUID(), step: 'business', name: '', section: '', about: '', hours: '', story: '', area: '', friend: '',
+  ad_headline: '', ad_sub: '', ad_color: '', ad_art: '' });
+const readDraft = (): Draft => {
+  try {
+    const saved = JSON.parse(read(NEW) ?? 'null') as Partial<Draft> | null;
+    return saved?.id ? { ...blank(), ...saved } : blank();
+  } catch {
+    return blank();
+  }
 };
+/** Forget an unfinished setup (on sign-out). */
+export const forgetDraft = () => keep(NEW, null);
+
+/** Where the shop stands on the map until it's placed: the demo streets by JM Road, where the map opens. */
+const PREVIEW: LatLng = { lat: 18.5194, lng: 73.8448 };
+const asShop = (d: Draft, friend: string, at: LatLng): ShopWithMenu => ({
+  ...at, id: d.id, slug: 'preview', name: d.name.trim() || 'Your business', section: d.section || 'restaurant', friend, area: d.area, story: d.story,
+  special: '', offers: [], status: 'open', status_note: '', owner: null, claimable: false, demo: false, ad_headline: d.ad_headline, ad_sub: d.ad_sub,
+  ad_art: d.ad_art, ad_image_url: '', ad_schedule: 'always', usual_order: [], app_fee: 0, board_lat: null, board_lng: null, about: d.about,
+  ad_color: d.ad_color, published: false, hours: d.hours, menu: [],
+});
 
 /** A slug for the shop's link from its name: lowercase letters, digits and dashes, 3 to 40 of them. */
 const slugify = (name: string) =>
   name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40).replace(/-+$/, '');
-
-const agentOf = (id: string) => AGENTS[id as keyof typeof AGENTS];
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
-export default function OwnerWizard({ draft, onStage, onExit }: {
-  /** The owner's unpublished shop to carry on with, or null for a new one. */
-  draft: Shop | null;
+export default function OwnerWizard({ onStage, onDone, onClose }: {
   onStage: (stage: Stage | null) => void;
-  /** Leave the setup (everything is saved): to the owner page, with the demo shops and the dashboard. */
-  onExit: (id: string | null) => void;
+  /** The shop is live: open its dashboard. */
+  onDone: (shop: Shop) => void;
+  /** Leave without registering: only when the owner already has a shop to go back to. */
+  onClose?: () => void;
 }) {
-  const [shop, setShop] = useState<Shop | null>(draft);
-  const [words, setWords] = useState<Words>(() => wordsOf(draft));
-  const [step, setStep] = useState<Step>(() => (draft ? (STEPS.find((s) => s.id === read(STEP(draft.id)))?.id ?? 'mascot') : 'business'));
-  const [menu, setMenu] = useState<MenuItem[] | null>(null);
-  const [saved, setSaved] = useState('');
+  const [draft, setDraft] = useState<Draft>(readDraft);
+  const [made, setMade] = useState<Shop | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [talking, setTalking] = useState(false);
-  const [live, setLive] = useState(false);
   const [focus, setFocus] = useState<Stage['focus']>(null);
   const spot = useRef<LatLng | null>(null);
-  const pending = useRef<Partial<Shop>>({});
-  const timer = useRef(0);
+  const step = draft.step;
   const index = STEPS.findIndex((s) => s.id === step);
+  const friend = draft.friend || mascotFor(draft.section);
 
-  // ---- saving ----
-  const flush = async (id = shop?.id) => {
-    window.clearTimeout(timer.current);
-    const patch = pending.current;
-    pending.current = {};
-    if (!id || !Object.keys(patch).length) return true;
-    const { data, error: saveError } = await db.from('shops').update(patch).eq('id', id).select('id');
-    const ok = !saveError && !!data?.length;
-    if (!ok) pending.current = { ...patch, ...pending.current };   // kept for the next try, so a failed save isn't lost
-    setSaved(ok ? '✓ Saved' : `Not saved: ${saveError?.message ?? 'this shop isn’t yours'}`);
-    return ok;
+  // Every answer is kept on this device as it's typed, until the shop is on the map.
+  useEffect(() => {
+    if (!made) keep(NEW, JSON.stringify(draft));
+  }, [draft, made]);
+  const change = (patch: Partial<Draft>) => {
+    setError(null);
+    setDraft((d) => ({ ...d, ...patch }));
   };
-  const save = (patch: Partial<Shop>) => {
-    if (!shop) return;
-    setShop((current) => current && { ...current, ...patch });
-    Object.assign(pending.current, patch);
-    setSaved('Saving…');
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void flush(shop.id), 500);
-  };
-  const setWord = (field: keyof Words, value: string) => {
-    const next = { ...words, [field]: value };
-    setWords(next);
-    if (!shop) keep(NEW, JSON.stringify(next));
-    else if (field !== 'name' || value.trim().length >= 2) save({ [field]: value.trim() });
-  };
-  const loadMenu = async (id: string) => {
-    const { data } = await db.from('menu_items').select('*').eq('shop_id', id).order('sort');
-    const items = (data as MenuItem[] | null) ?? [];
-    setMenu(items);
-    return items;
-  };
+  const go = (next: Step) => change({ step: next });
 
-  // ---- the map: the shop's pin and billboard, the centre pin while placing, the camera on each step ----
+  // ---- the map: a preview of the pin and billboard, the centre pin while placing, then the shop itself ----
   const onSpot = useCallback((at: LatLng) => { spot.current = at; }, []);
-  const shopId = shop?.id;
+  const mapShop = useMemo(() => (made ? { ...made, menu: [] } : step === 'mascot' || step === 'billboard' ? asShop(draft, friend, PREVIEW) : null),
+    [made, step, draft, friend]);
   useEffect(() => {
     // The billboard step frames the billboard (it stands beside the pin and rises above it), the others the pin.
-    if (shop) setFocus({ spot: step === 'billboard' ? boardOf(shop) : shop, key: `${step}:${shop.id}:${shop.lat},${shop.lng}` });
-    // Each step frames the shop once; typing doesn't move the camera.
+    const at = made ?? (step === 'billboard' ? boardOf(asShop(draft, friend, PREVIEW)) : step === 'business' ? null : PREVIEW);
+    if (at) setFocus({ spot: { lat: at.lat, lng: at.lng }, key: made ? `live:${made.id}` : step });
+    // Each step frames once; typing doesn't move the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, shopId]);
-  const mapShop = useMemo(() => (shop ? { ...shop, menu: menu ?? [] } : null), [shop, menu]);
+  }, [step, made]);
   useEffect(() => {
-    onStage({ shop: mapShop, onSpot: step === 'place' ? onSpot : null, sheet: STEPS[index].sheet, spotlight: step === 'billboard', focus });
-  }, [mapShop, step, index, focus, onSpot, onStage]);
+    onStage({ shop: mapShop, onSpot: !made && step === 'place' ? onSpot : null, sheet: made ? LIVE_SHEET : STEPS[index].sheet, spotlight: !made && step === 'billboard', focus });
+  }, [mapShop, made, step, index, focus, onSpot, onStage]);
   useEffect(() => () => onStage(null), [onStage]);
-  useEffect(() => {
-    if (shopId) keep(STEP(shopId), step);
-    if (shopId && (step === 'meet' || step === 'menu')) void loadMenu(shopId);
-  }, [shopId, step]);
 
   // Each step's heading takes focus, so keyboard and screen-reader owners start there (not on the next step's button).
   const head = useRef<HTMLHeadingElement>(null);
-  useEffect(() => head.current?.focus({ preventScroll: true }), [step, live]);
+  useEffect(() => head.current?.focus({ preventScroll: true }), [step, made]);
 
-  const go = (next: Step) => {
-    setError(null);
-    setStep(next);
-  };
-
-  // ---- the steps' own actions ----
+  // ---- putting the shop on the map ----
   const create = async (at: LatLng): Promise<Shop | null> => {
-    const base = slugify(words.name) || 'shop';
-    const friend = MASCOTS.find((mascot) => mascot.section === words.section)?.id ?? 'juno';
-    // A taken link (another shop's name) gets a short ending; the name itself can repeat.
+    const base = slugify(draft.name) || 'shop';
+    const row = { id: draft.id, name: draft.name.trim(), section: draft.section, about: draft.about.trim(), hours: draft.hours.trim(),
+      story: draft.story.trim(), area: draft.area.trim(), friend, ad_headline: draft.ad_headline.trim(), ad_sub: draft.ad_sub.trim(),
+      ad_color: draft.ad_color, ad_art: draft.ad_art, lat: at.lat, lng: at.lng, published: true };
     for (const slug of [base, `${base.slice(0, 33)}-${Math.random().toString(36).slice(2, 7)}`]) {
       if (!/^[a-z0-9-]{3,40}$/.test(slug)) continue;
-      const { data, error: insertError } = await db.from('shops')
-        .insert({ slug, name: words.name.trim(), section: words.section, about: words.about.trim(), story: words.story.trim(), area: words.area.trim(), friend, lat: at.lat, lng: at.lng })
-        .select(SHOP_COLUMNS).single();
+      const { data, error: insertError } = await db.from('shops').insert({ ...row, slug }).select(SHOP_COLUMNS).single();
       if (!insertError) return data as unknown as Shop;
-      // The first try may have been saved with its answer lost (a weak signal): reuse that draft instead of making a second.
-      if (insertError.code === '23505' && slug === base) {
-        const { data: same } = await db.from('shops').select(SHOP_COLUMNS).eq('slug', base).eq('published', false).maybeSingle();
-        const me = (await db.auth.getSession()).data.session?.user.id;
-        if (same && (same as unknown as Shop).owner === me) return same as unknown as Shop;
-      }
       if (insertError.code !== '23505') {
-        setError(`Couldn’t save your shop: ${insertError.message}`);
+        setError(`Couldn’t put your shop on the map: ${insertError.message}`);
         return null;
       }
+      // Its own id taken: an earlier tap went in and only its answer was lost (a weak signal). That shop is this one.
+      const { data: earlier } = await db.from('shops').select(SHOP_COLUMNS).eq('id', draft.id).maybeSingle();
+      if (earlier) return earlier as unknown as Shop;
+      // Otherwise another shop has the name's link: try a short ending (names themselves can repeat).
     }
     setError('That name is taken: add your area to it, like “Chai Corner Kothrud”.');
     return null;
@@ -168,21 +143,16 @@ export default function OwnerWizard({ draft, onStage, onExit }: {
   const place = async () => {
     const at = spot.current;
     if (!at) return setError('The map isn’t ready yet: wait a moment and tap again.');
+    // Untouched, the pin is still on the map's opening view: every such shop would stack on the same spot.
+    if (Math.abs(at.lat - PREVIEW.lat) < 1e-6 && Math.abs(at.lng - PREVIEW.lng) < 1e-6) return setError('Drag the map until the pin sits on your door, or tap “Use my location”.');
     setBusy(true);
     setError(null);
-    if (shop) {
-      save({ lat: at.lat, lng: at.lng, area: words.area.trim() });
-      const ok = await flush();
-      setBusy(false);
-      if (ok) go('mascot');
-      return;
-    }
-    const made = await create(at);
+    const shop = await create(at);
     setBusy(false);
-    if (!made) return;
+    if (!shop) return;
     keep(NEW, null);
-    setShop(made);
-    go('mascot');
+    keep(MINE, shop.id);
+    setMade(shop);
   };
 
   const locate = () => {
@@ -194,51 +164,27 @@ export default function OwnerWizard({ draft, onStage, onExit }: {
     );
   };
 
-  const toMeet = async () => {
-    if (!shop) return;
-    const items = await loadMenu(shop.id);
-    if (!items.length) return setError('Add at least one thing you sell, with its price.');
-    go('meet');
-  };
-
-  const publish = async () => {
-    if (!shop) return;
-    setBusy(true);
-    setError(null);
-    if (!(await flush())) {
-      setBusy(false);
-      return setError('Not saved: check your connection and try again.');
-    }
-    const { data, error: publishError } = await db.from('shops').update({ published: true }).eq('id', shop.id).select('id');
-    setBusy(false);
-    if (publishError || !data?.length) return setError(publishError?.message ?? 'Couldn’t publish: this shop isn’t yours.');
-    keep(STEP(shop.id), null);
-    setShop({ ...shop, published: true });
-    setLive(true);
-  };
-
   // ---- what each step shows ----
-  const mascot = shop ? hostOf(shop) : null;
-  const agent = mascot ? agentOf(mascot.id) : null;
-  const section = SECTIONS[words.section];
-  const ready = words.name.trim().length >= 2 && !!section && words.about.trim().length >= 8;
-  const priced = (menu ?? []).filter((item) => item.price !== null);
-  const saving = priced.filter((item) => item.app_price !== null && item.app_price > item.price!);
+  const preview = asShop(draft, friend, PREVIEW);
+  const mascot = hostOf(made ?? preview);
+  const agent = agentOf(mascot.id);
+  const missing = draft.name.trim().length < 2 ? 'Add your business name.' : !SECTIONS[draft.section] ? 'Pick what kind of business it is.'
+    : draft.about.trim().length < 8 ? 'Say what you do in a few more words.' : draft.hours.trim().length < 3 ? 'Add your timings, like “Mon–Sat, 8 am – 9 pm”.' : null;
 
   let body: JSX.Element;
   let action: JSX.Element;
-  if (live && shop && mascot) {
+  if (made) {
     body = (
       <div className="wiz-live">
-        <Podium mascot={mascot} color={section?.color ?? '#5BE38F'} height={170} className="wiz-podium" />
-        <h2 className="wiz-title">{shop.name} is on the map</h2>
-        <p className="j-text">Visitors nearby see {mascot.name} at your door and your billboard beside it, right now. Change prices, your ad or how busy you are any time from your dashboard.</p>
+        <Podium mascot={mascot} color={SECTIONS[made.section]?.color ?? '#5BE38F'} height={140} className="wiz-podium" />
+        <h2 className="wiz-title">{made.name} is on the map</h2>
+        <p className="j-text">Visitors nearby now see {mascot.name} at your door and your billboard beside it. {shortName(mascot)} answers them from what you wrote, in its own voice.</p>
       </div>
     );
     action = (
       <div className="wiz-actions">
-        <button type="button" className="btn-go" onClick={() => onExit(shop.id)}><Icon name="check" size={19} />Open my dashboard</button>
-        <a className="btn-ghost" href={`#/shop/${shop.slug}`}>See my shop page</a>
+        <button type="button" className="btn-go" onClick={() => onDone(made)}><Icon name="check" size={19} />Open my dashboard</button>
+        <button type="button" className="btn-dark wiz-talk" onClick={() => setTalking(true)}><Icon name="mic" size={18} />Talk to {shortName(mascot)}</button>
       </div>
     );
   } else if (step === 'business') {
@@ -246,161 +192,102 @@ export default function OwnerWizard({ draft, onStage, onExit }: {
       <>
         <label className="wiz-field">
           <span>Business name</span>
-          <input value={words.name} maxLength={60} placeholder="Chai Corner" autoComplete="organization" onChange={(e) => setWord('name', e.target.value)} />
+          <input name="name" value={draft.name} maxLength={60} placeholder="Chai Corner" autoComplete="organization" onChange={(e) => change({ name: e.target.value })} />
         </label>
         <fieldset className="wiz-field">
           <legend>What kind of business?</legend>
-          <div className="wiz-sections">
-            {MASCOTS.map(({ section: id }) => (
-              <button key={id} type="button" aria-pressed={words.section === id} style={{ '--c': SECTIONS[id].color } as CSSProperties}
-                onClick={() => setWord('section', id)}>
-                <span className="glyph">{SECTIONS[id].icon}</span>{SECTIONS[id].label}
-              </button>
-            ))}
-          </div>
+          <KindPicker value={draft.section} onPick={(section) => change({ section })} />
         </fieldset>
         <label className="wiz-field">
-          <span>What you do, in a line or two <em>{words.about.length}/160</em></span>
-          <textarea value={words.about} maxLength={160} rows={2} placeholder="Cutting chai and bun maska, made fresh all day, right by the bus stop."
-            onChange={(e) => setWord('about', e.target.value)} />
+          <span>What you do, in a line or two <em>{draft.about.length}/160</em></span>
+          <textarea name="about" value={draft.about} maxLength={160} rows={2} placeholder="Cutting chai and bun maska, made fresh all day, right by the bus stop."
+            onChange={(e) => change({ about: e.target.value })} />
           <small>Your mascot says this to visitors, in its own voice.</small>
         </label>
         <label className="wiz-field">
-          <span>Your story <em>optional · {words.story.length}/400</em></span>
-          <textarea value={words.story} maxLength={400} rows={3} placeholder="How it started, who runs it, what you’re proud of."
-            onChange={(e) => setWord('story', e.target.value)} />
+          <span>Your timings</span>
+          <input name="hours" value={draft.hours} maxLength={120} placeholder="Mon–Sat, 8 am – 9 pm" onChange={(e) => change({ hours: e.target.value })} />
+          <small>Your mascot answers “when are you open?” with these.</small>
+        </label>
+        <label className="wiz-field">
+          <span>Your story <em>optional · {draft.story.length}/400</em></span>
+          <textarea name="story" value={draft.story} maxLength={400} rows={3} placeholder="How it started, who runs it, what you’re proud of."
+            onChange={(e) => change({ story: e.target.value })} />
           <small>Told when a visitor asks “what’s the story here?”</small>
         </label>
-        {!shop && <button type="button" className="wiz-link" onClick={() => onExit(null)}>Just trying Saath? Claim a demo shop instead ›</button>}
       </>
     );
     action = (
-      <button type="button" className="btn-go" onClick={() => (ready ? go('place') : setError(words.name.trim().length < 2 ? 'Add your business name.' : !section ? 'Pick what kind of business it is.' : 'Say what you do in a few more words.'))}>
-        Next: where it is<Icon name="arrow" size={19} />
+      <button type="button" className="btn-go" onClick={() => (missing ? setError(missing) : go('mascot'))}>
+        Next: your mascot<Icon name="arrow" size={19} />
       </button>
     );
-  } else if (step === 'place') {
+  } else if (step === 'mascot') {
+    body = (
+      <>
+        <MascotHero mascot={mascot} />
+        <MascotPicker section={draft.section} value={friend} onPick={(id) => change({ friend: id })} />
+        <ul className="wiz-will" aria-label={`${shortName(mascot)} will`}>
+          <li><b>Greet visitors</b> at {preview.name}’s door: “{agent.greeting}”</li>
+          <li><b>Say what you do:</b> “{draft.about.trim()}”</li>
+          <li><b>Tell your timings:</b> “{draft.hours.trim()}”</li>
+          {draft.story.trim() && <li><b>Tell your story</b> when asked: “{clip(draft.story.trim(), 110)}”</li>}
+          <li><b>Say if you’re open,</b> busy or closed, the moment you change it.</li>
+          <li><b>Never make things up,</b> and never pretend to be a person: it’s your shop’s own AI mascot.</li>
+        </ul>
+      </>
+    );
+    action = <button type="button" className="btn-go" onClick={() => go('billboard')}>Next: your billboard<Icon name="arrow" size={19} /></button>;
+  } else if (step === 'billboard') {
+    body = (
+      <>
+        <p className="wiz-hint"><Icon name="map" size={18} />Your billboard stands beside your pin. Write your ad: it changes as you type.</p>
+        <BillboardFields shop={preview} onChange={change} />
+      </>
+    );
+    action = <button type="button" className="btn-go" onClick={() => go('place')}>Next: where it is<Icon name="arrow" size={19} /></button>;
+  } else {
     body = (
       <>
         <p className="wiz-hint"><Icon name="map" size={18} />Drag the map until the pin sits on your door.</p>
         <label className="wiz-field">
           <span>Road or landmark <em>optional</em></span>
-          <input value={words.area} maxLength={120} placeholder="FC Road, Shivajinagar" onChange={(e) => setWord('area', e.target.value)} />
+          <input name="area" value={draft.area} maxLength={120} placeholder="FC Road, Shivajinagar" onChange={(e) => change({ area: e.target.value })} />
         </label>
       </>
     );
     action = (
       <div className="wiz-actions">
-        <button type="button" className="btn-go" disabled={busy} onClick={() => void place()}><Icon name="check" size={19} />{shop ? 'Move my shop here' : 'My shop is here'}</button>
+        <button type="button" className="btn-go" disabled={busy} onClick={() => void place()}><Icon name="check" size={19} />My shop is here</button>
         <button type="button" className="btn-ghost" onClick={locate}><Icon name="locate" size={19} />Use my location</button>
       </div>
     );
-  } else if (step === 'mascot' && shop && mascot && agent) {
-    const own = MASCOTS.filter((m) => m.section === shop.section);
-    body = (
-      <>
-        <div className="wiz-hero" style={{ '--c': SECTIONS[mascot.section]?.color } as CSSProperties}>
-          <Podium key={mascot.id} mascot={mascot} color={SECTIONS[mascot.section]?.color ?? '#5BE38F'} height={168} className="wiz-podium" />
-          <div>
-            <b className="wiz-mascot-name">{mascot.name}</b>
-            <p className="wiz-personality">{agent.personality}</p>
-            <q className="wiz-bubble">{agent.greeting}</q>
-          </div>
-        </div>
-        <div className="wiz-cast" role="radiogroup" aria-label="Pick your mascot">
-          {[...own, ...MASCOTS.filter((m) => m.section !== shop.section)].map((m) => (
-            <button key={m.id} type="button" role="radio" aria-checked={m.id === mascot.id} style={{ '--c': SECTIONS[m.section]?.color } as CSSProperties}
-              onClick={() => save({ friend: m.id })}>
-              <img src={portraitOf(m)} alt="" width={56} height={56} />
-              <span>{m.name.split(' ').pop()}</span>
-              {m.section === shop.section && <em>Made for you</em>}
-            </button>
-          ))}
-        </div>
-      </>
-    );
-    action = <button type="button" className="btn-go" onClick={() => void flush().then((ok) => ok && go('billboard'))}>Next: your billboard<Icon name="arrow" size={19} /></button>;
-  } else if (step === 'billboard' && shop) {
-    body = <ShopEditor key={`${shop.id}:billboard`} shop={shop} only="billboard" onPatch={(patch) => setShop((s) => s && { ...s, ...patch })} />;
-    action = <button type="button" className="btn-go" onClick={() => go('menu')}>Next: menu and prices<Icon name="arrow" size={19} /></button>;
-  } else if (step === 'menu' && shop) {
-    body = (
-      <>
-        <label className="wiz-field">
-          <span>Today’s special <em>optional</em></span>
-          <input defaultValue={shop.special} maxLength={140} placeholder="Mango shake with a scoop of ice cream" onChange={(e) => save({ special: e.target.value.trim() })} />
-          <small>Your mascot tells visitors about it. Change it any day from your dashboard.</small>
-        </label>
-        <ShopEditor key={`${shop.id}:menu`} shop={shop} only="menu" onPatch={(patch) => setShop((s) => s && { ...s, ...patch })} />
-      </>
-    );
-    action = <button type="button" className="btn-go" onClick={() => void toMeet()}>Next: meet your mascot<Icon name="arrow" size={19} /></button>;
-  } else if (step === 'meet' && shop && mascot && agent) {
-    const ticks: [boolean, string][] = [
-      [true, `Pin and billboard at ${shop.area || 'your door'}`],
-      [true, `${mascot.name} at your door`],
-      [priced.length > 0, priced.length ? `${priced.length} thing${priced.length > 1 ? 's' : ''} on your menu` : 'Your menu: add at least one thing'],
-    ];
-    body = (
-      <>
-        <div className="wiz-hero" style={{ '--c': SECTIONS[mascot.section]?.color } as CSSProperties}>
-          <Podium mascot={mascot} color={SECTIONS[mascot.section]?.color ?? '#5BE38F'} height={150} className="wiz-podium" />
-          <div>
-            <b className="wiz-mascot-name">{mascot.name} is ready</b>
-            <p className="wiz-personality">Your shop’s own agent: it answers visitors from what you wrote, in its own voice.</p>
-            <button type="button" className="btn-dark small" onClick={() => setTalking(true)}><Icon name="mic" size={17} />Talk to {mascot.name.split(' ').pop()}</button>
-          </div>
-        </div>
-        <h3 className="wiz-sub">Your mascot will…</h3>
-        <ul className="wiz-will">
-          <li><b>Greet visitors</b> at {shop.name}’s door: “{agent.greeting}”</li>
-          {shop.about && <li><b>Say what you do:</b> “{shop.about}”</li>}
-          {shop.story && <li><b>Tell your story</b> when asked: “{clip(shop.story, 110)}”</li>}
-          <li><b>Quote only your prices:</b> {priced.length} on your menu{saving.length ? `, with the saving against delivery apps on ${saving.length}` : ''}{shop.special ? `, and today’s special` : ''}.</li>
-          <li><b>Say if you’re open,</b> busy or closed, the moment you change it.</li>
-          <li><b>Never</b> invent a price, an offer or a discount, or name a delivery app. {agent.boundaries.replace(/SHOP DATA/g, 'your menu')}</li>
-        </ul>
-        <ul className="wiz-ticks" aria-label="Ready to publish">
-          {ticks.map(([ok, text]) => <li key={text} className={ok ? 'is-ok' : ''}><Icon name={ok ? 'check' : 'close'} size={16} stroke={2.8} />{text}</li>)}
-        </ul>
-      </>
-    );
-    action = (
-      <button type="button" className="btn-go" disabled={busy || !priced.length} onClick={() => void publish()}>
-        <Icon name="walk" size={19} />Publish: put it on the map
-      </button>
-    );
-  } else {
-    body = <p className="note">Loading…</p>;
-    action = <></>;
   }
 
   return (
     <>
-      <section className={`wizard is-${live ? 'live' : step}`} style={{ '--sheet': STEPS[index].sheet } as CSSProperties} aria-label="Put your shop on the map">
+      <section className={`wizard is-${made ? 'live' : step}`} style={{ '--sheet': made ? LIVE_SHEET : STEPS[index].sheet } as CSSProperties} aria-label="Put your business on the map">
         <header className="wiz-head">
-          <button type="button" className="icon-btn" aria-label="Back" disabled={index === 0 || live}
-            onClick={() => go(STEPS[index - 1].id)}><Icon name="back" /></button>
+          <button type="button" className="icon-btn" aria-label="Back" disabled={index === 0 || !!made} onClick={() => go(STEPS[index - 1].id)}><Icon name="back" /></button>
           <div className="wiz-step">
-            <small>{live ? 'Published' : `Step ${index + 1} of ${STEPS.length}`}{saved && !live ? ` · ${saved}` : ''}</small>
-            <h2 ref={head} tabIndex={-1}>{live ? 'You’re live' : STEPS[index].label}</h2>
+            <small>{made ? 'Live on the map' : `Step ${index + 1} of ${STEPS.length}`}</small>
+            <h2 ref={head} tabIndex={-1}>{made ? 'You’re live' : STEPS[index].label}</h2>
           </div>
-          <button type="button" className="icon-btn" aria-label="Save and close" onClick={() => void flush().then((ok) => (ok ? onExit(shop?.id ?? null) : setError('Not saved: check your connection and try again.')))}><Icon name="close" /></button>
+          {onClose && !made
+            ? <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
+            : <span className="wiz-head-gap" aria-hidden="true" />}
         </header>
         <ol className="wiz-progress" aria-hidden="true">
-          {STEPS.map((s, i) => <li key={s.id} className={live || i < index ? 'is-done' : i === index ? 'is-on' : ''} />)}
+          {STEPS.map((s, i) => <li key={s.id} className={made || i < index ? 'is-done' : i === index ? 'is-on' : ''} />)}
         </ol>
-        {/* Any edit clears the last complaint (like "add a menu" once items go in). */}
         {/* Keyed per step, so each step opens at its top (not where the last one was scrolled to). */}
-        <div className="wiz-body" key={live ? 'live' : step} onInput={() => error && setError(null)}>{body}</div>
+        <div className="wiz-body" key={made ? 'live' : step}>{body}</div>
         <footer className="wiz-foot">
           {error && <p className="owner-msg" role="alert">{error}</p>}
           {action}
         </footer>
       </section>
-      {talking && mapShop && (
-        <TalkPanel shop={mapShop} greet="Hi! What is this place?" onClose={() => setTalking(false)} />
-      )}
+      {talking && made && <TalkPanel shop={{ ...made, menu: [] }} greet="Hi! What is this place?" onClose={() => setTalking(false)} />}
     </>
   );
 }

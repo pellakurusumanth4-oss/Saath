@@ -41,7 +41,7 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
         {ar && <a className="btn-go arrived-meet" href={arLink} target="_blank" rel="noopener"><Icon name="ar" size={20} />Meet {first}</a>}
         <div className="arrived-actions">
           <button type="button" className={ar ? 'btn-dark' : 'btn-go'} onClick={onTalk}><Icon name="mic" size={20} />Talk to {first}</button>
-          <a className="btn-ghost" href={`#/shop/${shop.slug}`}><Icon name="list" size={19} />See the menu</a>
+          <a className="btn-ghost" href={`#/shop/${shop.slug}`}><Icon name="list" size={19} />{shop.menu.length ? 'See the menu' : 'See the shop'}</a>
         </div>
         <button type="button" className="arrived-bought" onClick={onBought}>
           <span>Bought something? Get your verified visit and your saving.</span><b>I bought ›</b>

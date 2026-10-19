@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { LatLng } from '../../src/geo';
 
 /** Where "here" is: real GPS if allowed, or a spot set by hand on the map. */
@@ -40,4 +40,17 @@ export const useMe = () => {
   }, []);
 
   return { me, locating, error, denied, whereAmI, setMySpot };
+};
+
+/** A computer-sized window (1024 px and up), kept current as the window changes. */
+export const useDesktop = () => {
+  const query = '(min-width: 1024px)';
+  const [desktop, setDesktop] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const onChange = () => setDesktop(list.matches);
+    list.addEventListener('change', onChange);
+    return () => list.removeEventListener('change', onChange);
+  }, []);
+  return desktop;
 };

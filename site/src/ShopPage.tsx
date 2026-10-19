@@ -51,6 +51,8 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           <p className="card-section">{section.label.toUpperCase()}{shop.demo && <> · <em className="demo">DEMO SHOP</em></>}</p>
           <h1 className="shop-title">{shop.name}</h1>
           {shop.area && <p className="shop-area">{shop.area}</p>}
+          {shop.about && <p className="shop-area">{shop.about}</p>}
+          {shop.hours && <p className="shop-area">Hours: {shop.hours}</p>}
           <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(menu)} now={now} grey={off} /></div>
           <Compare shop={shop} menu={menu} mode="full" walk={walkText(me, shop)} countUp />
           {shop.special && <p className="today-line"><span className="today" style={{ background: section.color }}>TODAY</span>{shop.special}</p>}
@@ -61,12 +63,14 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
             <BoardPreview shop={shop} off={off} />
           </MapBoundary>
 
-          <h2 className="block-title">Menu</h2>
-          <div className="menu-rows full">
-            {menu.length === 0 && <p className="note">The menu isn’t up yet.</p>}
-            {menu.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}
-          </div>
-          <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>
+          {/* Shops registered on the owner page have no menu (the user: owners give no prices): no empty menu block. */}
+          {menu.length > 0 && (
+            <>
+              <h2 className="block-title">Menu</h2>
+              <div className="menu-rows full">{menu.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}</div>
+              <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>
+            </>
+          )}
           <Reviews shop={shop} />
           {shop.story && <div className="story"><b>The story</b><p>{shop.story}</p></div>}
         </div>

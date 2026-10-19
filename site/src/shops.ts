@@ -47,6 +47,8 @@ export type Shop = LatLng & {
   ad_color: string;
   /** On the map for visitors; a new shop is a draft until its owner publishes it. */
   published: boolean;
+  /** Its timings in the owner's words ("Mon–Sat, 8 am – 9 pm"); the mascot answers "when are you open?" from them. */
+  hours: string;
 };
 
 export type MenuItem = {
@@ -67,7 +69,7 @@ export type MenuItem = {
 export type ShopWithMenu = Shop & { menu: MenuItem[] };
 
 export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo,'
-  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng,about,ad_color,published';
+  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng,about,ad_color,published,hours';
 const MENU_COLUMNS = 'id,shop_id,name,price,app_price,available,note,sort,updated_at';
 
 /** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon. */
@@ -160,19 +162,28 @@ export const updatedAt = (menu: MenuItem[]) => menu.reduce((newest, item) => (it
 
 const sortMenu = (items: MenuItem[]) => [...items].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
 
+/** The shared demo owner account (migration 20261019170500): its shops are marked demo and capped on the map. */
+const DEMO_OWNER = '5aa7de00-0000-4000-8000-0000000000d1';
+
 /** Every published shop with its menu, for the map and the list, kept live (a demo-sized table: any change reloads it all). */
 export function useShops(): ShopWithMenu[] {
   const [shops, setShops] = useState<ShopWithMenu[]>([]);
   useEffect(() => {
     let live = true;
     const load = async () => {
-      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('published', true).order('name');
+      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},created_at,menu_items(${MENU_COLUMNS})`).eq('published', true).order('name');
       if (!live) return;
       if (!data) {   // a failed load (offline, a weak signal): try again, so the list doesn't stay empty
         window.setTimeout(() => { if (live) void load(); }, 3000);
         return;
       }
-      setShops((data as (Shop & { menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: sortMenu(items) })));
+      const rows = (data as (Shop & { created_at: string; menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: sortMenu(items) }));
+      // shortcut: the shared demo account's shops are capped to its 5 newest on the map (plus the one this device made),
+      // so test entries can't crowd it; move to a database clean-up if the demo account stays public after judging.
+      let mine: string | null = null;
+      try { mine = localStorage.getItem('saath:owner-shop'); } catch { /* storage blocked */ }
+      const newest = new Set(rows.filter((s) => s.owner === DEMO_OWNER).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5).map((s) => s.id));
+      setShops(rows.filter((s) => s.owner !== DEMO_OWNER || newest.has(s.id) || s.id === mine));
     };
     void load();
     const channel = db
