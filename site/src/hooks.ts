@@ -47,8 +47,9 @@ export const useMe = () => {
     setMe(spot);
     setError(null);
   }, []);
+  const clearError = useCallback(() => setError(null), []);
 
-  return { me, locating, error, denied, whereAmI, setMySpot };
+  return { me, locating, error, denied, whereAmI, setMySpot, clearError };
 };
 
 /** A computer-sized window, kept current as the window changes: 1280 px and up leaves room for the map between the

@@ -72,23 +72,23 @@ export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,spec
   + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng,about,ad_color,published,hours';
 const MENU_COLUMNS = 'id,shop_id,name,price,app_price,available,note,sort,updated_at';
 
-/** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon. */
-export const SECTIONS: Record<string, { label: string; icon: string; color: string }> = {
-  restaurant: { label: 'Restaurant', icon: '🍛', color: '#E5533D' },
-  cafe: { label: 'Café & Chai', icon: '☕', color: '#14897C' },
-  juice: { label: 'Juice & Smoothies', icon: '🧃', color: '#7CB82F' },
-  bakery: { label: 'Bakery & Sweets', icon: '🥐', color: '#8C5A3C' },
-  grocery: { label: 'Grocery & Kirana', icon: '🛒', color: '#2E8B57' },
-  streetfood: { label: 'Street Food', icon: '🌯', color: '#E8A317' },
-  boutique: { label: 'Fashion Boutique', icon: '👗', color: '#7B4BA8' },
-  mall: { label: 'Shopping Mall', icon: '🏬', color: '#F28C28' },
-  realestate: { label: 'Real Estate', icon: '🏠', color: '#23395B' },
-  salon: { label: 'Salon & Spa', icon: '💇', color: '#E35D9A' },
-  pharmacy: { label: 'Pharmacy', icon: '💊', color: '#1AA3C2' },
-  books: { label: 'Bookshop', icon: '📚', color: '#8E6B3E' },
-  electronics: { label: 'Electronics & Mobile', icon: '📱', color: '#3D5AFE' },
-  gym: { label: 'Gym', icon: '🏋️', color: '#D9480F' },
-  hotel: { label: 'Hotel', icon: '🏨', color: '#0B7285' },
+/** The business sections, by the database's ids: their name, colour (the mascots' own), icon and what their list is called (as in web/talk/prompts.mjs). */
+export const SECTIONS: Record<string, { label: string; icon: string; color: string; list: string }> = {
+  restaurant: { label: 'Restaurant', icon: '🍛', color: '#E5533D', list: 'Menu' },
+  cafe: { label: 'Café & Chai', icon: '☕', color: '#14897C', list: 'Menu' },
+  juice: { label: 'Juice & Smoothies', icon: '🧃', color: '#7CB82F', list: 'Menu' },
+  bakery: { label: 'Bakery & Sweets', icon: '🥐', color: '#8C5A3C', list: 'Menu' },
+  grocery: { label: 'Grocery & Kirana', icon: '🛒', color: '#2E8B57', list: 'Price list' },
+  streetfood: { label: 'Street Food', icon: '🌯', color: '#E8A317', list: 'Menu' },
+  boutique: { label: 'Fashion Boutique', icon: '👗', color: '#7B4BA8', list: 'Collection' },
+  mall: { label: 'Shopping Mall', icon: '🏬', color: '#F28C28', list: 'Stores and services' },
+  realestate: { label: 'Real Estate', icon: '🏠', color: '#23395B', list: 'Listings' },
+  salon: { label: 'Salon & Spa', icon: '💇', color: '#E35D9A', list: 'Services' },
+  pharmacy: { label: 'Pharmacy', icon: '💊', color: '#1AA3C2', list: 'Products and services' },
+  books: { label: 'Bookshop', icon: '📚', color: '#8E6B3E', list: 'Books' },
+  electronics: { label: 'Electronics & Mobile', icon: '📱', color: '#3D5AFE', list: 'Products' },
+  gym: { label: 'Gym', icon: '🏋️', color: '#D9480F', list: 'Plans and classes' },
+  hotel: { label: 'Hotel', icon: '🏨', color: '#0B7285', list: 'Rooms, tours and services' },
 };
 export const sectionOf = (shop: Pick<Shop, 'section'>) => SECTIONS[shop.section] ?? SECTIONS.restaurant;
 

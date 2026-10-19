@@ -53,6 +53,8 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
   const save = (patch: Partial<Shop>) => {
     setShop((current) => ({ ...current, ...patch }));
     // The setup requires these, so an emptied one waits until it's long enough again.
+    for (const key in patch) delete (pending.current as Record<string, unknown>)[key];   // a too-short value also drops an older one still queued
+    if (patch.name !== undefined && patch.name.trim().length < 2) return setState('Not saved yet: add your business name.');
     if (patch.about !== undefined && patch.about.trim().length < 8) return setState('Not saved yet: say what you do in a few words.');
     if (patch.hours !== undefined && patch.hours.trim().length < 3) return setState('Not saved yet: add your timings.');
     for (const [key, value] of Object.entries(patch)) (pending.current as Record<string, unknown>)[key] = typeof value === 'string' ? value.trim() : value;
@@ -86,8 +88,8 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
       )}
       <div className="dash-title">
         <small>{greeting()}</small>
-        <h1>{shop.name}</h1>
-        <p>{section.icon} {section.label}{shop.area ? ` · ${shop.area}` : ''}{shop.demo && <em className="demo">DEMO</em>}</p>
+        <h1>{shop.name.trim() || 'Your business'}</h1>
+        <p>{section.icon} {section.label}{shop.area.trim() ? ` · ${shop.area.trim()}` : ''}{shop.demo && <em className="demo">DEMO</em>}</p>
         <a className="btn-ghost small dash-map" href={`/visit/#/shop/${shop.slug}`} target="_blank" rel="noopener">See it on the map ↗</a>
       </div>
       <div className="owner-live"><i className="live-dot" />Live: visitors see every change within a second</div>
@@ -115,6 +117,15 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
 
           <section className="owner-section" aria-labelledby="dash-business">
             <h2 id="dash-business">Your business</h2>
+            {/* Only the name changes: the shop's link (slug) stays, so shared links keep working. */}
+            <label className="wiz-field">
+              <span>Business name</span>
+              <input name="name" value={shop.name} maxLength={60} placeholder="Chai Corner" autoComplete="organization" onChange={(e) => save({ name: e.target.value })} />
+            </label>
+            <label className="wiz-field">
+              <span>Road or landmark <em>optional</em></span>
+              <input name="area" value={shop.area} maxLength={120} placeholder="FC Road, Shivajinagar" onChange={(e) => save({ area: e.target.value })} />
+            </label>
             <label className="wiz-field">
               <span>What you do <em>{shop.about.length}/160</em></span>
               <textarea name="about" value={shop.about} maxLength={160} rows={2} onChange={(e) => save({ about: e.target.value })} />

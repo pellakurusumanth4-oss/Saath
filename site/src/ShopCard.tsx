@@ -70,7 +70,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
           <Compare shop={shop} menu={shop.menu} mode="card" walk={walk} countUp={landed} />
           {shop.special && <p className="today-line"><span className="today" style={{ background: badge }}>TODAY</span>{shop.special}</p>}
           <div className="menu-rows">{rows.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}</div>
-          <a className="see-menu" href={`#/shop/${shop.slug}`}>{shop.menu.length ? 'See the whole menu →' : 'See the shop →'}</a>
+          <a className="see-menu" href={`#/shop/${shop.slug}`}>{shop.menu.length ? `See the ${section.list.toLowerCase()} →` : 'See the shop →'}</a>
         </div>
         {actions}
       </aside>
@@ -90,7 +90,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
         <Compare shop={shop} menu={shop.menu} mode="card" walk={walk} countUp={landed} />
         {shop.special && <p className="today-line"><span className="today" style={{ background: badge }}>TODAY</span>{shop.special}</p>}
         <div className="menu-rows">{rows.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}</div>
-        <a className="see-menu" href={`#/shop/${shop.slug}`}>{shop.menu.length ? 'See the whole menu →' : 'See the shop →'}</a>
+        <a className="see-menu" href={`#/shop/${shop.slug}`}>{shop.menu.length ? `See the ${section.list.toLowerCase()} →` : 'See the shop →'}</a>
         {actions}
       </section>
     </div>

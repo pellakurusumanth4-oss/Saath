@@ -54,13 +54,22 @@ const CATEGORIES: { label: string; sections: string[]; glyph?: string }[] = [
 type Trip = { shopId: string; route: Route | null; walking: boolean; started: number };
 /** J6–J8: at the door: arrived, the counter code, the review, the saving. */
 type Door = { shopId: string; step: 'arrived' | 'code' | 'review' | 'saved'; metres: number | null; minutes: number | null; visit?: string; posted?: boolean };
+/** The walk or door step kept for a reload or a discarded tab: which shop, which step, when the walk began. Never a location. */
+type Kept = { shopId: string; step: 'route' | 'walking' | 'arrived' | 'code'; started: number };
+const KEPT = 'saath:walk';
+const kept = (): Kept | null => {
+  try {
+    const value = JSON.parse(stored(() => sessionStorage, KEPT) || 'null');
+    return typeof value?.shopId === 'string' && ['route', 'walking', 'arrived', 'code'].includes(value.step) && typeof value.started === 'number' ? value : null;
+  } catch { return null; }
+};
 
 /** The owner page is its own page now (/owner/): the old in-app link goes there. */
 const OWNER_PAGE = '/owner/';
 if (window.location.hash === '#/owner') window.location.replace(OWNER_PAGE);
 
 export default function App() {
-  const { me, locating, error, denied, whereAmI, setMySpot } = useMe();
+  const { me, locating, error, denied, whereAmI, setMySpot, clearError } = useMe();
   const { installed } = useInstall();
   const shops = useShops();
   const hash = useHash();
@@ -76,9 +85,16 @@ export default function App() {
   const spotDraft = useRef<LatLng | null>(null);
   const lastPicked = useRef<string | null>(null);
   const [talkingId, setTalkingId] = useState<string | null>(null);
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const [restored] = useState(kept);
+  const [trip, setTrip] = useState<Trip | null>(() => (restored?.step === 'route' || restored?.step === 'walking'
+    ? { shopId: restored.shopId, route: null, walking: restored.step === 'walking', started: restored.started } : null));
   const [walkView, setWalkView] = useState<WalkView | null>(null);
-  const [door, setDoor] = useState<Door | null>(null);
+  const [door, setDoor] = useState<Door | null>(() => (restored?.step === 'arrived' || restored?.step === 'code'
+    ? { shopId: restored.shopId, step: restored.step, metres: null, minutes: null } : null));
+  useEffect(() => {
+    const step = trip ? (trip.walking ? 'walking' : 'route') : door?.step === 'arrived' || door?.step === 'code' ? door.step : null;
+    store(() => sessionStorage, KEPT, step ? JSON.stringify({ shopId: trip?.shopId ?? door?.shopId, step, started: trip?.started ?? 0 }) : '');
+  }, [trip, door]);
 
   const shopSlug = /^#\/shop\/([a-z0-9-]{3,40})$/.exec(hash)?.[1] ?? null;
   const page = shopSlug ? 'shop' : hash === '#/business' ? 'business' : 'map';
@@ -125,16 +141,27 @@ export default function App() {
     else if (state === 'denied') setSettingSpot(true);
     else setAsking(true);
   }, [whereAmI]);
+  // A walk restored after a reload needs a position before its route, as Walk does without one.
+  useEffect(() => {
+    if (trip && !me) void startLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
     // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
   // Blocked, or a walk waiting for a position that didn't come: pick the spot by hand (each failed try opens it again).
+  // Only a new error opens it: dismissing the notice, or its timing out, must not.
   useEffect(() => {
-    if (!me && (denied || (error && trip))) setSettingSpot(true);
+    if (!me && error && (denied || trip)) setSettingSpot(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [denied, error]);
+  useEffect(() => {
+    if (!error) return;
+    const timer = window.setTimeout(clearError, 8000);
+    return () => window.clearTimeout(timer);
+  }, [error, clearError]);
   useEffect(() => {
     if (!settingSpot) return;
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setSettingSpot(false);
@@ -207,14 +234,17 @@ export default function App() {
   };
   const doorShop = door ? shops.find((shop) => shop.id === door.shopId) ?? null : null;
   // A shop that leaves the list (unpublished) ends its walk or door step, which would otherwise have no controls.
+  // Not before the list loads: a step restored after a reload waits for its shop.
+  const loaded = shops.length > 0;
   useEffect(() => {
+    if (!loaded) return;
     if (trip && !tripShop) stopTrip();
     if (door && !doorShop) setDoor(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripShop, doorShop]);
+  }, [tripShop, doorShop, loaded]);
   const doorOrder = doorShop ? orderOf(doorShop, doorShop.menu) : null;
   const talking = talkingId ? shops.find((shop) => shop.id === talkingId) ?? null : null;
-  const busy = !!trip || !!door; // a walk or the door covers the shop card and the phone's search
+  const busy = !!tripShop || !!doorShop; // a walk or the door covers the shop card and the phone's search
   const cardOpen = !desktop && !!selected && !busy;
   // The phone card replaces the near list, so its opener row is gone while it's open: on close, focus that shop's row.
   useEffect(() => {
@@ -280,7 +310,12 @@ export default function App() {
         </>
       )}
 
-      {error && <div className="notice" role="alert">{error}</div>}
+      {error && (
+        <div className="notice" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'max-content' }}>
+          <span>{error}</span>
+          <button type="button" className="icon-btn" style={{ width: 28, height: 28, borderRadius: '50%', color: 'inherit' }} onClick={clearError} aria-label="Dismiss"><Icon name="close" size={14} stroke={2.6} /></button>
+        </div>
+      )}
       {settingSpot && (
         <>
           <div className="spot-hint glass" role="status"><Icon name="map" size={20} />Drag the map to where you are</div>
@@ -293,7 +328,8 @@ export default function App() {
       {asking && <LocationAsk onAllow={() => { setAsking(false); whereAmI(); }} onPick={() => { setAsking(false); setSettingSpot(true); }} />}
       {installing && <InstallSheet onClose={() => setInstalling(false)} />}
 
-      {trip && tripShop && !trip.walking && !settingSpot && !asking && (
+      {/* A walk restored after a reload shows here (Back, "Finding the walking route…") until its route is in. */}
+      {trip && tripShop && !(trip.walking && trip.route) && !settingSpot && !asking && (
         <RoutePreview shop={tripShop} route={trip.route} onBack={stopTrip} onStart={startWalking} />
       )}
       {trip?.walking && trip.route && tripShop && (

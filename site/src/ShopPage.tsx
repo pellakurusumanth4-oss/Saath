@@ -79,9 +79,9 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {/* Shops registered on the owner page have no menu (the user: owners give no prices): no empty menu block. */}
           {menu.length > 0 && (
             <>
-              <h2 className="block-title">Menu</h2>
+              <h2 className="block-title">{section.list}</h2>
               <div className="menu-rows full">{menu.map((item) => <MenuRow key={item.id} item={item} color={section.color} />)}</div>
-              <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>
+              {menu.some((item) => item.app_price !== null) && <p className="fine">Both prices are the shop’s own. App fees are typical, not exact.</p>}
             </>
           )}
           <Reviews shop={shop} />

@@ -75,6 +75,7 @@ a { color: inherit; }
 .notice { position: absolute; left: 50%; top: 132px; transform: translateX(-50%); z-index: 40; padding: 9px 14px; border-radius: 14px; background: #fff; box-shadow: var(--glass-shadow); font: 700 13.5px var(--body); max-width: min(92vw, 440px); text-align: center; }
 .notice[role='alert'] { background: #FDECEC; color: #B42318; }
 .is-desktop .notice { top: 24px; }
+.is-desktop:has(.spot-hint) .notice { top: 84px; }   /* below the spot hint while the picker is open */
 
 /* ---------- the map ---------- */
 
