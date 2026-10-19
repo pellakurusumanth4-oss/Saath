@@ -48,6 +48,13 @@ test('the website\'s shops are in US dollars: cents shown, big amounts with comm
   assert.ok(!data.includes('rupees') && !data.includes('lakh'), data);
 });
 
+test('the usual order gives the mascot the same saving the shop\'s card shows', () => {
+  const data = shopData({ ...cafe, currency: 'USD', usualOrder: { items: '2 cutting chai + bun maska', here: 5.5, apps: 12.5, fee: 2.5 } });
+  assert.ok(data.includes('The usual order: 2 cutting chai + bun maska: 5.50 dollars here, about 12.50 dollars on delivery apps with a typical 2.50 dollars delivery fee, so 7 dollars saved by walking in'), data);
+  assert.ok(!shopData(cafe).includes('usual order'));
+  assert.throws(() => shopData({ ...cafe, usualOrder: { items: 'chai', here: -1, apps: 2, fee: 1 } }), /bad shop: usualOrder/);
+});
+
 test('what the database leaves empty (null, or an empty note) counts as not given, as bolt.one\'s loader sends it', () => {
   const row = { id: 'wada-chai-katta', name: 'Wada Chai Katta', section: 'cafe', story: null, special: null, status: 'busy', statusNote: '',
     menu: [{ name: 'Misal pav', price: 80, appPrice: 139, available: true }, { name: 'Chai', price: 20, appPrice: null, available: true }], mascot: { name: null, voice: 'LFWwdLzOs2fj7AQXGqNp' } };

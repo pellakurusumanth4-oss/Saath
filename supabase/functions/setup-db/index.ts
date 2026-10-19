@@ -5,7 +5,8 @@ import postgres from "npm:postgres@3.4.5";
 import MIGRATIONS from "./migrations.mjs";
 import { setup } from "./setup.mjs";
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204 }); // a browser preflight runs nothing
   const url = Deno.env.get("SUPABASE_DB_URL");
   if (!url) return Response.json({ error: "no SUPABASE_DB_URL" }, { status: 500 });
   const sql = postgres(url, { max: 1, prepare: false });

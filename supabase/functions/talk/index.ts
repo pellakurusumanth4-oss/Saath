@@ -19,9 +19,10 @@ const RATE_LIMIT_MESSAGE = "Too many messages, try again in a minute";
 
 // Neutral settings, as in web/talk/server.mjs, so each voice keeps its own character.
 const ELEVEN_SETTINGS = { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: false, speed: 1 };
-const MAX_SPEAK_CHARS = 600;
+const MAX_SPEAK_CHARS = 1200; // a story reply runs to about 1,000 characters
 const MAX_MESSAGES = 12;
 const MAX_CONTENT = 500;
+const MAX_REPLY = 1200; // the mascot's own earlier replies, as in the ar function
 
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
@@ -72,7 +73,7 @@ const validMessages = (messages: unknown): messages is Message[] =>
       (m.role === "user" || m.role === "assistant") &&
       typeof m.content === "string" &&
       m.content.length > 0 &&
-      m.content.length <= MAX_CONTENT,
+      m.content.length <= (m.role === "assistant" ? MAX_REPLY : MAX_CONTENT),
   ) &&
   messages[messages.length - 1].role === "user";
 

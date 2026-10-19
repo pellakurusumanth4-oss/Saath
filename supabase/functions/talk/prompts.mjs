@@ -198,7 +198,7 @@ const CLIP_WORDS = { welcome: 'open your arms', show: 'hold up what you are hold
 // numbers in the shop's currency (rupees unless it names another; the website's shops are in US dollars) or the shop's
 // own words ("85 lakh", "on request").
 // What the database leaves empty arrives as null and counts as not given.
-const MAX = { id: 64, name: 80, area: 120, hours: 120, story: 1500, special: 200, offer: 200, currency: 10, statusNote: 80, item: 80, price: 40, unit: 30, note: 120, mascotName: 40, greeting: 200, look: 200, voice: 40, action: 20 };
+const MAX = { id: 64, order: 200, name: 80, area: 120, hours: 120, story: 1500, special: 200, offer: 200, currency: 10, statusNote: 80, item: 80, price: 40, unit: 30, note: 120, mascotName: 40, greeting: 200, look: 200, voice: 40, action: 20 };
 const STATUS = ['open', 'busy', 'closed'];
 const isText = (v, max, needed = false) => (v === undefined && !needed) || (typeof v === 'string' && v.trim().length > 0 && v.length <= max) || (!needed && v === '');
 const line = (s) => s.replace(/\s+/g, ' ').trim();
@@ -253,6 +253,9 @@ function check(raw) {
     && [i.price, i.appPrice].every((p) => p === undefined || (typeof p === 'number' && Number.isFinite(p) && p >= 0) || isText(p, MAX.price, true))
     && (i.available === undefined || typeof i.available === 'boolean');
   if (!Array.isArray(menu) || menu.length > 60 || !menu.every(item)) bad('menu');
+  const sum = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+  const order = shop.usualOrder;
+  if (order !== undefined && !(plain(order) && isText(order.items, MAX.order, true) && [order.here, order.apps, order.fee].every(sum))) bad('usualOrder');
   if (!plain(mascot) || !isText(mascot.id, MAX.mascotName) || !isText(mascot.name, MAX.mascotName) || !isText(mascot.greeting, MAX.greeting) || !isText(mascot.look, MAX.look)
     || !isText(mascot.voice, MAX.voice) || (mascot.actions !== undefined && !(Array.isArray(mascot.actions) && mascot.actions.length <= 12))) bad('mascot');
   return shop;
@@ -289,7 +292,7 @@ export function mascotPrompt(shop) {
 // misses the cache): status and its note, today's special, offers, and each item's price with about what delivery apps
 // charge for it, or sold out, in the format agreed with bolt.one.
 export function shopData(shop) {
-  const { name, section, status, statusNote, special, offers = [], currency = 'INR', menu = [] } = check(shop);
+  const { name, section, status, statusNote, special, offers = [], currency = 'INR', menu = [], usualOrder: order } = check(shop);
   if (name === undefined) return 'SHOP DATA (live, quote only these prices, never invent one)\nNo shop is open in this chat: no status, no menu and no prices.';
   const items = menu.map((i) => `- ${line(i.name)}${i.available === false ? ': sold out'
     : i.price !== undefined ? `: ${money(i.price, currency)}${i.appPrice !== undefined ? ` (about ${money(i.appPrice, currency)} on delivery apps)` : ''}${i.unit ? `, ${line(i.unit)}` : ''}` : ''}${i.note ? ` (${line(i.note)})` : ''}`);
@@ -299,6 +302,8 @@ export function shopData(shop) {
     `Status: ${status ? `${status}${statusNote ? ` (${line(statusNote)})` : ''}` : 'not given'}`,
     special && `Today's special: ${line(special)}`,
     ...(offers.length ? ["The shop's offers:", ...offers.map((o) => `- ${line(o)}`)] : []),
+    // The saving the app shows on the shop's card: the usual order here against delivery apps plus their typical fee.
+    order && `The usual order: ${line(order.items)}: ${money(order.here, currency)} here, about ${money(order.apps, currency)} on delivery apps with a typical ${money(order.fee, currency)} delivery fee, so ${money(Math.round((order.apps - order.here) * 100) / 100, currency)} saved by walking in`,
     `${SECTIONS[section].list}:`,
     ...(items.length ? items : ['- none given: for anything on sale, suggest asking at the counter']),
   ].filter((l) => typeof l === 'string').join('\n');
