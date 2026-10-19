@@ -66,7 +66,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
 
   return (
     <div className="card-layer" key={shop.id}>
-      <button type="button" className="icon-btn glass close-card" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+      <button type="button" autoFocus className="icon-btn glass close-card" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       {/* Outside the scrolling card, so its overflow doesn't clip the mascot standing on its top edge. */}
       <Podium mascot={mascot} color={section.color} grey={off} height={150} className="card-podium" />
       <section className="card glass-sheet" aria-label={shop.name}>

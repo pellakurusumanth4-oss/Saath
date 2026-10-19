@@ -22,7 +22,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
 
   if (!shop) {
     return (
-      <div className="page" role="dialog" aria-label="Shop">
+      <div className="page" role="dialog" aria-modal="true" aria-label="Shop">
         <div className="page-sheet"><a className="back-link" href="#/">← Map</a><p className="note">{missing ? 'There’s no shop at this link.' : 'Loading the shop…'}</p></div>
       </div>
     );
@@ -38,12 +38,12 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   };
 
   return (
-    <div className="page shop-page" role="dialog" aria-label={shop.name} style={{ '--c': section.color } as CSSProperties}>
+    <div className="page shop-page" role="dialog" aria-modal="true" aria-label={shop.name} style={{ '--c': section.color } as CSSProperties}>
       <div className="page-sheet">
         <div className="shop-hero">
           <Ad shop={shop} height={262} width="100%" off={off} radius={0} className="hero-ad" />
           <a className="icon-btn glass hero-back" href="#/" aria-label="Back to the map"><Icon name="back" /></a>
-          <button type="button" className="icon-btn glass hero-share" onClick={share} aria-label="Share"><Icon name="share" /></button>
+          <button type="button" autoFocus className="icon-btn glass hero-share" onClick={share} aria-label="Share"><Icon name="share" /></button>
         </div>
         <div className="shop-body">
           <Podium mascot={mascot} color={section.color} grey={off} height={150} className="shop-podium" />

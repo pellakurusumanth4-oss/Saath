@@ -136,13 +136,13 @@ export default function App() {
   const cardOpen = !desktop && !!selected;
   // The screen edges the city must stay clear of: the bars and sheet on a phone, the side panels on a desktop.
   const padding = desktop
-    ? { top: 20, bottom: 20, left: 424, right: 440 }
-    : { top: cardOpen ? 70 : 132, bottom: Math.round(window.innerHeight * (cardOpen ? 0.62 : 0.36)), left: 0, right: 0 };
+    ? { top: 20, bottom: 20, left: page === 'business' ? 660 : 424, right: page === 'business' ? 20 : 440 }
+    : { top: cardOpen ? 140 : 132, bottom: Math.round(window.innerHeight * (cardOpen ? 0.62 : 0.36)), left: 0, right: 0 };
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
-        <MapView me={me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId} focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
+        <MapView me={me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)} focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
           settingSpot={settingSpot} onSetSpot={onSetSpot} onPick={pick} padding={padding} />
       </MapBoundary>
 
@@ -201,7 +201,8 @@ export default function App() {
 
       {page === 'shop' && shopSlug && (
         <ShopPage key={shopSlug} slug={shopSlug} me={me} onTalk={setTalkingId} onWalk={(id) => {
-          setSelectedId(id);
+          const shop = shops.find((s) => s.id === id);
+          if (shop) pick(shop);
           setWalk({ shopId: id, from: me, started: Date.now() });
           window.location.hash = '#/';
         }} />

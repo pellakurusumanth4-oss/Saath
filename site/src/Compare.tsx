@@ -1,5 +1,6 @@
 // The usual order's saving: the shop's own app prices + typical app fees against walking in, and how it's worked out.
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ago, orderOf, rupees, updatedAt, type MenuItem, type Order, type Shop } from './shops';
 import { Icon, SaveChip } from './ui';
 
@@ -7,12 +8,14 @@ const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').ma
 
 /** Counts up from 0 to the number over 400 ms once `go` is set (just the number with reduced motion). */
 export function useCountUp(target: number, go: boolean): number {
-  const [value, setValue] = useState(go && !reduced() ? 0 : target);
+  // Starts at 0 even before `go`, so a card that is still rising doesn't flash the full number first.
+  const [value, setValue] = useState(() => (reduced() ? target : 0));
   useEffect(() => {
-    if (!go || reduced()) {
+    if (reduced()) {
       setValue(target);
       return;
     }
+    if (!go) return;
     const start = performance.now();
     let frame = 0;
     const step = (t: number) => {
@@ -62,7 +65,8 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
       <div className="cmp-fine">
         {rupees(order.itemsApps)} at the shop’s app prices + ~{rupees(order.fee)} typical app fees{walk ? ` · walk ${walk}` : ''}
       </div>
-      {how && <HowSheet shop={shop} order={order} updated={updatedAt(menu)} onClose={() => setHow(false)} />}
+      {/* On body: the card's backdrop-filter would otherwise trap the fixed sheet inside the card. */}
+      {how && createPortal(<HowSheet shop={shop} order={order} updated={updatedAt(menu)} onClose={() => setHow(false)} />, document.body)}
     </div>
   );
 }
@@ -71,11 +75,11 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
 export function HowSheet({ shop, order, updated, onClose }: { shop: Shop; order: Order; updated: string; onClose: () => void }) {
   return (
     <div className="sheet-back" onClick={onClose}>
-      <div className="sheet glass-sheet how" role="dialog" aria-label="How we work out your saving" onClick={(event) => event.stopPropagation()}>
+      <div className="sheet glass-sheet how" role="dialog" aria-modal="true" aria-label="How we work out your saving" onClick={(event) => event.stopPropagation()}>
         <div className="grabber" />
         <div className="sheet-head">
           <h3>How we work out your saving</h3>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+          <button type="button" autoFocus className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
         <ul className="how-points">
           <li><Icon name="tag" /><div><b>App prices come from the shop</b>{shop.name} enters what it charges on delivery apps for each item, next to its counter price.</div></li>

@@ -32,7 +32,7 @@ export default function SavedSheet({ shop, order, metres, minutes, onClose }: {
   }, [onClose]);
   return (
     <div className="sheet-back saved-back">
-      <div className="saved" role="dialog" aria-label={`You saved ${rupees(order.saving)} by walking`}>
+      <div className="saved" role="dialog" aria-modal="true" aria-label={`You saved ${rupees(order.saving)} by walking`}>
         <Ad shop={shop} height={150} width="100%" radius={18} />
         <img className="saved-face" src={portraitOf(mascot)} alt="" style={{ borderColor: sectionOf(shop).color }} />
         <p className="saved-kicker">YOU WALKED TO {shop.name.toUpperCase()}</p>
@@ -48,7 +48,7 @@ export default function SavedSheet({ shop, order, metres, minutes, onClose }: {
         <p className="saved-month">This month, on this phone <b>{rupees(month.current)} saved</b></p>
         <div className="actions">
           <a className="btn-ghost" href={`#/shop/${shop.slug}`} onClick={onClose}>See the menu</a>
-          <button type="button" className="btn-go" onClick={onClose}><Icon name="check" size={19} />Nice!</button>
+          <button type="button" autoFocus className="btn-go" onClick={onClose}><Icon name="check" size={19} />Nice!</button>
         </div>
       </div>
     </div>

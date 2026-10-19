@@ -33,7 +33,7 @@ export default function OwnerPage() {
   }, []);
 
   return (
-    <div className="page owner-page" role="dialog" aria-label="For shop owners">
+    <div className="page owner-page" role="dialog" aria-modal="true" aria-label="For shop owners">
       <div className="page-sheet">
         <div className="owner-row owner-top">
           <a className="back-link" href="#/">← Map</a>
@@ -145,7 +145,7 @@ function OwnerShops({ userId }: { userId: string }) {
         />
       ) : (
         <>
-          {open && <ShopEditor key={open.id} shop={open} />}
+          {open && <ShopEditor key={open.id} shop={open} onPatch={(patch) => setMine((list) => list && list.map((s) => (s.id === open.id ? { ...s, ...patch } : s)))} />}
           <button type="button" className="btn-ghost owner-add" onClick={() => setAdding(true)}><Icon name="plus" size={18} />Add a shop</button>
         </>
       )}
@@ -168,13 +168,15 @@ function OwnerShops({ userId }: { userId: string }) {
 type Write = () => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
 
 /** One shop's billboard, mascot, usual order, status and menu. Each change is saved 400 ms after the last keystroke. */
-function ShopEditor({ shop }: { shop: Shop }) {
+// onPatch keeps the parent's copy current, so reopening this shop's tab doesn't show (and save over) old values.
+function ShopEditor({ shop, onPatch }: { shop: Shop; onPatch: (patch: Partial<Shop>) => void }) {
   const [draft, setDraft] = useState<Shop>(shop);
   const [menu, setMenu] = useState<MenuItem[] | null>(null);
   const [state, setState] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const timers = useRef(new Map<string, number>());
+  const failed = useRef(new Set<string>());
 
   useEffect(() => {
     void db.from('menu_items').select('*').eq('shop_id', shop.id).order('sort').then(({ data, error }) => {
@@ -201,12 +203,17 @@ function ShopEditor({ shop }: { shop: Shop }) {
       timers.current.delete(key);
       const { data, error } = await write();
       const ok = !error && !!data?.length;
-      setState(error ? `Not saved: ${error.message}` : ok ? '✓ Saved · live' : 'Not saved: this shop isn’t yours');
+      if (ok) failed.current.delete(key);
+      else failed.current.add(key);
+      // A later success mustn't hide an earlier failure: that edit never reached visitors.
+      setState(error ? `Not saved: ${error.message}` : !ok ? 'Not saved: this shop isn’t yours'
+        : failed.current.size ? 'Some changes weren’t saved: edit them again' : '✓ Saved · live');
       if (ok) saved?.();
     }, 400));
   };
   const saveShop = (patch: Partial<Shop>) => {
     setDraft((current) => ({ ...current, ...patch }));
+    onPatch(patch);
     save(`shop.${Object.keys(patch).join()}`, () => db.from('shops').update(patch).eq('id', shop.id).select('id'));
   };
   const saveItem = (item: MenuItem, patch: Partial<MenuItem>, announce?: string) => {
@@ -253,7 +260,7 @@ function ShopEditor({ shop }: { shop: Shop }) {
   const setOrder = (next: Shop['usual_order']) => saveShop({ usual_order: next.filter((line) => line.qty > 0).slice(0, 6) });
   const mascot = hostOf(draft);
   const named = (id: string) => menu?.find((item) => item.id === id)?.name ?? 'an item';
-  const notInOrder = (menu ?? []).filter((item) => item.price !== null && !draft.usual_order.some((line) => line.item === item.id));
+  const notInOrder = (menu ?? []).filter((item) => item.price !== null && item.app_price !== null && item.available && !draft.usual_order.some((line) => line.item === item.id));
 
   return (
     <div className="owner-editor">
@@ -302,12 +309,6 @@ function ShopEditor({ shop }: { shop: Shop }) {
             </button>
           ))}
         </div>
-        <span className="owner-label">Show it</span>
-        <div className="seg" role="group" aria-label="Schedule">
-          {([['always', 'Always on'], ['week', 'This week'], ['today', 'Today only']] as const).map(([value, label]) => (
-            <button key={value} type="button" aria-pressed={draft.ad_schedule === value} onClick={() => saveShop({ ad_schedule: value })}>{label}</button>
-          ))}
-        </div>
       </section>
 
       <section className="owner-section">
@@ -353,7 +354,7 @@ function ShopEditor({ shop }: { shop: Shop }) {
           Typical delivery-app fees, ₹
           <input type="number" min={0} max={200} defaultValue={shop.app_fee} onChange={(event) => {
             const fee = event.target.valueAsNumber;
-            if (fee >= 0 && fee <= 200) saveShop({ app_fee: Math.round(fee) });
+            if (fee >= 0) saveShop({ app_fee: Math.min(200, Math.round(fee)) });
           }} />
         </label>
         {menu && <Compare shop={draft} menu={menu} mode="compact" />}

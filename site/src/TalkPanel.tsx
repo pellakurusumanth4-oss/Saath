@@ -36,6 +36,9 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
   const [draft, setDraft] = useState('');
   const recognition = useRef<RecognitionHandle | null>(null);
   const speaking = useRef<SpeakHandle | null>(null);
+  // Each ask, mic tap or close starts a new turn; an older ask that comes back late drops its reply.
+  const turn = useRef(0);
+  const opener = useRef(document.activeElement as HTMLElement | null);
   const historyRef = useRef(history);
   historyRef.current = history;
 
@@ -45,8 +48,10 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
     stopAllSpeaking();
   };
   useEffect(() => () => {
+    turn.current++;
     recognition.current?.stop();
     hush();
+    opener.current?.focus();
   }, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
@@ -58,22 +63,29 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
     const words = text.trim();
     if (!words || state === 'thinking') return;
     hush();
+    const mine = ++turn.current;
     setError(null);
     setState('thinking');
     const next = [...historyRef.current, { role: 'user' as const, content: words }];
     try {
       const answer = await askFriend(mascot.id, next.slice(-12), shop.slug);
+      if (mine !== turn.current) return;
       setHistory([...next, { role: 'assistant', content: answer }]);
       setReply(answer);
       setNamed(namedIn(answer, shop.menu));
       if (soundOn) {
         setState('talking');
         const handle = await speakReply(mascot.id, answer);
+        if (mine !== turn.current) {
+          handle.cancel();
+          return;
+        }
         speaking.current = handle;
         await handle.done;
       }
-      setState('idle');
+      if (mine === turn.current) setState('idle');
     } catch (err) {
+      if (mine !== turn.current) return;
       setState('idle');
       setError(err instanceof RateLimitError ? err.message : `${name} didn’t hear you. Try again in a moment.`);
     }
@@ -84,6 +96,7 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
       recognition.current?.stop();
       return;
     }
+    turn.current++;
     hush();
     const handle = listenOnce({
       onPartial: () => {},
@@ -117,7 +130,7 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
   const row = named ?? shop.menu.find((item) => item.price !== null) ?? null;
 
   return (
-    <div className={`talk-screen is-${state}`} role="dialog" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
+    <div className={`talk-screen is-${state}`} role="dialog" aria-modal="true" aria-label={`Talk to ${mascot.name}`} style={{ '--c': section.color } as CSSProperties}>
       <div className="talk-top">
         <button type="button" className="icon-btn glass" onClick={onClose} aria-label="Back"><Icon name="back" /></button>
         <div className="talk-who"><b>{mascot.name}</b><span>{shop.name} · {section.label}</span></div>
@@ -141,7 +154,7 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
 
       <div className="talk-hints">
         {HINTS.map((hint) => (
-          <button key={hint.label} type="button" className="glass" disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
+          <button key={hint.label} type="button" className="glass" aria-disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>
 
@@ -168,7 +181,7 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
 
       <div className="talk-controls">
         <a className="icon-btn glass round" href={`#/shop/${shop.slug}`} onClick={onClose} aria-label="See the menu"><Icon name="list" /></a>
-        <button type="button" className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
+        <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>
         {AR_READY.has(mascot.id)

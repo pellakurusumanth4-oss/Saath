@@ -156,6 +156,9 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
       pin.removeAttribute('aria-label');
       board.removeAttribute('aria-label');
       board.setAttribute('aria-hidden', 'true');
+      // The board's layout box is bigger than the scaled board: only its panel takes taps, so pins under it stay tappable.
+      board.style.pointerEvents = 'none';
+      pin.style.zIndex = '2';
       made[shop.id] = { pin, board, markers };
     }
     setSlots(made);
@@ -254,7 +257,11 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
     const map = mapRef.current;
     if (!map || !settingSpot) return;
     map.getCanvas().style.cursor = 'crosshair';
-    const choose = (event: MapMouseEvent) => onSetSpot({ lat: event.lngLat.lat, lng: event.lngLat.lng });
+    // MapLibre hears marker clicks before React can stop them: a tap on a pin or board is not a spot.
+    const choose = (event: MapMouseEvent) => {
+      if ((event.originalEvent.target as HTMLElement).closest('.pin, .board')) return;
+      onSetSpot({ lat: event.lngLat.lat, lng: event.lngLat.lng });
+    };
     map.on('click', choose);
     return () => {
       map.getCanvas().style.cursor = '';
