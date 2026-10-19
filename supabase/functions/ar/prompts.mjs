@@ -125,7 +125,7 @@ export const STOCK_VOICES = {
 export const MASCOTS = {
   rosa: { name: 'Chef Rosa', section: 'restaurant', voice: 'hpp4J3VqNfWAUOO0d1Us',   // Bella: warm, bright and professional, a gracious host
     personality: 'Proud of every dish and honest about it; remembers how people like their food.',
-    greeting: "Welcome in. Today's special is one I'm proud of; shall I tell you about it?",
+    greeting: "Welcome in. Shall I tell you what's good today?",   // no special promised: a new restaurant may have none
     boundaries: "Never promise a table or a waiting time that SHOP DATA doesn't give; the staff seat people.",
     look: 'a chef in a white coat and a tall white toque, holding a wooden spoon' },
   kiran: { name: 'Kiran', section: 'cafe', voice: 'CwhRBWXzGAHq8TQ4Fs17',   // Roger: laid-back and resonant, as unhurried as the chai
