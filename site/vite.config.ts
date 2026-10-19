@@ -38,11 +38,11 @@ export default defineConfig(({ mode }) => {
     server: {
       fs: { allow: ['..'] },
     },
-    // Two pages: the visitors' map (/) and the owner page (/owner/), each with its own bundle.
+    // Three pages: the home page (/, plain HTML), the visitors' map (/visit/) and the owner page (/owner/), each with its own bundle.
     build: {
       outDir: '../dist',
       emptyOutDir: true,
-      rollupOptions: { input: { main: fileURLToPath(new URL('./index.html', import.meta.url)), owner: fileURLToPath(new URL('./owner/index.html', import.meta.url)) } },
+      rollupOptions: { input: { main: fileURLToPath(new URL('./index.html', import.meta.url)), visit: fileURLToPath(new URL('./visit/index.html', import.meta.url)), owner: fileURLToPath(new URL('./owner/index.html', import.meta.url)) } },
     },
     optimizeDeps: {
       exclude: ['kokoro-js', '@huggingface/transformers', 'onnxruntime-web', 'phonemizer'],

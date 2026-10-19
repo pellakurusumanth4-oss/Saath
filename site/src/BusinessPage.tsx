@@ -9,7 +9,7 @@ export default function BusinessPage({ shops }: { shops: ShopWithMenu[] }) {
     <div className="page business" role="dialog" aria-label="For local businesses">
       <div className="business-left">
         <div className="business-top">
-          <span className="brand-tile"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></span>
+          <a className="brand-tile" href="/" aria-label="Saath home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
           <b className="brand-word">saath</b>
           <a href="#/">Explore the map →</a>
         </div>

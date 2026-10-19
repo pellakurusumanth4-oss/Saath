@@ -57,7 +57,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
         <small>{greeting()}</small>
         <h1>{shop.name}</h1>
         <p>{section.icon} {section.label}{shop.area ? ` · ${shop.area}` : ''}{shop.demo && <em className="demo">DEMO</em>}</p>
-        <a className="btn-ghost small dash-map" href={`/#/shop/${shop.slug}`} target="_blank" rel="noopener">See it on the map ↗</a>
+        <a className="btn-ghost small dash-map" href={`/visit/#/shop/${shop.slug}`} target="_blank" rel="noopener">See it on the map ↗</a>
       </div>
       <div className="owner-live"><i className="live-dot" />Live: visitors see every change within a second</div>
       <p className="owner-state" role="status">{state}</p>

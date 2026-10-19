@@ -1,20 +1,6 @@
-/* The two roles on the welcome, and the owner page (/owner/, 19 Oct 2026): its sign-in, the setup (a sheet over the 3D
+/* The owner page (/owner/, 19 Oct 2026): its sign-in, the setup (a sheet over the 3D
    city, a panel on a computer, so the owner watches their pin and billboard go up) and the dashboard. City Day tokens
    from styles.css. Motion is transform/opacity only and stops with reduced motion. */
-
-/* ---------- the two roles ---------- */
-
-.role-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-.role-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 0; border-radius: 18px;
-  text-align: left; font: inherit; color: var(--ink); cursor: pointer; transition: transform 120ms ease, filter 120ms ease; }
-.role-card:active { transform: translateY(1px); filter: brightness(.96); }
-.role-card.is-explore { background: var(--go); box-shadow: inset 0 -3px 0 var(--go-lip); }
-.role-card.is-owner { background: var(--ink); color: #fff; }
-.role-card > span:nth-child(2) { flex: 1; min-width: 0; }
-.role-card b { display: block; font: 800 17px/21px var(--display); letter-spacing: -.01em; }
-.role-card small { display: block; margin-top: 2px; font: 600 13px/17px var(--body); opacity: .82; }
-.role-icon { width: 42px; height: 42px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: rgba(255, 255, 255, .45); }
-.role-card.is-owner .role-icon { background: rgba(255, 255, 255, .12); color: var(--go); }
 
 /* ---------- the owner page: its sign-in ---------- */
 
@@ -157,5 +143,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wizard, .wiz-podium .podium-figure, .role-card { animation: none; transition: none; }
+  .wizard, .wiz-podium .podium-figure { animation: none; transition: none; }
 }

@@ -2,9 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Old links to the map (/#/shop/<slug>, /#/business, …) now live on /visit/; the old in-app owner page is /owner/.
+      const toMap = () => { if (location.hash) location.replace(location.hash === '#/owner' ? '/owner/' : '/visit/' + location.search + location.hash); };
+      toMap();
+      addEventListener('hashchange', toMap);   // a hash typed in on this page doesn't reload it
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#CFEFFF" />
-    <meta name="description" content="Saath: local shops' own mascots on a 3D map of Pune. Compare the walk-in price with delivery apps, talk to the mascot, and walk there." />
+    <meta name="description" content="Saath: local shops' own mascots on a 3D map. Explore and walk over to save on every order, or put your business on the map." />
     <title>Saath · Walk there, save money</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
@@ -13,9 +19,45 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/home.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- The home page: plain HTML (no script to wait for); each choice is its own page. -->
+    <main class="home">
+      <a class="home-brand" href="/"><img src="/icons/favicon.svg" alt="" width="40" height="40" /><b>saath</b></a>
+      <div class="home-hero">
+        <div>
+          <h1 class="home-title">Walk there,<br />save money.</h1>
+          <p class="home-lead">Local shops near you on a 3D map, each with its own mascot. How are you using Saath?</p>
+        </div>
+        <div class="home-parade" aria-hidden="true">
+          <img src="/mascots/rosa.png" alt="" style="--i: 0" />
+          <img src="/mascots/kiran.png" alt="" style="--i: 1" />
+          <img src="/mascots/juno.png" alt="" style="--i: 2" />
+          <img src="/mascots/otto.png" alt="" style="--i: 3" />
+          <img src="/mascots/sunny.png" alt="" style="--i: 4" />
+          <img src="/mascots/nia.png" alt="" style="--i: 5" />
+          <img src="/mascots/mika.png" alt="" style="--i: 6" />
+          <img src="/mascots/max.png" alt="" style="--i: 7" />
+          <img src="/mascots/omar.png" alt="" style="--i: 8" />
+          <img src="/mascots/lina.png" alt="" style="--i: 9" />
+          <img src="/mascots/sana.png" alt="" style="--i: 10" />
+          <img src="/mascots/kai.png" alt="" style="--i: 11" />
+        </div>
+      </div>
+      <nav class="home-choices" aria-label="How are you using Saath?">
+        <a class="home-choice is-explore" href="/visit/">
+          <span class="home-head"><span class="home-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14" /></svg></span><b>I’m exploring</b></span>
+          <span class="home-text">Find shops near you, see the walk-in price next to delivery apps, walk over, and meet the shop’s mascot (in AR on Android).</span>
+          <span class="home-go">Open the map<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </a>
+        <a class="home-choice is-owner" href="/owner/">
+          <span class="home-head"><span class="home-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z" /></svg></span><b>I own a business</b></span>
+          <span class="home-text">Get your own mascot agent and a billboard on the map. It greets visitors and tells them what you do and when you’re open.</span>
+          <span class="home-go">Put my business on Saath<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </a>
+      </nav>
+      <p class="home-fine">Works in your browser. No app to install.</p>
+    </main>
   </body>
 </html>

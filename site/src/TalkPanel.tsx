@@ -196,7 +196,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       )}
 
       <div className="talk-controls">
-        <a className="icon-btn glass round" href={`/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>
+        <a className="icon-btn glass round" href={`/visit/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>
         <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>

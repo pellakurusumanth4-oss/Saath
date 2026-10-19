@@ -7,7 +7,6 @@ import ShopPage from './ShopPage';
 import BusinessPage from './BusinessPage';
 import TalkPanel from './TalkPanel';
 import SavedSheet from './SavedSheet';
-import Welcome from './Welcome';
 import RoutePreview from './RoutePreview';
 import WalkHud, { type WalkView } from './WalkHud';
 import ArrivedSheet from './ArrivedSheet';
@@ -23,7 +22,7 @@ import { figureOf, hostOf, orderOf, sectionOf, useShops, type ShopWithMenu } fro
 import { Icon } from './ui';
 import { distanceM, type LatLng } from '../../src/geo';
 
-/** The page is in the hash (#/shop/<slug>, #/owner, #/business): the host serves only index.html, so paths would 404. */
+/** The page is in the hash (#/shop/<slug>, #/owner, #/business): the host serves only files, so paths would 404. */
 const useHash = () => {
   const [hash, setHash] = useState(() => window.location.hash);
   useEffect(() => {
@@ -71,8 +70,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
-  // J2/J3: the first-visit welcome, the kind location ask, "pick your spot", and the install sheet.
-  const [welcomed, setWelcomed] = useState(() => stored(() => localStorage, 'saath:welcomed') === '1');
+  // J3: the kind location ask, "pick your spot", and the install sheet. The home page (/) is the welcome now.
   const [asking, setAsking] = useState(false);
   const [installing, setInstalling] = useState(false);
   const spotDraft = useRef<LatLng | null>(null);
@@ -126,7 +124,7 @@ export default function App() {
     else setAsking(true);
   }, [whereAmI]);
   useEffect(() => {
-    if (welcomed && !me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
+    if (!me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
     // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
@@ -141,15 +139,6 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [settingSpot]);
-  const openMap = () => {
-    store(() => localStorage, 'saath:welcomed', '1');
-    setWelcomed(true);
-    void startLocation();
-  };
-  const openOwner = () => {
-    store(() => localStorage, 'saath:welcomed', '1');
-    window.location.assign(OWNER_PAGE);
-  };
   // A link to the old in-app owner page, followed inside this page, goes to the owner page too.
   useEffect(() => {
     if (hash === '#/owner') window.location.replace(OWNER_PAGE);
@@ -226,15 +215,14 @@ export default function App() {
     : trip ? { top: 70, bottom: Math.round(window.innerHeight * 0.5), left: 0, right: 0 }
     : door ? { top: 80, bottom: Math.round(window.innerHeight * 0.42), left: 0, right: 0 }
     : { top: cardOpen ? 140 : 132, bottom: Math.round(window.innerHeight * (cardOpen ? 0.62 : 0.36)), left: 0, right: 0 };
-  const welcome = !welcomed && page === 'map';
-  const chrome = !welcome && !settingSpot && !busy && page === 'map'; // the phone's search, chips and near list
+  const chrome = !settingSpot && !busy && page === 'map'; // the phone's search, chips and near list
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
         <MapView me={walkView?.me ?? me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)}
           focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
-          settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={welcome || settingSpot ? () => {} : pick} padding={padding}
+          settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={settingSpot ? () => {} : pick} padding={padding}
           route={walkView?.route ?? (trip?.route ? { done: [], left: trip.route.line } : null)}
           fit={trip?.route && !trip.walking ? { points: trip.route.line, key: `${trip.shopId}:${trip.route.metres}` } : null}
           follow={!!trip?.walking} heading={walkView?.heading ?? null} />
@@ -243,8 +231,8 @@ export default function App() {
       {desktop ? (
         <aside className="panel panel-left glass" aria-label="Saath">
           <div className="brand">
-            <span className="brand-tile"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></span>
-            <div><b>saath</b><span>Landmarks of Deccan, Pune</span></div>
+            <a className="brand-tile" href="/" aria-label="Saath home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
+            <div><b>saath</b><span>Local shops near you</span></div>
             <a className="for-business" href="#/business">For businesses →</a>
           </div>
           <Search query={query} setQuery={setQuery} />
@@ -286,7 +274,6 @@ export default function App() {
           </div>
         </>
       )}
-      {welcome && <Welcome onOpen={openMap} onOwner={openOwner} onInstall={installed ? null : () => setInstalling(true)} />}
       {asking && <LocationAsk onAllow={() => { setAsking(false); whereAmI(); }} onPick={() => { setAsking(false); setSettingSpot(true); }} />}
       {installing && <InstallSheet onClose={() => setInstalling(false)} />}
 
@@ -310,8 +297,6 @@ export default function App() {
       {page === 'shop' && shopSlug && (
         <ShopPage key={shopSlug} slug={shopSlug} me={me} onTalk={setTalkingId} onWalk={(id) => {
           const shop = shops.find((s) => s.id === id);
-          store(() => localStorage, 'saath:welcomed', '1'); // came from a shared shop link: no welcome over the walk
-          setWelcomed(true);
           if (shop) {
             pick(shop);
             startTrip(shop);
@@ -338,7 +323,7 @@ export default function App() {
 function Search({ query, setQuery, logo = false }: { query: string; setQuery: (q: string) => void; logo?: boolean }) {
   return (
     <label className="search glass">
-      {logo ? <span className="brand-tile small"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></span> : <Icon name="search" size={19} />}
+      {logo ? <a className="brand-tile small" href="/" aria-label="Saath home"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></a> : <Icon name="search" size={19} />}
       <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shops, food, services" aria-label="Search shops, food, services" />
     </label>
   );

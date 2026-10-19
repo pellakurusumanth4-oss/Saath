@@ -96,7 +96,7 @@ function OwnerGate() {
   };
   return (
     <main className="owner-gate">
-      <a className="owner-back" href="/">← Saath map</a>
+      <a className="owner-back" href="/visit/">← Saath map</a>
       <section className="owner-gate-card owner-form owner-section owner-signin">
         <div className="signin-sky" aria-hidden="true">
           {MASCOTS.slice(0, 5).map((mascot, i) => <img key={mascot.id} src={portraitOf(mascot)} alt="" style={{ '--i': i } as CSSProperties} />)}
