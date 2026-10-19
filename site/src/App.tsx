@@ -5,6 +5,8 @@ import NearList from './NearList';
 import ShopCard from './ShopCard';
 import ShopPage from './ShopPage';
 import OwnerPage from './OwnerPage';
+import type { Stage } from './OwnerWizard';
+import { chooseRole, RoleMenu, savedRole } from './Roles';
 import BusinessPage from './BusinessPage';
 import TalkPanel from './TalkPanel';
 import SavedSheet from './SavedSheet';
@@ -69,6 +71,9 @@ type Trip = { shopId: string; route: Route | null; walking: boolean; started: nu
 /** J6–J8: at the door: arrived, the counter code, the review, the saving. */
 type Door = { shopId: string; step: 'arrived' | 'code' | 'review' | 'saved'; metres: number | null; minutes: number | null; visit?: string; posted?: boolean };
 
+// A device that picked "I own a business" opens on its owner page.
+if (savedRole() === 'owner' && !window.location.hash) window.location.hash = '#/owner';
+
 export default function App() {
   const { me, locating, error, denied, whereAmI, setMySpot } = useMe();
   const { installed } = useInstall();
@@ -89,6 +94,8 @@ export default function App() {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [walkView, setWalkView] = useState<WalkView | null>(null);
   const [door, setDoor] = useState<Door | null>(null);
+  // The owner's setup: their shop, the centre pin and the camera, shown on this map under the setup's sheet.
+  const [stage, setStage] = useState<Stage | null>(null);
 
   const shopSlug = /^#\/shop\/([a-z0-9-]{3,40})$/.exec(hash)?.[1] ?? null;
   const page = shopSlug ? 'shop' : hash === '#/owner' ? 'owner' : hash === '#/business' ? 'business' : 'map';
@@ -136,9 +143,9 @@ export default function App() {
   }, [whereAmI]);
   useEffect(() => {
     if (welcomed && !me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
-    // Once, on arrival; later visits to the map use the locate button.
+    // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
   // Blocked, or a walk waiting for a position that didn't come: pick the spot by hand (each failed try opens it again).
   useEffect(() => {
     if (denied || (error && trip && !me)) setSettingSpot(true);
@@ -152,9 +159,17 @@ export default function App() {
   }, [settingSpot]);
   const openMap = () => {
     store(() => localStorage, 'saath:welcomed', '1');
+    store(() => localStorage, 'saath:role', 'visitor');
     setWelcomed(true);
     void startLocation();
   };
+  const openOwner = () => {
+    store(() => localStorage, 'saath:welcomed', '1');
+    setWelcomed(true);
+    chooseRole('owner');
+  };
+  // Only picking "I own a business" or signing in as an owner (OwnerPage) makes this an owner's device: a visitor who
+  // just looks at the business pages keeps opening on the map.
 
   // Once the city is up, fetch each mascot's full figure in idle time, so a shop card's mascot shows at once.
   // Skipped on Data Saver and 2G; it's ~55 KB a mascot.
@@ -220,7 +235,11 @@ export default function App() {
   const busy = !!trip || !!door; // a walk or the door covers the shop card and the phone's search
   const cardOpen = !desktop && !!selected && !busy;
   // The screen edges the city must stay clear of: the bars and sheet on a phone, the side panels on a desktop.
-  const padding = desktop
+  const padding = stage
+    // On the billboard step the camera's centre sits lower: the billboard rises well above the spot it stands on.
+    ? desktop ? { top: stage.spotlight ? 240 : 20, bottom: 20, left: 520, right: 20 }
+    : { top: stage.spotlight ? 150 : 16, bottom: Math.round(window.innerHeight * stage.sheet), left: 0, right: 0 }
+    : desktop
     ? { top: trip?.walking ? 150 : 20, bottom: trip?.walking ? 190 : 20, left: page === 'business' ? 660 : 424, right: page === 'business' ? 20 : 440 }
     : settingSpot ? { top: 90, bottom: 190, left: 0, right: 0 }
     : trip?.walking ? { top: 150, bottom: 210, left: 0, right: 0 }
@@ -228,24 +247,30 @@ export default function App() {
     : door ? { top: 80, bottom: Math.round(window.innerHeight * 0.42), left: 0, right: 0 }
     : { top: cardOpen ? 140 : 132, bottom: Math.round(window.innerHeight * (cardOpen ? 0.62 : 0.36)), left: 0, right: 0 };
   const welcome = !welcomed && page === 'map';
-  const chrome = !welcome && !settingSpot && !busy; // the phone's search, chips and near list
+  const chrome = !welcome && !settingSpot && !busy && page === 'map'; // the phone's search, chips and near list
+  const mapFocus = stage?.focus ?? focus;
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
-        <MapView me={walkView?.me ?? me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)} focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
-          settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={welcome || settingSpot ? () => {} : pick} padding={padding}
+        <MapView me={walkView?.me ?? me}
+          shops={stage?.shop ? [...shown.filter((shop) => shop.id !== stage.shop!.id), stage.shop] : shown}
+          selected={stage ? stage.shop?.id ?? null : selected?.id ?? null}
+          spotlight={stage ? stage.spotlight : !!selectedId && shown.some((shop) => shop.id === selectedId)}
+          focus={mapFocus?.spot ?? null} focusKey={mapFocus?.key ?? ''}
+          settingSpot={settingSpot || !!stage?.onSpot} onSpotMove={stage?.onSpot ?? onSpotMove}
+          onPick={welcome || settingSpot || stage ? () => {} : pick} padding={padding}
           route={walkView?.route ?? (trip?.route ? { done: [], left: trip.route.line } : null)}
           fit={trip?.route && !trip.walking ? { points: trip.route.line, key: `${trip.shopId}:${trip.route.metres}` } : null}
           follow={!!trip?.walking} heading={walkView?.heading ?? null} />
       </MapBoundary>
 
-      {desktop ? (
+      {desktop ? !stage && (
         <aside className="panel panel-left glass" aria-label="Saath">
           <div className="brand">
             <span className="brand-tile"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></span>
             <div><b>saath</b><span>Landmarks of Deccan, Pune</span></div>
-            <a href="#/business">For businesses →</a>
+            <RoleMenu />
           </div>
           <Search query={query} setQuery={setQuery} />
           <Chips category={category} setCategory={setCategory} />
@@ -268,7 +293,7 @@ export default function App() {
                 <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} />
                 <div className="near-links">
                   {!installed && <button type="button" onClick={() => setInstalling(true)}>Install app</button>}
-                  <a className="for-business" href="#/business">For businesses →</a>
+                  <RoleMenu />
                 </div>
               </div>
             </>
@@ -286,7 +311,7 @@ export default function App() {
           </div>
         </>
       )}
-      {welcome && <Welcome onOpen={openMap} onInstall={installed ? null : () => setInstalling(true)} />}
+      {welcome && <Welcome onOpen={openMap} onOwner={openOwner} onInstall={installed ? null : () => setInstalling(true)} />}
       {asking && <LocationAsk onAllow={() => { setAsking(false); whereAmI(); }} onPick={() => { setAsking(false); setSettingSpot(true); }} />}
       {installing && <InstallSheet onClose={() => setInstalling(false)} />}
 
@@ -319,7 +344,7 @@ export default function App() {
           window.location.hash = '#/';
         }} />
       )}
-      {page === 'owner' && <OwnerPage />}
+      {page === 'owner' && <OwnerPage onStage={setStage} />}
       {page === 'business' && <BusinessPage shops={shops} />}
 
       {talking && <TalkPanel shop={talking} onClose={() => setTalkingId(null)} />}

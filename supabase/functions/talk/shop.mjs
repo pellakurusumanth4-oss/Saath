@@ -5,7 +5,7 @@ export async function loadShop(db, slug) {
   if (typeof slug !== 'string' || !/^[a-z0-9-]{3,40}$/.test(slug)) return null;
   const { data, error } = await db
     .from('shops')
-    .select('slug,name,section,friend,area,story,special,offers,status,status_note,menu_items(name,price,app_price,available,note,sort)')
+    .select('slug,name,section,friend,area,about,story,special,offers,status,status_note,menu_items(name,price,app_price,available,note,sort)')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
@@ -14,7 +14,8 @@ export async function loadShop(db, slug) {
     name: data.name,
     section: data.section,
     area: data.area,
-    story: data.story,
+    // What the business does (the owner's line or two) opens its story: the prompts take both from the shop's block.
+    story: [data.about, data.story].map((text) => (text ?? '').trim()).filter(Boolean).join(' '),
     special: data.special,
     // The prompts take at most 5, each up to 200 characters (an owner could write more through the API).
     offers: data.offers.filter((offer) => offer.trim() && offer.length <= 200).slice(0, 5),

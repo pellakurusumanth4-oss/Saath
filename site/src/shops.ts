@@ -41,6 +41,12 @@ export type Shop = LatLng & {
   /** Where its billboard stands; empty: beside the shop. */
   board_lat: number | null;
   board_lng: number | null;
+  /** What the business does, in the owner's words; the mascot reads it with the story. */
+  about: string;
+  /** The billboard ad's colour (#rrggbb); empty: the section's. */
+  ad_color: string;
+  /** On the map for visitors; a new shop is a draft until its owner publishes it. */
+  published: boolean;
 };
 
 export type MenuItem = {
@@ -61,7 +67,7 @@ export type MenuItem = {
 export type ShopWithMenu = Shop & { menu: MenuItem[] };
 
 export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo,'
-  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng';
+  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng,about,ad_color,published';
 const MENU_COLUMNS = 'id,shop_id,name,price,app_price,available,note,sort,updated_at';
 
 /** The business sections, by the database's ids: their name and colour (the mascots' own) and an icon. */
@@ -155,13 +161,13 @@ export const updatedAt = (menu: MenuItem[]) => menu.reduce((newest, item) => (it
 
 const sortMenu = (items: MenuItem[]) => [...items].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
 
-/** Every shop with its menu, for the map and the list, kept live (a demo-sized table: any change reloads it all). */
+/** Every published shop with its menu, for the map and the list, kept live (a demo-sized table: any change reloads it all). */
 export function useShops(): ShopWithMenu[] {
   const [shops, setShops] = useState<ShopWithMenu[]>([]);
   useEffect(() => {
     let live = true;
     const load = async () => {
-      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).order('name');
+      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('published', true).order('name');
       if (!live) return;
       if (!data) {   // a failed load (offline, a weak signal): try again, so the list doesn't stay empty
         window.setTimeout(() => { if (live) void load(); }, 3000);
@@ -190,7 +196,7 @@ export function useShop(slug: string): { shop: Shop | null; menu: MenuItem[]; mi
     let live = true;
     let channel: RealtimeChannel | null = null;
     const load = async () => {
-      const { data, error } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('slug', slug).maybeSingle();
+      const { data, error } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('slug', slug).eq('published', true).maybeSingle();
       if (!live || error) return; // on an error keep what's shown; the next change loads again
       if (!data) {
         setState({ shop: null, menu: [], missing: true });

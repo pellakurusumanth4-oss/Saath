@@ -1,4 +1,4 @@
-// A shop's own ad, as its billboard shows it (16:9): its colour, a picture, its headline and its mascot, tagged AD.
+// A shop's own ad, as its billboard shows it (16:9): its colour (the owner's, else its section's), a picture, its headline and its mascot, tagged AD.
 import type { CSSProperties } from 'react';
 import { hostOf, portraitOf, sectionOf, type Shop } from './shops';
 
@@ -6,7 +6,7 @@ import { hostOf, portraitOf, sectionOf, type Shop } from './shops';
 const shade = (hex: string, k: number) =>
   `#${[1, 3, 5].map((i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k))).toString(16).padStart(2, '0')).join('')}`;
 
-type AdShop = Pick<Shop, 'name' | 'section' | 'friend' | 'status' | 'status_note' | 'ad_headline' | 'ad_sub' | 'ad_art' | 'ad_image_url'>;
+type AdShop = Pick<Shop, 'name' | 'section' | 'friend' | 'status' | 'status_note' | 'ad_headline' | 'ad_sub' | 'ad_art' | 'ad_image_url' | 'ad_color'>;
 
 /** height in px; width in px or a CSS length. off: the shop is closed, so its lights are off. */
 export default function Ad({ shop, height, width = (height * 16) / 9, off = false, radius = 14, tag = true, className = '' }: {
@@ -33,7 +33,7 @@ export default function Ad({ shop, height, width = (height * 16) / 9, off = fals
       </div>
     );
   }
-  const color = sectionOf(shop).color;
+  const color = shop.ad_color || sectionOf(shop).color;
   return (
     <div className={`ad ${className}`} style={{ ...box, background: `linear-gradient(135deg, ${shade(color, 1.12)} 0%, ${color} 45%, ${shade(color, 0.62)} 100%)` }}
       role="img" aria-label={`${shop.name}'s ad: ${shop.ad_headline || shop.name}`}>

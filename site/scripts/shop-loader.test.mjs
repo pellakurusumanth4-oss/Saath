@@ -43,6 +43,16 @@ test('a shop row becomes what the mascot prompts take, its live facts in the SHO
   assert.match(mascotPrompt(shop), /Area: Sarasbaug, Swargate/);
 });
 
+test("what the business does opens the story the mascot reads", async () => {
+  const about = 'Fresh juices and smoothies, pressed while you watch.';
+  const shop = await loadShop(fakeDb({ ...row, about, story: 'Two cousins started with a cart.' }), 'sarasbaug-misal-house');
+  assert.match(mascotPrompt(shop), /The shop's story: Fresh juices and smoothies, pressed while you watch\. Two cousins started with a cart\./);
+  const onlyAbout = await loadShop(fakeDb({ ...row, about }), 'sarasbaug-misal-house');
+  assert.match(mascotPrompt(onlyAbout), /The shop's story: Fresh juices and smoothies, pressed while you watch\.$/m);
+  // A row from before the column existed still loads.
+  assert.match(mascotPrompt(await loadShop(fakeDb(row), 'sarasbaug-misal-house')), /The shop's story: not given/);
+});
+
 test('a bad or unknown slug loads nothing', async () => {
   assert.equal(await loadShop(fakeDb(row), 'Not A Slug!'), null);
   assert.equal(await loadShop(fakeDb(null), 'no-such-shop'), null);

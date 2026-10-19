@@ -22,7 +22,8 @@ const namedIn = (reply: string, menu: MenuItem[]) =>
 
 type State = 'idle' | 'listening' | 'thinking' | 'talking';
 
-export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClose: () => void }) {
+/** greet: a first question asked as the panel opens (the owner's setup, so the mascot says hello). */
+export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu; onClose: () => void; greet?: string }) {
   const mascot = hostOf(shop);
   const section = sectionOf(shop);
   const name = mascot.name.split(' ').pop()!;
@@ -90,6 +91,12 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
       setError(err instanceof RateLimitError ? err.message : `${name} didn’t hear you. Try again in a moment.`);
     }
   };
+
+  useEffect(() => {
+    if (greet) void ask(greet);
+    // Once, as it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleMic = () => {
     if (state === 'listening') {

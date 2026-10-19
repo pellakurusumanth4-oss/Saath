@@ -1,8 +1,10 @@
-// J1a: the first visit. The live 3D city shows through the top; the story and two buttons sit on a white panel.
+// J1a: the first visit. The live 3D city shows through the top; the story and the two ways in (exploring, or owning a
+// business) sit on a white panel.
 import { useEffect, useRef } from 'react';
+import { RoleChoice } from './Roles';
 import { Icon } from './ui';
 
-export default function Welcome({ onOpen, onInstall }: { onOpen: () => void; onInstall: (() => void) | null }) {
+export default function Welcome({ onOpen, onOwner, onInstall }: { onOpen: () => void; onOwner: () => void; onInstall: (() => void) | null }) {
   const box = useRef<HTMLDivElement | null>(null);
   useEffect(() => box.current?.focus(), []);
   return (
@@ -17,7 +19,7 @@ export default function Welcome({ onOpen, onInstall }: { onOpen: () => void; onI
           ))}
         </div>
         <div className="welcome-actions">
-          <button type="button" className="btn-go" onClick={onOpen}><Icon name="map" size={20} />Open the map</button>
+          <RoleChoice onExplore={onOpen} onOwner={onOwner} />
           {onInstall && <button type="button" className="btn-ghost" onClick={onInstall}><Icon name="plus" size={19} />Add to home screen</button>}
           <p>Works in your browser. No app to install.</p>
         </div>

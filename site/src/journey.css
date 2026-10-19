@@ -11,7 +11,7 @@
   padding: 10px 18px calc(60px + env(safe-area-inset-bottom)); border-radius: var(--r-panel) var(--r-panel) 0 0; background: #fff;
   box-shadow: 0 -10px 30px rgba(14, 23, 38, .14); animation: j-up 260ms cubic-bezier(.2, .8, .2, 1) both; }
 .j-sheet .grabber { margin-bottom: 14px; }
-.j-sheet:focus, .welcome-panel:focus, .ask-card:focus { outline: none; }
+.j-sheet:focus, .welcome-panel:focus, .ask-card:focus, .arrived:focus, .code-screen:focus, .review-screen:focus { outline: none; }
 .j-title { margin: 6px 0 0; font: 800 24px/27px var(--display); letter-spacing: -.02em; }
 .j-text { margin: 8px 0 0; font: 500 15px/22px var(--body); color: var(--ink-2); }
 .j-kicker { margin: 16px 0 0; font: 800 11.5px var(--body); letter-spacing: .08em; color: var(--ink-3); }

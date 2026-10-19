@@ -1,0 +1,132 @@
+/* Two roles and the owner's setup (19 Oct 2026). City Day tokens from styles.css. The setup is a sheet over the live
+   3D city (a panel on a computer), so the owner watches their pin and billboard go up as they type. Motion is
+   transform/opacity only and stops with reduced motion. */
+
+/* ---------- the two roles ---------- */
+
+.role-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.role-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 0; border-radius: 18px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer; transition: transform 120ms ease, filter 120ms ease; }
+.role-card:active { transform: translateY(1px); filter: brightness(.96); }
+.role-card.is-explore { background: var(--go); box-shadow: inset 0 -3px 0 var(--go-lip); }
+.role-card.is-owner { background: var(--ink); color: #fff; }
+.role-card > span:nth-child(2) { flex: 1; min-width: 0; }
+.role-card b { display: block; font: 800 17px/21px var(--display); letter-spacing: -.01em; }
+.role-card small { display: block; margin-top: 2px; font: 600 13px/17px var(--body); opacity: .82; }
+.role-icon { width: 42px; height: 42px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: rgba(255, 255, 255, .45); }
+.role-card.is-owner .role-icon { background: rgba(255, 255, 255, .12); color: var(--go); }
+.role-card[aria-pressed='true'] { outline: 3px solid var(--ink); outline-offset: 2px; }
+.role-menu { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 999px;
+  background: rgba(14, 23, 38, .07); color: var(--ink-2); font: 700 13px var(--body); white-space: nowrap; cursor: pointer; }
+.near-links .role-menu { padding: 0 12px; background: rgba(14, 23, 38, .07); font: 700 13px var(--body); }
+.role-more { display: block; margin-top: 16px; text-align: center; font: 700 13.5px var(--body); color: var(--save-text); text-decoration: none; }
+
+/* ---------- the owner page around the setup ---------- */
+
+.owner-page.is-wizard { background: none; pointer-events: none; overflow: visible; }
+.owner-page.is-wizard > .page-sheet { display: contents; }
+.owner-page.is-wizard .talk-screen { pointer-events: auto; }   /* the talk opened on the last step takes its own taps */
+.owner-page:has(.owner-draft) .owner-live { display: none; }   /* a draft isn't live yet */
+.wiz-step h2:focus { outline: none; }
+.owner-top-end { display: flex; align-items: center; gap: 14px; }
+.owner-draft { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; padding: 12px 14px;
+  border-radius: 16px; background: var(--busy-bg); color: var(--busy-ink); font: 600 14px/19px var(--body); }
+.owner-colors { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.owner-colors button { width: 34px; height: 34px; padding: 0; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--line); cursor: pointer; }
+.owner-colors button[aria-pressed='true'] { box-shadow: 0 0 0 3px var(--ink); }
+
+/* ---------- the setup: a sheet on a phone ---------- */
+
+.wizard { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; height: calc(var(--sheet) * 100dvh); display: flex; flex-direction: column;
+  pointer-events: auto; background: #fff; border-radius: var(--r-panel) var(--r-panel) 0 0; box-shadow: 0 -10px 40px rgba(16, 40, 60, .18);
+  transition: height 320ms cubic-bezier(.2, .8, .2, 1); animation: j-up 280ms cubic-bezier(.2, .8, .2, 1) both; }
+.wiz-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 8px; }
+.wiz-head .icon-btn:disabled { opacity: .3; cursor: default; }
+.wiz-step { flex: 1; min-width: 0; text-align: center; }
+.wiz-step small { display: block; font: 700 12px var(--body); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wiz-step h2 { margin: 1px 0 0; font: 800 21px/25px var(--display); letter-spacing: -.02em; }
+.wiz-progress { display: flex; gap: 4px; margin: 0; padding: 0 18px 12px; border-bottom: 1px solid var(--line); list-style: none; }
+.wiz-progress li { flex: 1; height: 5px; border-radius: 3px; background: var(--line); transition: background 300ms ease; }
+.wiz-progress li.is-done { background: var(--ink); }
+.wiz-progress li.is-on { background: var(--go); }
+.wiz-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 12px; }
+/* Room under the button for the "Made in Bolt" badge that Bolt's hosting pins to the bottom right. */
+.wiz-foot { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px calc(60px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.wiz-foot > .btn-go { flex: none; width: 100%; }
+.wiz-foot .owner-msg { margin: 0; }
+.wiz-actions { display: flex; flex-direction: row-reverse; gap: 8px; }
+.wiz-actions > * { flex: 1 1 0; min-width: 0; }
+.wiz-actions .btn-ghost { flex: none; }
+.wizard.is-live .wiz-actions { flex-direction: column; }
+.wizard.is-live .wiz-actions > * { flex: none; }
+
+/* ---------- fields ---------- */
+
+.wiz-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.wiz-field > span, .wiz-field legend { display: flex; justify-content: space-between; gap: 8px; padding: 0; margin-bottom: 6px; font: 700 13.5px var(--body); color: var(--ink-2); }
+.wiz-field > span { margin-bottom: 0; }
+.wiz-field em { font: 600 12.5px var(--body); font-style: normal; color: var(--ink-3); }
+.wiz-field input, .wiz-field textarea { width: 100%; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff;
+  color: var(--ink); font: 600 16px/22px var(--body); resize: vertical; }
+.wiz-field input:focus, .wiz-field textarea:focus { border-color: var(--ink); outline: none; }
+.wiz-field small { font: 500 12.5px/17px var(--body); color: var(--ink-3); }
+.wiz-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wiz-sections button { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 7px 10px; border: 2px solid var(--line); border-radius: 14px;
+  background: #fff; color: var(--ink); font: 700 13.5px/17px var(--body); text-align: left; cursor: pointer; }
+.wiz-sections .glyph { width: 30px; height: 30px; flex: none; border-radius: 9px; background: var(--c); font-size: 16px; }
+.wiz-sections button[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fff); }
+.wiz-link { align-self: flex-start; padding: 4px 0; border: 0; background: none; color: var(--save-text); font: 700 13.5px var(--body); cursor: pointer; }
+.wiz-hint { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 14.5px/20px var(--body); color: var(--ink-2); }
+
+/* ---------- the mascot ---------- */
+
+.wiz-hero { display: flex; align-items: flex-end; gap: 10px; padding: 14px 14px 0 4px; border-radius: 22px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 26%, #CFEFFF) 0%, #fff 92%); }
+.wiz-hero > div { flex: 1; min-width: 0; padding-bottom: 16px; }
+.wiz-podium { flex: none; }
+.wiz-podium .podium-figure { transform-origin: 50% 90%; animation: wiz-wave 700ms ease-in-out 150ms 2, wiz-bob 2.8s ease-in-out 1.6s infinite; }
+@keyframes wiz-wave { 0%, 100% { rotate: 0deg; } 25% { rotate: -7deg; } 75% { rotate: 7deg; } }
+@keyframes wiz-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
+.wiz-mascot-name { display: block; font: 800 24px/27px var(--display); letter-spacing: -.02em; }
+.wiz-personality { margin: 4px 0 0; font: 500 13.5px/19px var(--body); color: var(--ink-2); }
+.wiz-hero .btn-dark { margin-top: 12px; }
+.wiz-bubble { display: block; margin-top: 10px; padding: 10px 12px; border-radius: 16px 16px 16px 4px; background: var(--ink); color: #fff; font: 700 14px/19px var(--body); }
+.wiz-cast { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 6px; }
+.wiz-cast button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 2px 4px; border: 0; border-radius: 14px;
+  background: none; color: var(--ink-2); font: 700 12.5px var(--body); cursor: pointer; }
+.wiz-cast img { width: 56px; height: 56px; border: 3px solid #fff; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px var(--line); }
+.wiz-cast button[aria-checked='true'] { color: var(--ink); background: color-mix(in srgb, var(--c) 12%, #fff); }
+.wiz-cast button[aria-checked='true'] img { box-shadow: 0 0 0 3px var(--c); }
+.wiz-cast em { position: absolute; top: 0; left: 50%; transform: translate(-50%, -35%); padding: 1px 6px; border-radius: 6px; background: var(--go);
+  color: var(--ink); font: 800 9.5px/14px var(--body); font-style: normal; white-space: nowrap; }
+
+/* ---------- meet and publish ---------- */
+
+.wiz-sub { margin: 2px 0 -6px; font: 800 17px var(--display); }
+.wiz-will { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.wiz-will li { padding: 10px 12px; border-radius: 14px; background: var(--soft); color: var(--ink-2); font: 500 14px/20px var(--body); }
+.wiz-will b { color: var(--ink); font-weight: 800; }
+.wiz-ticks { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.wiz-ticks li { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 10px; border-radius: 10px; background: #FDECEC; color: #B42318; font: 700 13px var(--body); }
+.wiz-ticks li.is-ok { background: var(--open-bg); color: var(--open-ink); }
+.wiz-live { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 8px; }
+.wiz-title { margin: 10px 0 0; font: 800 26px/30px var(--display); letter-spacing: -.02em; }
+
+/* The editor's billboard and menu parts inside the setup */
+.wizard .owner-editor.is-part { margin-top: 0; }
+.wizard .owner-editor.is-part .owner-section { margin-top: 0; }
+.wizard .owner-editor.is-part .owner-state:empty { display: none; }
+/* Toasts over the map, clear of the setup's button */
+.wizard .toast { top: 16px; bottom: auto; }
+
+/* ---------- a panel on a computer ---------- */
+
+@media (min-width: 1024px) {
+  .wizard { left: 20px; top: 20px; bottom: auto; right: auto; width: 480px; height: auto; max-height: calc(100dvh - 40px); border-radius: var(--r-panel); box-shadow: 0 20px 60px rgba(16, 40, 60, .2); }
+  .wiz-body { flex: 0 1 auto; }
+  .wiz-foot { padding-bottom: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard, .wiz-podium .podium-figure, .role-card { animation: none; transition: none; }
+}
