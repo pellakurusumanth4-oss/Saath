@@ -1,6 +1,6 @@
 // The City Day map: a bright tilted 3D city where each shop's mascot is its pin and its own ad stands on a billboard
 // beside it. Pins and billboards are HTML markers that React renders into through portals.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import maplibregl, { type Map as MapLibreMap, type MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -18,42 +18,40 @@ const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').ma
 // Pastel blocks by feature id, in the style's own byId form (id / 70, floored: a bare id % 5 matched nothing).
 const BUILDING_COLOURS = ['match', ['%', ['floor', ['/', ['to-number', ['id'], 0], 70]], 5], 0, '#FFFFFF', 1, '#FFE8EF', 2, '#ECE8FF', 3, '#E3F6FF', '#FFF2DC'];
 
-/** City Day's colours over the shared map style (src/mapStyle.ts is the app's too, so it is changed here, at run time). */
-function cityDay(map: MapLibreMap) {
-  const paint = (id: string, prop: string, value: unknown) => {
-    try {
-      map.setPaintProperty(id, prop, value);
-    } catch {
-      // a layer without that property keeps its own
-    }
+type StyleLayer = { id: string; type: string; 'source-layer'?: string; paint?: Record<string, unknown>; layout?: Record<string, unknown> };
+
+/** City Day's colours over a copy of the shared map style (src/mapStyle.ts is the app's too), made before the map starts. */
+function cityDay(style: { layers: StyleLayer[]; light?: unknown }) {
+  // Only a property of the layer's own type: the map rejects e.g. 'fill-color' on the waterway-name symbols.
+  const paint = (layer: StyleLayer, prop: string, value: unknown) => {
+    if (prop.startsWith(`${layer.type}-`)) layer.paint = { ...layer.paint, [prop]: value };
   };
-  for (const layer of map.getStyle().layers ?? []) {
-    const source = (layer as { 'source-layer'?: string })['source-layer'];
-    if (layer.type === 'background') paint(layer.id, 'background-color', '#E6F4EA');
-    else if (layer.id === 'building') paint(layer.id, 'fill-color', '#FFFFFF');
+  for (const layer of style.layers) {
+    const source = layer['source-layer'];
+    if (layer.type === 'background') paint(layer, 'background-color', '#E6F4EA');
+    else if (layer.id === 'building') paint(layer, 'fill-color', '#FFFFFF');
     else if (layer.id === 'building-3d') {
-      // A data-driven colour set over the style's own never re-rendered, so City Day draws its own pastel blocks.
-      map.setLayoutProperty(layer.id, 'visibility', 'none');
-      map.addLayer({
-        id: 'city-buildings', type: 'fill-extrusion', source: (layer as { source: string }).source, 'source-layer': 'building', minzoom: 14,
-        paint: {
-          'fill-extrusion-color': BUILDING_COLOURS as unknown as string,
-          'fill-extrusion-height': ['get', 'render_height'],
-          'fill-extrusion-base': ['get', 'render_min_height'],
-          'fill-extrusion-opacity': 0.95,
-        },
-      } as maplibregl.FillExtrusionLayerSpecification, layer.id);
-    } else if (layer.id === 'building-roof') map.setLayoutProperty(layer.id, 'visibility', 'none');
-    else if (source === 'water' || source === 'waterway') paint(layer.id, layer.type === 'line' ? 'line-color' : 'fill-color', '#7FD3F7');
-    else if (layer.type === 'fill' && (source === 'park' || source === 'landcover')) paint(layer.id, 'fill-color', '#B6E8C4');
-    else if (layer.type === 'fill' && source === 'landuse') paint(layer.id, 'fill-color', '#E6F4EA');
+      // City Day's own pastel blocks replace the style's walls.
+      layer.paint = {
+        'fill-extrusion-color': BUILDING_COLOURS,
+        'fill-extrusion-height': ['get', 'render_height'],
+        'fill-extrusion-base': ['get', 'render_min_height'],
+        'fill-extrusion-opacity': 0.95,
+      };
+    } else if (layer.id === 'building-roof') layer.layout = { ...layer.layout, visibility: 'none' };
+    else if (source === 'water' || source === 'waterway') paint(layer, layer.type === 'line' ? 'line-color' : 'fill-color', '#7FD3F7');
+    else if (layer.type === 'fill' && (source === 'park' || source === 'landcover')) paint(layer, 'fill-color', '#B6E8C4');
+    else if (layer.type === 'fill' && source === 'landuse') paint(layer, 'fill-color', '#E6F4EA');
     else if (layer.type === 'line' && source === 'transportation' && !/rail|metro/.test(layer.id)) {
-      paint(layer.id, 'line-color', /edge|casing/.test(layer.id) ? '#D2E3D8' : '#FFFFFF');
+      paint(layer, 'line-color', /edge|casing/.test(layer.id) ? '#D2E3D8' : '#FFFFFF');
     }
   }
   // White light: the shared style's warm one (#F2E6C2) tints every pastel block tan.
-  map.setLight({ anchor: 'viewport', color: '#FFFFFF', intensity: 0.35, position: [1.15, 210, 30] });
+  style.light = { anchor: 'viewport', color: '#FFFFFF', intensity: 0.35, position: [1.15, 210, 30] };
+  return style;
 }
+// Baked in up front: recolouring the running map drew the old palette first and made every tile reload. JSON copy: old Safari has no structuredClone.
+const CITY_STYLE = cityDay(JSON.parse(JSON.stringify(MAP_STYLE))) as unknown as maplibregl.StyleSpecification;
 
 const youFeature = (me: LatLng | null): FeatureCollection<Point> => ({
   type: 'FeatureCollection',
@@ -65,9 +63,11 @@ const boardScale = (zoom: number) => (zoom < 15.8 ? 0 : Math.max(0.6, Math.min(1
 
 type Slot = { pin: HTMLElement; board: HTMLElement; markers: maplibregl.Marker[] };
 
-export default function MapView({ me, shops, selected, spotlight, focus, focusKey, settingSpot, onSpotMove, onPick, padding, route = null, fit = null, follow = false, heading = null }: {
+export default function MapView({ me, shops, visible, selected, spotlight, focus, focusKey, settingSpot, onSpotMove, onPick, padding, route = null, fit = null, follow = false, heading = null }: {
   me: LatLng | null;
   shops: ShopWithMenu[];
+  /** The ids the search and category show (all when left out); the rest keep their markers, hidden. */
+  visible?: ReadonlySet<string>;
   /** The open shop's id: its billboard grows. */
   selected: string | null;
   /** The visitor picked it: its billboard stays lit and the rest of the city dims. */
@@ -98,15 +98,18 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
   const [scale, setScale] = useState(1);
   const pick = useRef(onPick);
   pick.current = onPick;
-  const latest = useRef({ shops, selected, me, spotlight, padding });
-  latest.current = { shops, selected, me, spotlight, padding };
+  // One callback for every marker, so the memoized pins and billboards skip renders that don't change them.
+  const choose = useCallback((shop: ShopWithMenu) => pick.current(shop), []);
+  const latest = useRef({ shops, visible, selected, me, spotlight, padding });
+  latest.current = { shops, visible, selected, me, spotlight, padding };
 
   // Create the map once.
   useEffect(() => {
     if (!containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE as maplibregl.StyleSpecification,
+      style: CITY_STYLE,
+      pixelRatio: Math.min(window.devicePixelRatio, 2),
       center: DECCAN,
       zoom: 16.2,
       pitch: 56,
@@ -117,7 +120,6 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
     map.touchZoomRotate.disableRotation();
     map.setPadding(latest.current.padding);
     map.on('load', () => {
-      cityDay(map);
       // The spotlight sits between the city and the markers, so the open shop's billboard stays bright.
       const scrim = document.createElement('div');
       scrim.className = 'spotlight';
@@ -129,7 +131,9 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
       setReady(true);
     });
     return () => {
-      map.remove();
+      // Torn down after the next screen paints; StrictMode's re-mount reuses this container, so that one goes now.
+      if (map.getContainer().isConnected) map.remove();
+      else window.setTimeout(() => map.remove(), 0);
       mapRef.current = null;
       setReady(false);
     };
@@ -238,14 +242,16 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, placeKey]);
 
-  // Billboards follow the zoom, the open shop's spotlight follows the camera, and overlapping billboards give way.
+  // Billboards follow the zoom, the open shop's spotlight follows the camera, and overlapping billboards give way
+  // (again when the search or category shows other shops).
+  const visKey = visible ? [...visible].join() : null;
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const spotlight = () => {
       const scrim = scrimRef.current;
-      const { selected: id, shops: all, spotlight: on } = latest.current;
-      const shop = id && on ? all.find((s) => s.id === id) : null;
+      const { selected: id, shops: all, visible: shown, spotlight: on } = latest.current;
+      const shop = id && on ? all.find((s) => s.id === id && (!shown || shown.has(id))) : null;
       if (!scrim) return;
       scrim.classList.toggle('is-on', !!shop);
       if (!shop) return;
@@ -273,22 +279,29 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
         else kept.push(r);
       }
     };
-    const onZoom = () => setScale(boardScale(map.getZoom()));
     const settle = () => {
       declutter();
       spotlight();
     };
-    map.on('zoom', onZoom);
+    let resized = 0;
+    const onZoom = () => {
+      setScale(boardScale(map.getZoom()));
+      window.clearTimeout(resized);
+      resized = window.setTimeout(settle, 260);   // measure the boards again once their 220 ms resize has finished
+    };
+    // Once per zoom, not per frame (that re-rendered every marker and restyled every board); the boards' transition eases it.
+    map.on('zoomend', onZoom);
     map.on('move', spotlight);
     map.on('moveend', settle);
     const first = window.setTimeout(settle, 400);
     return () => {
       window.clearTimeout(first);
-      map.off('zoom', onZoom);
+      window.clearTimeout(resized);
+      map.off('zoomend', onZoom);
       map.off('move', spotlight);
       map.off('moveend', settle);
     };
-  }, [ready, slots]);
+  }, [ready, slots, visKey]);
 
   // Selecting a shop: light its billboard and dim the city (when picked), and let the billboards make way.
   useEffect(() => {
@@ -363,9 +376,10 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
         if (!slot) return null;
         const isSelected = shop.id === selected;
         const dim = spotlight && !!selected && !isSelected;
+        const hidden = !!visible && !visible.has(shop.id);
         return [
-          createPortal(<Pin key="pin" shop={shop} saving={savings[shop.id]} selected={isSelected} dim={dim} index={index} onPick={() => pick.current(shop)} />, slot.pin, `pin-${shop.id}`),
-          createPortal(<Billboard key="board" shop={shop} selected={isSelected} dim={dim} index={index} onPick={() => pick.current(shop)} />, slot.board, `board-${shop.id}`),
+          createPortal(<Pin key="pin" shop={shop} saving={savings[shop.id]} selected={isSelected} dim={dim} hidden={hidden} index={index} onPick={choose} />, slot.pin, `pin-${shop.id}`),
+          createPortal(<Billboard key="board" shop={shop} selected={isSelected} dim={dim} hidden={hidden} index={index} onPick={choose} />, slot.board, `board-${shop.id}`),
         ];
       })}
     </div>
@@ -373,17 +387,17 @@ export default function MapView({ me, shops, selected, spotlight, focus, focusKe
 }
 
 /** The mascot is the pin: open = its colour ring and a glow, busy = amber + hourglass, closed = grey + moon. */
-function Pin({ shop, saving, selected, dim, index, onPick }: {
-  shop: ShopWithMenu; saving: number; selected: boolean; dim: boolean; index: number; onPick: () => void;
+const Pin = memo(function Pin({ shop, saving, selected, dim, hidden, index, onPick }: {
+  shop: ShopWithMenu; saving: number; selected: boolean; dim: boolean; hidden: boolean; index: number; onPick: (shop: ShopWithMenu) => void;
 }) {
   const state = shop.status;
   return (
     <button type="button" tabIndex={-1} className={`pin is-${state}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
-      style={{ '--c': sectionOf(shop).color, '--i': index } as CSSProperties}
+      style={{ '--c': sectionOf(shop).color, '--i': index, display: hidden ? 'none' : undefined } as CSSProperties}
       aria-label={`${shop.name}, ${state}${saving ? `, save ${dollars(saving)}` : ''}`}
       onClick={(event) => {
         event.stopPropagation();
-        onPick();
+        onPick(shop);
       }}>
       <span className="pin-face"><img src={portraitOf(hostOf(shop))} alt="" /></span>
       <svg className="pin-tail" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M0 0h14L7 9.5z" /></svg>
@@ -391,26 +405,28 @@ function Pin({ shop, saving, selected, dim, index, onPick }: {
       {saving > 0 && <SaveChip amount={saving} size="s" grey={state === 'closed'} />}
     </button>
   );
-}
+});
 
 /** A roadside billboard with the shop's own ad: steel pole, catwalk with railing, a framed panel and three lamps. */
-function Billboard({ shop, selected, dim, index, onPick }: {
-  shop: ShopWithMenu; selected: boolean; dim: boolean; index: number; onPick: () => void;
+const Billboard = memo(function Billboard({ shop, selected, dim, hidden, index, onPick }: {
+  shop: ShopWithMenu; selected: boolean; dim: boolean; hidden: boolean; index: number; onPick: (shop: ShopWithMenu) => void;
 }) {
   const off = shop.status === 'closed';
+  // The same element while the shop is unchanged, so a dim or select toggle doesn't re-render the ad too.
+  const ad = useMemo(() => <Ad shop={shop} height={90} off={shop.status === 'closed'} radius={2} />, [shop]);
   return (
     <div data-board={shop.id} className={`board${off ? ' is-off' : ''}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
-      style={{ '--i': index } as CSSProperties} onClick={(event) => {
+      style={{ '--i': index, display: hidden ? 'none' : undefined } as CSSProperties} onClick={(event) => {
         event.stopPropagation();
-        onPick();
+        onPick(shop);
       }}>
       <span className="board-shadow" />
       <span className="board-pole" />
       <span className="board-panel">
         <span className="board-lamps"><i /><i /><i /></span>
-        <span className="board-frame"><Ad shop={shop} height={90} off={off} radius={2} /></span>
+        <span className="board-frame">{ad}</span>
         <span className="board-walk" />
       </span>
     </div>
   );
-}
+});
