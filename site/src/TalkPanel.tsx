@@ -22,6 +22,8 @@ const namedIn = (reply: string, menu: MenuItem[]) =>
 
 type State = 'idle' | 'listening' | 'thinking' | 'talking';
 
+const USE_CHROME = 'Voice works in Chrome. Open this page in Chrome to talk, or type your question.';
+
 /** greet: a first question asked as the panel opens (the owner's setup, so the mascot says hello). */
 export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu; onClose: () => void; greet?: string }) {
   const mascot = hostOf(shop);
@@ -103,19 +105,23 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       recognition.current?.stop();
       return;
     }
-    turn.current++;
+    const mine = ++turn.current;
     hush();
     const handle = listenOnce({
       onPartial: () => {},
       onFinal: (text) => {
+        if (mine !== turn.current) return;   // Back, or another question, while it listened
         recognition.current = null;
         setState('idle');
         void ask(text);
       },
       onError: (code) => {
+        if (mine !== turn.current) return;
         recognition.current = null;
         setState('idle');
-        setError(code === 'not-allowed' ? 'The mic is blocked: allow it in the browser, or type instead.' : 'Couldn’t hear that. Try again, or type instead.');
+        if (!speechSupported()) setTyping(true);
+        setError(code === 'not-allowed' ? 'The mic is blocked. Allow it from the icon by the address bar, or type instead.'
+          : !speechSupported() ? USE_CHROME : 'Couldn’t hear that. Try again, or type instead.');
       },
     });
     if (handle) {
@@ -124,6 +130,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       setError(null);
     } else {
       setTyping(true);
+      setError(USE_CHROME);
     }
   };
 
@@ -193,7 +200,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
         </button>
         <button type="button" className="icon-btn glass round" onClick={() => setTyping((t) => !t)} aria-label="Type instead"><Icon name="receipt" /></button>
       </div>
-      <p className="talk-tip">{speechSupported() ? 'Tap to talk · tap again to stop' : 'Type your question: this browser can’t listen'}</p>
+      <p className="talk-tip">{speechSupported() ? 'Tap to talk · tap again to stop' : 'Voice works in Chrome · type your question here'}</p>
     </div>
   );
 }

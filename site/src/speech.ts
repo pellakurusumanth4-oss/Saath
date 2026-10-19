@@ -32,9 +32,15 @@ type RecognitionWindow = Window & {
   webkitSpeechRecognition?: RecognitionCtor;
 };
 
+// Errors when the API is there but no speech service is behind it (in-app and Electron browsers, Chromium builds).
+const NO_SERVICE = ['network', 'service-not-allowed', 'language-not-supported'];
+// Brave has the API but fails at once; any browser that fails that way stays on typing for the rest of the page.
+let noService = 'brave' in navigator;
+
+/** Whether this browser can turn speech into words (Chrome, Edge, Safari); false once it has failed for lack of a service. */
 export function speechSupported(): boolean {
   const win = window as RecognitionWindow;
-  return Boolean(win.SpeechRecognition ?? win.webkitSpeechRecognition);
+  return !noService && Boolean(win.SpeechRecognition ?? win.webkitSpeechRecognition);
 }
 
 /** Start one listen phrase. Calls back with interim and final text; resolves the handle so callers can cancel. */
@@ -45,7 +51,7 @@ export function listenOnce(handlers: {
 }): RecognitionHandle | null {
   const win = window as RecognitionWindow;
   const Ctor = win.SpeechRecognition ?? win.webkitSpeechRecognition;
-  if (!Ctor) return null;
+  if (!Ctor || noService) return null;
   const recognition = new Ctor();
   recognition.lang = 'en-IN';
   recognition.interimResults = true;
@@ -67,6 +73,7 @@ export function listenOnce(handlers: {
     if (interim) handlers.onPartial(interim);
   };
   recognition.onerror = (event) => {
+    if (NO_SERVICE.includes(event?.error)) noService = true;
     if (!done) {
       done = true;
       handlers.onError(event?.error ?? 'unknown');
