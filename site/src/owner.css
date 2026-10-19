@@ -30,6 +30,7 @@
 .gate-or::before, .gate-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .demo-login { flex: none; width: 100%; height: 56px; font-size: 16.5px; }
 .gate-note { margin: 0; font: 600 12.5px/17px var(--body); color: var(--ink-3); text-align: center; }
+.gate-email { align-self: flex-start; margin: 2px 0 4px; padding: 6px 0; border: 0; background: none; color: var(--save-text); font: 700 14px var(--body); cursor: pointer; }
 .wiz-step h2:focus { outline: none; }
 .owner-colors { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .owner-colors button { width: 34px; height: 34px; padding: 0; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--line); cursor: pointer; }

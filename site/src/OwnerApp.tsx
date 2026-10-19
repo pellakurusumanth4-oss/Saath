@@ -79,6 +79,8 @@ export default function OwnerApp() {
 /** Signing in: the demo account in one tap (the main way in), or an owner's own email and password. No new accounts. */
 function OwnerGate() {
   const [busy, setBusy] = useState(false);
+  // The email form folds away behind a link, so the demo login (the main way in) shows without scrolling on small phones.
+  const [withEmail, setWithEmail] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const signIn = async (email: string, password: string) => {
     setBusy(true);
@@ -102,18 +104,24 @@ function OwnerGate() {
         <p className="signin-kicker">FOR BUSINESSES</p>
         <h1 className="signin-title">Put your business on Saath</h1>
         <p className="owner-help">Four short steps: your business and its timings, your mascot, your billboard, and where you are. Then your mascot greets visitors at your door, in its own voice.</p>
-        <form className="gate-form" onSubmit={submit}>
-          <label>
-            Email
-            <input name="email" type="email" required autoComplete="email" />
-          </label>
-          <label>
-            Password
-            <input name="password" type="password" required minLength={8} autoComplete="current-password" />
-          </label>
-          <button className="btn-ghost" type="submit" disabled={busy}>Sign in</button>
-        </form>
-        <p className="gate-or"><span>or</span></p>
+        {withEmail ? (
+          <>
+            <form className="gate-form" onSubmit={submit}>
+              <label>
+                Email
+                <input name="email" type="email" required autoComplete="email" autoFocus />
+              </label>
+              <label>
+                Password
+                <input name="password" type="password" required minLength={8} autoComplete="current-password" />
+              </label>
+              <button className="btn-ghost" type="submit" disabled={busy}>Sign in</button>
+            </form>
+            <p className="gate-or"><span>or</span></p>
+          </>
+        ) : (
+          <button type="button" className="gate-email" onClick={() => setWithEmail(true)}>Have an owner account? Sign in with email ›</button>
+        )}
         <button type="button" className="btn-go demo-login" disabled={busy} onClick={() => void signIn(DEMO_EMAIL, DEMO_PASSWORD)}>
           <Icon name="walk" size={19} />Log in with the demo account
         </button>
