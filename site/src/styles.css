@@ -142,6 +142,22 @@ a { color: inherit; }
 .ad-foot img { border-radius: 50%; border-style: solid; border-color: #fff; display: block; flex: none; }
 .ad-foot span { font-weight: 700; color: rgba(255, 255, 255, .92); text-shadow: 0 1px 4px rgba(0, 0, 0, .4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-tag { position: absolute; background: rgba(0, 0, 0, .35); color: #fff; font-weight: 800; letter-spacing: .06em; }
+/* The running ad: adTicker.ts flips data-frame every 3.5 s; the new frame slides up as the old one fades (transform and
+   opacity only), and between flips nothing animates. Boards alternate two beats (--ad-delay, MapView): each distinct delay
+   costs the main thread its own style passes per flip (one per board: ~22 ms/s on a laptop; two: ~7). */
+.ad-f { position: absolute; inset: 0; opacity: 0; transform: translateY(16%);
+  transition: opacity 450ms ease var(--ad-delay, 0ms), transform 0s linear calc(var(--ad-delay, 0ms) + 450ms); }
+.ad-run:not([data-frame]) > [data-f='0'], .ad-run[data-frame='0'] > [data-f='0'], .ad-run[data-frame='1'] > [data-f='1'], .ad-run[data-frame='2'] > [data-f='2'] {
+  opacity: 1; transform: none; transition: opacity 450ms ease var(--ad-delay, 0ms), transform 450ms cubic-bezier(.2, .8, .2, 1) var(--ad-delay, 0ms); }
+.ad-say { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+.ad-say em { font-style: normal; font-weight: 800; line-height: 1.3; letter-spacing: .08em; text-transform: uppercase; background: rgba(0, 0, 0, .28); }
+.ad-say b, .ad-meet b { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; line-height: 1.05; text-shadow: 0 2px 0 rgba(0, 0, 0, .12), 0 1px 4px rgba(0, 0, 0, .4);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.ad-say span, .ad-meet span { font-weight: 700; color: rgba(255, 255, 255, .92); text-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.ad-meet { display: flex; align-items: center; }
+.ad-meet img { flex: none; border-radius: 50%; border-style: solid; border-color: #fff; background: #fff; display: block; }
+.ad-meet div { display: flex; flex-direction: column; min-width: 0; }
+.ad-meet small { font-weight: 700; color: rgba(255, 255, 255, .8); line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }   /* two lines: a small board's name doesn't fit on one */
 
 /* ---------- the saving ---------- */
 
@@ -480,5 +496,5 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .pin, .board > *, .board-lamps i, .card, .card-podium, .card-podium .podium-figure, .card > *, .ring, .bars i, .toast { animation: none !important; }
   .card, .card-podium { animation: fade-up 150ms ease both !important; }
-  .board, .spotlight, .menu-row, .owner-menu li { transition: none; }
+  .board, .spotlight, .menu-row, .owner-menu li, .ad-f { transition: none; }
 }

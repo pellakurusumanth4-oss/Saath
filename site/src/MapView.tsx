@@ -379,7 +379,7 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
         const hidden = !!visible && !visible.has(shop.id);
         return [
           createPortal(<Pin key="pin" shop={shop} saving={savings[shop.id]} selected={isSelected} dim={dim} hidden={hidden} index={index} onPick={choose} />, slot.pin, `pin-${shop.id}`),
-          createPortal(<Billboard key="board" shop={shop} selected={isSelected} dim={dim} hidden={hidden} index={index} onPick={choose} />, slot.board, `board-${shop.id}`),
+          createPortal(<Billboard key="board" shop={shop} saving={savings[shop.id]} selected={isSelected} dim={dim} hidden={hidden} index={index} onPick={choose} />, slot.board, `board-${shop.id}`),
         ];
       })}
     </div>
@@ -407,16 +407,16 @@ const Pin = memo(function Pin({ shop, saving, selected, dim, hidden, index, onPi
   );
 });
 
-/** A roadside billboard with the shop's own ad: steel pole, catwalk with railing, a framed panel and three lamps. */
-const Billboard = memo(function Billboard({ shop, selected, dim, hidden, index, onPick }: {
-  shop: ShopWithMenu; selected: boolean; dim: boolean; hidden: boolean; index: number; onPick: (shop: ShopWithMenu) => void;
+/** A roadside billboard running the shop's own ad: steel pole, catwalk with railing, a framed panel and three lamps. */
+const Billboard = memo(function Billboard({ shop, saving, selected, dim, hidden, index, onPick }: {
+  shop: ShopWithMenu; saving: number; selected: boolean; dim: boolean; hidden: boolean; index: number; onPick: (shop: ShopWithMenu) => void;
 }) {
   const off = shop.status === 'closed';
   // The same element while the shop is unchanged, so a dim or select toggle doesn't re-render the ad too.
-  const ad = useMemo(() => <Ad shop={shop} height={90} off={shop.status === 'closed'} radius={2} />, [shop]);
+  const ad = useMemo(() => <Ad shop={shop} height={90} off={shop.status === 'closed'} radius={2} running saving={saving} />, [shop, saving]);
   return (
     <div data-board={shop.id} className={`board${off ? ' is-off' : ''}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
-      style={{ '--i': index, display: hidden ? 'none' : undefined } as CSSProperties} onClick={(event) => {
+      style={{ '--i': index, '--ad-delay': `${(index % 2) * 200}ms`, display: hidden ? 'none' : undefined } as CSSProperties} onClick={(event) => {
         event.stopPropagation();
         onPick(shop);
       }}>

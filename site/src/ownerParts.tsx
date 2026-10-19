@@ -69,12 +69,12 @@ type AdFields = Pick<Shop, 'ad_headline' | 'ad_sub' | 'ad_color' | 'ad_art'>;
 
 /** The billboard ad: a live preview, its headline and small line, its colour and its picture. */
 export function BillboardFields({ shop, onChange }: {
-  shop: Pick<Shop, 'name' | 'section' | 'friend' | 'status' | 'status_note' | 'ad_image_url'> & AdFields;
+  shop: Pick<Shop, 'name' | 'section' | 'friend' | 'status' | 'status_note' | 'ad_image_url' | 'special' | 'offers' | 'hours'> & AdFields;
   onChange: (patch: Partial<AdFields>) => void;
 }) {
   return (
     <>
-      <div className="wiz-ad-preview"><Ad shop={shop} height={170} width="100%" radius={16} /></div>
+      <div className="wiz-ad-preview"><Ad shop={shop} height={170} width="100%" radius={16} running /></div>
       <label className="wiz-field">
         <span>Headline <em>{shop.ad_headline.length}/24</em></span>
         <input name="ad_headline" value={shop.ad_headline} maxLength={24} placeholder="Chai like home." onChange={(e) => onChange({ ad_headline: e.target.value })} />

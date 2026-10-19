@@ -8,7 +8,7 @@ import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
 import Reviews from './Reviews';
-import { boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
+import { boardOf, hostOf, orderOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 import { useInert } from './useInert';
 
@@ -45,6 +45,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   const mascot = hostOf(shop);
   const section = sectionOf(shop);
   const off = shop.status === 'closed';
+  const saving = orderOf(shop, menu)?.saving ?? 0;
   const share = () => {
     const url = window.location.href;
     if (navigator.share) void navigator.share({ title: shop.name, url }).catch(() => {});
@@ -72,8 +73,8 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {shop.offers.length > 0 && <ul className="offers">{shop.offers.map((offer) => <li key={offer}>{offer}</li>)}</ul>}
 
           <h2 className="block-title">Their billboard on the map</h2>
-          <MapBoundary fallback={<Ad shop={shop} height={160} width="100%" off={off} />}>
-            <BoardPreview shop={shop} off={off} />
+          <MapBoundary fallback={<Ad shop={shop} height={160} width="100%" off={off} running saving={saving} />}>
+            <BoardPreview shop={shop} off={off} saving={saving} />
           </MapBoundary>
 
           {/* Shops registered on the owner page have no menu (the user: owners give no prices): no empty menu block. */}
@@ -98,8 +99,8 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   );
 }
 
-/** A small tilted look at the shop's billboard where it stands (not interactive). */
-function BoardPreview({ shop, off }: { shop: Shop; off: boolean }) {
+/** A small tilted look at the shop's billboard where it stands, its ad running (not interactive). */
+function BoardPreview({ shop, off, saving }: { shop: Shop; off: boolean; saving: number }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -126,7 +127,7 @@ function BoardPreview({ shop, off }: { shop: Shop; off: boolean }) {
       {slot && createPortal(
         <div className={`board is-still${off ? ' is-off' : ''}`}>
           <span className="board-shadow" /><span className="board-pole" />
-          <span className="board-panel"><span className="board-lamps"><i /><i /><i /></span><span className="board-frame"><Ad shop={shop} height={90} off={off} radius={2} /></span><span className="board-walk" /></span>
+          <span className="board-panel"><span className="board-lamps"><i /><i /><i /></span><span className="board-frame"><Ad shop={shop} height={90} off={off} radius={2} running saving={saving} /></span><span className="board-walk" /></span>
         </div>, slot)}
     </div>
   );
