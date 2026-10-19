@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import type { LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
-import { AR_READY, hostOf, portraitOf, sectionOf, updatedAt, walkMinutes, walkText, type ShopWithMenu } from './shops';
+import { hostOf, portraitOf, sectionOf, updatedAt, walkMinutes, walkText, type ShopWithMenu } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 
 export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: {
@@ -30,11 +30,9 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
 
   const rows = shop.menu.filter((item) => item.price !== null).slice(0, layout === 'panel' ? 4 : 2);
   const walk = walkText(me, shop);
-  const ar = `/ar/?${new URLSearchParams({ shop: shop.slug, friend: mascot.id, name: mascot.name, tall: String(mascot.tall) })}`;
   const actions = (
     <div className="actions">
       <button type="button" className="btn-dark" onClick={onTalk}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
-      {AR_READY.has(mascot.id) && <a className="btn-ghost square" href={ar} aria-label={`Meet ${mascot.name} in AR`}><Icon name="ar" size={19} /></a>}
       {off
         ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>
         : <button type="button" className="btn-go" onClick={onWalk}><Icon name="walk" size={19} />Walk{me ? ` · ${walkMinutes(me, shop)} min` : ''}</button>}

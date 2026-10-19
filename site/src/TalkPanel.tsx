@@ -6,7 +6,7 @@ import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
 import { speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
-import { AR_READY, hostOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
+import { hostOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
 import { Icon, MenuRow, Podium } from './ui';
 
 const HINTS = [
@@ -184,9 +184,7 @@ export default function TalkPanel({ shop, onClose }: { shop: ShopWithMenu; onClo
         <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>
-        {AR_READY.has(mascot.id)
-          ? <a className="icon-btn glass round" href={`/ar/?${new URLSearchParams({ shop: shop.slug, friend: mascot.id, name: mascot.name, tall: String(mascot.tall) })}`} aria-label={`Meet ${mascot.name} in AR`}><Icon name="ar" /></a>
-          : <button type="button" className="icon-btn glass round" onClick={() => setTyping((t) => !t)} aria-label="Type instead"><Icon name="receipt" /></button>}
+        <button type="button" className="icon-btn glass round" onClick={() => setTyping((t) => !t)} aria-label="Type instead"><Icon name="receipt" /></button>
       </div>
       <p className="talk-tip">{speechSupported() ? 'Tap to talk · tap again to stop' : 'Type your question: this browser can’t listen'}</p>
     </div>

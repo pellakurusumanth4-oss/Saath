@@ -7,7 +7,7 @@ import type { LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
-import { AR_READY, boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
+import { boardOf, hostOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 
 export default function ShopPage({ slug, me, onTalk, onWalk }: {
@@ -70,10 +70,6 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
         </div>
         <div className="actions sticky">
           <button type="button" className="btn-dark" onClick={() => onTalk(shop.id)}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
-          {AR_READY.has(mascot.id) && (
-            <a className="btn-ghost square" aria-label={`Meet ${mascot.name} in AR`}
-              href={`/ar/?${new URLSearchParams({ shop: shop.slug, friend: mascot.id, name: mascot.name, tall: String(mascot.tall) })}`}><Icon name="ar" size={19} /></a>
-          )}
           {off
             ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>
             : <button type="button" className="btn-go" onClick={() => onWalk(shop.id)}><Icon name="walk" size={19} />Walk{me ? ` · ${walkMinutes(me, shop)} min` : ''}</button>}

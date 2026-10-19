@@ -6,7 +6,6 @@ import { ago, figureOf, rupees, statusText, type MenuItem, type Shop } from './s
 const PATHS: Record<string, ReactNode> = {
   mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
   walk: <><path d="M8.5 3.5c-1.7 0-2.8 2-2.8 4.4 0 2.2 1 4.1 2.5 4.1s2.5-1.9 2.5-4.1c0-2.4-.6-4.4-2.2-4.4zM15.5 8.5c-1.6 0-2.2 2-2.2 4.4 0 2.2 1 4.1 2.5 4.1s2.5-1.9 2.5-4.1c0-2.4-1.1-4.4-2.8-4.4z" /><path d="M6.6 15.5l3.4.4M13.9 20l3.4-.4" /></>,
-  ar: <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5" />,
   hourglass: <path d="M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9s8 4 8 9" />,
   moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></>,

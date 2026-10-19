@@ -93,10 +93,6 @@ export const hostOf = (shop: Pick<Shop, 'friend' | 'section'>): Mascot =>
 export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png`;
 export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.png`;
 
-/** Mascots whose AR rig is in the site's /ar/rigs/ (the AR page's), so "Meet in AR" shows. */
-// All 12 pass the AR simulator's friend pass and Juno its shop-menu pass (main session, 19 Oct 02:29).
-export const AR_READY = new Set(['rosa', 'kiran', 'juno', 'otto', 'sunny', 'nia', 'mika', 'max', 'omar', 'lina', 'sana', 'kai']);
-
 /** What the status says, in words: "Busy · about a 10 min wait", "Closed · opens at 11 am". */
 export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
   const word = { open: 'Open', busy: 'Busy', closed: 'Closed' }[shop.status];

@@ -41,7 +41,6 @@ a { color: inherit; }
 .btn-ghost { background: rgba(14, 23, 38, .07); color: var(--ink); }
 .btn-dark:active, .btn-go:active, .btn-ghost:active { transform: translateY(1px); filter: brightness(.96); }
 .btn-dark:disabled, .btn-go:disabled, .btn-ghost:disabled { opacity: .6; cursor: default; }
-.square { flex: none; width: 52px; padding: 0; }
 .small { flex: none; height: 38px; padding: 0 14px; border-radius: 12px; font-size: 14px; }
 .wide { width: 100%; }
 
