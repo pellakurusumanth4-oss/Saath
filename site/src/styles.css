@@ -80,7 +80,8 @@ a { color: inherit; }
 /* ---------- the map ---------- */
 
 .map-wrap { position: absolute; inset: 0; background: var(--sky); }
-.map { position: absolute; inset: 0; }
+/* .maplibregl-map sets position: relative, and its stylesheet now loads with the lazy map: beat it whatever the order. */
+.map, .map.maplibregl-map { position: absolute; inset: 0; }
 .maplibregl-marker:has(> .board.is-selected) { z-index: 1; }
 .map-fog { position: absolute; left: 0; right: 0; top: 0; height: 34%; background: linear-gradient(180deg, #CFEFFF 0%, rgba(207, 239, 255, .85) 30%, rgba(207, 239, 255, 0) 100%); pointer-events: none; }
 .map-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; font-weight: 700; color: var(--ink-2); background: var(--sky); }
@@ -121,7 +122,8 @@ a { color: inherit; }
 .board-pole { position: absolute; left: calc(50% - 5px); bottom: 0; width: 10px; height: 96px; background: linear-gradient(90deg, #8E97A8 0 60%, #737C8E 60%); border-radius: 2px 2px 0 0; }
 .board-panel { pointer-events: auto; position: absolute; left: 0; right: 0; bottom: 88px; display: flex; flex-direction: column; align-items: center; transform: perspective(500px) rotateX(-20deg); transform-origin: 50% 100%; }
 .board-lamps { display: flex; justify-content: space-between; width: 110px; height: 7px; margin-bottom: -2px; }
-.board-lamps i { width: 12px; height: 7px; border-radius: 3px 3px 0 0; background: #FFF3C4; box-shadow: 0 0 6px rgba(255, 220, 130, .8); animation: twinkle 3s ease-in-out infinite; }
+.board-lamps i { width: 12px; height: 7px; border-radius: 3px 3px 0 0; background: #FFF3C4; box-shadow: 0 0 6px rgba(255, 220, 130, .8); animation: twinkle 3s ease-in-out 2; }   /* finite: an infinite twinkle keeps the idle map drawing ~55 frames/s */
+[inert] .board-lamps i { animation-play-state: paused; }   /* nobody sees them behind a dialog */
 .board.is-off .board-lamps i { background: #6B7280; box-shadow: none; animation: none; }
 .board-frame { display: block; padding: 4px; border-radius: 4px; background: #2E3442; box-shadow: 0 10px 18px rgba(16, 24, 40, .28); }
 .board-frame .ad { display: block; }
@@ -331,9 +333,7 @@ a { color: inherit; }
 .talk-stage { position: relative; display: flex; align-items: center; justify-content: center; width: min(340px, 86vw); aspect-ratio: 1; margin-top: 6px; flex: none; }
 .ring { position: absolute; border-radius: 50%; background: color-mix(in srgb, var(--c) 14%, transparent); }
 .ring.r1 { inset: 0; } .ring.r2 { inset: 12%; } .ring.r3 { inset: 24%; }
-.talk-screen.is-talking .ring { animation: pulse 900ms ease-in-out infinite; }
-.talk-screen.is-talking .ring.r2 { animation-delay: 150ms; }
-.talk-screen.is-talking .ring.r3 { animation-delay: 300ms; }
+.talk-screen.is-talking .ring.r1 { animation: pulse 900ms ease-in-out infinite; }   /* one ring: three cost ~7 points of main thread per reply */
 .talk-screen.is-listening .ring.r1 { box-shadow: 0 0 0 4px var(--go); }
 .talk-podium { position: relative; z-index: 1; }
 .talk-pill { display: inline-flex; align-items: center; gap: 8px; margin-top: -6px; padding: 8px 16px; border-radius: 999px; background: var(--ink); color: #fff; font: 700 14.5px var(--body); text-align: center; }
@@ -374,7 +374,7 @@ a { color: inherit; }
 .offers { margin: 10px 0; padding: 10px 14px 10px 30px; border-radius: 16px; background: #EAFBF0; font: 700 14px/20px var(--body); }
 .block-title { margin: 22px 0 8px; font: 800 19px var(--display); }
 .board-preview { position: relative; height: 210px; border-radius: var(--r-card); overflow: hidden; background: var(--sky); }
-.board-preview-map { position: absolute; inset: 0; }
+.board-preview-map, .board-preview-map.maplibregl-map { position: absolute; inset: 0; }
 .menu-rows.full .menu-row:first-child { border-top: 0; }
 .story { margin: 16px 0; padding: 14px 16px; border-radius: var(--r-card); background: var(--soft); }
 .story b { font: 800 16px var(--display); }

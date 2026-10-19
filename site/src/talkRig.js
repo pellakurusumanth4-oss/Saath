@@ -377,6 +377,55 @@ const SWAY = {
 // sideways as a pendulum would at each point's depth below the root (a shear): rotating it about one centre would lift one
 // side as the other drops.
 
+// Drawing in place. Each drawing is still written as SVG markup (the design's own drawers write strings), but the page
+// keeps its elements: the figure is a fixed row of part groups, a part whose only change is where it is gets a new
+// transform, and a part whose markup changed is read by a small parser (our own markup only: tags with double-quoted
+// attributes) and only the attributes that differ are set. Elements are made or dropped only where a part's shape
+// changes (a fist opens, the mouth shows teeth). Re-parsing ~200 nodes as HTML on every drawing cost more than the
+// drawing itself (bolt-one's profile, 20 Oct).
+const SVGNS = 'http://www.w3.org/2000/svg';
+const TAG = /<(\/?)([a-zA-Z]+)([^>]*?)(\/?)>/g, ATTR = /([a-zA-Z:-]+)="([^"]*)"/g;
+function parseSVG(s) {
+  const top = [], stack = [top]; let m;
+  TAG.lastIndex = 0;
+  while ((m = TAG.exec(s))) {
+    if (m[1]) { if (stack.length > 1) stack.pop(); continue; }
+    const attrs = []; let a; ATTR.lastIndex = 0;
+    while ((a = ATTR.exec(m[3]))) attrs.push(a[1], a[2]);
+    const node = { tag: m[2], attrs, kids: [] };
+    stack[stack.length - 1].push(node);
+    if (!m[4]) stack.push(node.kids);
+  }
+  return top;
+}
+function patchKids(parent, nodes) {
+  const live = parent.childNodes;
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]; let el = live[i];
+    if (!el || el.nodeName !== n.tag) {
+      const fresh = document.createElementNS(SVGNS, n.tag); fresh._a = {};
+      if (el) parent.replaceChild(fresh, el); else parent.appendChild(fresh);
+      el = fresh;
+    }
+    const cur = el._a || (el._a = {}), A = n.attrs;
+    for (let k = 0; k < A.length; k += 2) if (cur[A[k]] !== A[k + 1]) { el.setAttribute(A[k], A[k + 1]); cur[A[k]] = A[k + 1]; }
+    for (const k in cur) { let kept = false; for (let j = 0; j < A.length; j += 2) if (A[j] === k) { kept = true; break; } if (!kept) { el.removeAttribute(k); delete cur[k]; } }
+    patchKids(el, n.kids);
+  }
+  while (live.length > nodes.length) parent.removeChild(parent.lastChild);
+}
+// parts: markup strings, or { t: transform, inner: markup, cls } for a group that moves as a whole
+function drawParts(svg, parts) {
+  const fig = svg.querySelector('.fig');
+  const slots = fig._parts || (fig._parts = parts.map(() => ({ g: fig.appendChild(document.createElementNS(SVGNS, 'g')), s: null, t: null })));
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i], slot = slots[i], whole = typeof part !== 'string', inner = whole ? part.inner : part, t = whole ? part.t : null;
+    if (whole && part.cls && slot.g.getAttribute('class') !== part.cls) slot.g.setAttribute('class', part.cls);
+    if (t !== slot.t) { if (t == null) slot.g.removeAttribute('transform'); else slot.g.setAttribute('transform', t); slot.t = t; }
+    if (inner !== slot.s) { patchKids(slot.g, parseSVG(inner)); slot.s = inner; }
+  }
+}
+
 function makeRig(ID) {
   const c = CAST.find((x) => x.id === ID), b = BASES[c.base], sw = c.sw ?? (c.base === 'young' ? 16 : c.fem ? 18.5 : 21);
   const SK = SKIN[c.skin], CHIN = [0, b.sy - (c.base === 'young' ? 4.5 : 7)], HS = b.h / 40, ARM = b.upper + b.fore;
@@ -581,7 +630,23 @@ function makeRig(ID) {
     return { a: [...POSES[c.props[i] ? (['raise', 'wave', 'hold'].includes(d) ? 'hold' : d === 'hip' ? 'hip' : 'hang') : d === 'hip' ? 'hip' : 'rest']], hand: 'fist' }; };
   const toT = (side, spec) => spec.T || (() => { const P = PIV(side), { W } = fk(P, side, spec.a); return [W[0] - P[0], W[1] - P[1]]; })();
   let uidN = 0;
-  function apply(svg, p) {
+  // The pose rounded to steps finer than a fifth of a pixel on the talk stage (1 cm is about 2 px there): a frame whose
+  // rounded pose is the last one's is not drawn again, so breathing and the small idle moves stop re-painting the
+  // figure many times a second for changes no one can see.
+  const Q = (v, step) => Math.round((v || 0) / step) * step;
+  function rounded(p) {
+    const h = p.head || {}, fc = p.face || {}, L = fc.look;
+    const arm = (a) => a && { a: a.a && [Q(a.a[0], 0.25), Q(a.a[1], 0.25)], T: a.T && [Q(a.T[0], 0.1), Q(a.T[1], 0.1)], hand: a.hand, ang: a.ang == null ? undefined : Q(a.ang, 0.5), curl: a.curl };
+    return { x: Q(p.x, 0.1), y: Q(p.y, 0.1), rot: Q(p.rot, 0.1), breath: Q(p.breath, 1 / 12), shrug: Q(p.shrug, 0.04), foot: p.foot, sway: Q(p.sway, 0.15),
+      head: { roll: Q(h.roll, 0.15), yaw: Q(h.yaw, 0.01), nod: Q(h.nod, 0.05) },
+      face: { blink: Q(fc.blink, 0.05), look: L && [Q(L[0], 0.05), Q(L[1], 0.05)], squint: Q(fc.squint, 0.02), browUp: Q(fc.browUp, 0.02), browIn: Q(fc.browIn, 0.02),
+        browTilt: Q(fc.browTilt, 0.02), smile: fc.smile == null ? undefined : Q(fc.smile, 0.02), open: Q(fc.open, 0.02), wide: Q(fc.wide, 0.04), teeth: fc.teeth || 0, blush: Q(fc.blush, 0.04) },
+      arms: p.arms && { [-1]: arm(p.arms[-1]), [1]: arm(p.arms[1]) } };
+  }
+  function apply(svg, pose) {
+    const p = rounded(pose), key = JSON.stringify(p);
+    if (svg._pose === key) return;   // nothing visible changed since the last drawing
+    svg._pose = key;
     const id = svg.dataset.uid || (svg.dataset.uid = 'r' + ID + (uidN++));
     const k = 1 + 0.012 * (p.breath || 0), rot = p.rot || 0, px = p.x || 0, py = p.y || 0, lift = 2.4 * (p.shrug || 0);
     const body = `translate(${f(px)} ${f(py)}) rotate(${f(rot)} 0 ${b.wy}) translate(0 ${b.wy}) scale(1 ${f(k)}) translate(0 ${-b.wy})`;
@@ -605,21 +670,24 @@ function makeRig(ID) {
     if (c.hat && sway && sway.hat) HATS[c.hat] = (cc) => brows + `<g transform="rotate(${f(sa * sway.hat.k)} ${sway.hat.pivot[0]} ${sway.hat.pivot[1]}) translate(${f(yaw * 0.6)} 0)">${HATS0[c.hat](cc)}</g>`;
     else if (c.hat) HATS[c.hat] = (cc) => brows + `<g transform="translate(${f(yaw * 0.6)} 0)">${HATS0[c.hat](cc)}</g>`;
     face = () => { const r = faceDraw({ ...(p.face || {}), yaw, nod }, id); brows = r.brows; return r.face; };
-    let head = headGroup(c, b, 0).replace(/^<g id="head-[^"]*" transform="[^"]*">/, `<g class="head" transform="${headT}">`);
-    if (!c.hat) head = head.replace(/<\/g>$/, brows + '</g>');
+    const head = headGroup(c, b, 0).replace(/^<g id="head-[^"]*" transform="[^"]*">/, '').replace(/<\/g>$/, '') + (c.hat ? '' : brows);
     HAIR[ID] = HAIR0[ID]; if (c.hat) HATS[c.hat] = HATS0[c.hat];
     const props = [-1, 1].map((side, i) => c.props[i] ? { svg: PROPS[c.props[i]](arms[side].C), behind: arms[side].W[1] > arms[side].E[1] + 2 } : null);
     const bb = lift ? { ...b, sy: b.sy - lift } : b, TOR = torso(bb, c, sw);
-    let s = `<ellipse class="contact" cx="${f(px * 0.5)}" cy="1.2" rx="${sw + 6}" ry="3.4" fill="#2B2433" opacity="0.12"/>` + legsAt(J, body);
     const hu = hairAt(sa, yaw).under;
-    if (hu) s += `<g transform="${headT}">${inked('hair-under', [{ d: hu, fill: c.hairColor }])}</g>`;
-    s += `<g transform="${body}">${inked('neck', [{ d: `M-4.6,${CHIN[1] - 4}L4.6,${CHIN[1] - 4}L5,${b.sy}L-5,${b.sy}Z`, fill: SK[1] }], 0.8)}` +
-      `<g id="torso">${inked('top', [{ d: TOR.d, fill: c.top }])}${c.details.map((d) => DETAILS[d](bb, c, TOR, sw)).join('')}</g>` + torsoExtras(c, b) + '</g>';
-    s += head + `<g id="prop-back">${props.filter((q) => q && q.behind).map((q) => q.svg).join('')}</g>`;
-    s += `<g id="arms">${arms[-1].svg}${arms[1].svg}</g><g id="prop">${props.filter((q) => q && !q.behind).map((q) => q.svg).join('')}</g>`;
-    svg.querySelector('.fig').innerHTML = s;
+    drawParts(svg, [
+      `<ellipse class="contact" cx="${f(px * 0.5)}" cy="1.2" rx="${sw + 6}" ry="3.4" fill="#2B2433" opacity="0.12"/>`,
+      legsAt(J, body),
+      { t: headT, inner: hu ? inked('hair-under', [{ d: hu, fill: c.hairColor }]) : '' },
+      { t: body, inner: inked('neck', [{ d: `M-4.6,${CHIN[1] - 4}L4.6,${CHIN[1] - 4}L5,${b.sy}L-5,${b.sy}Z`, fill: SK[1] }], 0.8) +
+        `<g id="torso">${inked('top', [{ d: TOR.d, fill: c.top }])}${c.details.map((d) => DETAILS[d](bb, c, TOR, sw)).join('')}</g>` + torsoExtras(c, b) },
+      { t: headT, inner: head, cls: 'head' },
+      props.filter((q) => q && q.behind).map((q) => q.svg).join(''),
+      arms[-1].svg + arms[1].svg,
+      props.filter((q) => q && !q.behind).map((q) => q.svg).join(''),
+    ]);
   }
-  const make = (svg, vb) => { svg.setAttribute('viewBox', vb.join(' ')); svg.innerHTML = '<g class="fig"></g>'; return svg; };
+  const make = (svg, vb) => { svg.setAttribute('viewBox', vb.join(' ')); svg.innerHTML = '<g class="fig"></g>'; svg._pose = null; return svg; };
   // framing: the whole figure (as the AR card), or from the hips up (a video-call shot: the face and hands read)
   const VB = { full: [-b.H * 0.46, -(b.H + 36), b.H * 0.92, b.H + 44],
     waist: c.base === 'young' ? [-61, -162, 122, 122] : [-76, -220, 152, 152] };   // young: room for Max's curls and Kai's hair

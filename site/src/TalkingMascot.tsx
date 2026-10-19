@@ -47,8 +47,8 @@ export default function TalkingMascot({ mascot, color, state, speech, grey = fal
           setFailed(true);
           return;
         }
-        // about 30 drawings a second while a reply plays, 15 otherwise: each one rebuilds the whole figure
-        tick = window.setTimeout(() => { raf = requestAnimationFrame(frame); }, L.clock < L.until ? 20 : 50);
+        // about 30 drawings a second while a reply plays (smooth lips), 8 otherwise (breathing, blinks)
+        tick = window.setTimeout(() => { raf = requestAnimationFrame(frame); }, L.clock < L.until ? 30 : 120);
       };
       raf = requestAnimationFrame(frame);
     }).catch(() => { if (!gone) setFailed(true); });
