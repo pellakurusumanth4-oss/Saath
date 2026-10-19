@@ -95,7 +95,7 @@ export default function App() {
     const pool = open.length ? open : shown;
     return [...pool].sort((a, b) => (me ? distanceM(me, a) - distanceM(me, b) : (orderOf(b, b.menu)?.saving ?? 0) - (orderOf(a, a.menu)?.saving ?? 0)))[0] ?? null;
   }, [shown, me]);
-  const selected = shops.find((shop) => shop.id === selectedId) ?? (desktop ? fallback : null);
+  const selected = shown.find((shop) => shop.id === selectedId) ?? (desktop ? fallback : null);
 
   const focusOn = (spot: LatLng) => setFocus({ spot, key: `${spot.lat},${spot.lng},${Date.now()}` });
   const pick = useCallback((shop: ShopWithMenu) => {
@@ -192,6 +192,7 @@ export default function App() {
     setTrip((t) => t && { ...t, walking: true, started: Date.now() });
   };
   const stopTrip = () => {
+    if (walkView) setMySpot(walkView.me); // where the walk ended, not where it started
     setTrip(null);
     setWalkView(null);
   };
@@ -203,6 +204,12 @@ export default function App() {
     stopTrip();
   };
   const doorShop = door ? shops.find((shop) => shop.id === door.shopId) ?? null : null;
+  // A shop that leaves the list (unpublished) ends its walk or door step, which would otherwise have no controls.
+  useEffect(() => {
+    if (trip && !tripShop) stopTrip();
+    if (door && !doorShop) setDoor(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripShop, doorShop]);
   const doorOrder = doorShop ? orderOf(doorShop, doorShop.menu) : null;
   const talking = talkingId ? shops.find((shop) => shop.id === talkingId) ?? null : null;
   const busy = !!trip || !!door; // a walk or the door covers the shop card and the phone's search
@@ -219,6 +226,7 @@ export default function App() {
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
+      <h1 className="sr-only">Saath: local shops near you</h1>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
         <MapView me={walkView?.me ?? me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)}
           focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
@@ -301,7 +309,7 @@ export default function App() {
             pick(shop);
             startTrip(shop);
           }
-          window.location.hash = '#/';
+          window.location.replace('#/');
         }} />
       )}
       {page === 'business' && <BusinessPage shops={shops} />}

@@ -261,6 +261,7 @@ async function speakWithEleven(friendId: string, text: string): Promise<SpeakHan
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ mode: 'speak', friendId, text }),
+        signal: AbortSignal.timeout?.(20000),
       });
       if (!response.ok) {
         console.warn('ElevenLabs voice unavailable', response.status, await response.text().catch(() => ''));

@@ -33,6 +33,9 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
   };
   const save = (patch: Partial<Shop>) => {
     setShop((current) => ({ ...current, ...patch }));
+    // The setup requires these, so an emptied one waits until it's long enough again.
+    if (patch.about !== undefined && patch.about.trim().length < 8) return setState('Not saved yet: say what you do in a few words.');
+    if (patch.hours !== undefined && patch.hours.trim().length < 3) return setState('Not saved yet: add your timings.');
     for (const [key, value] of Object.entries(patch)) (pending.current as Record<string, unknown>)[key] = typeof value === 'string' ? value.trim() : value;
     setState('Saving…');
     window.clearTimeout(timer.current);
@@ -115,7 +118,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
         </div>
       </div>
 
-      {talking && <TalkPanel shop={{ ...shop, menu: [] }} greet="Hi! What is this place?" onClose={() => setTalking(false)} />}
+      {talking && <TalkPanel shop={{ ...shop, menu: [] }} greet="Hi! What is this place?" shopLink={false} onClose={() => setTalking(false)} />}
     </main>
   );
 }

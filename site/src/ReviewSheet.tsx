@@ -25,7 +25,7 @@ export default function ReviewSheet({ shop, visit, onDone }: { shop: ShopWithMen
     const { error: failed } = await db.rpc('post_review', { p_visit: visit, p_rating: rating, p_body: body.trim() });
     setPosting(false);
     // One review per visit, and one visit per person, shop and day: a second review the same day is refused.
-    if (failed) setError(failed.message.includes('already-reviewed') ? 'You’ve already reviewed this visit today.' : 'Couldn’t post it. Check the connection and try again.');
+    if (failed) setError(failed.message.includes('already-reviewed') ? 'This visit was already reviewed from this network today.' : 'Couldn’t post it. Check the connection and try again.');
     else onDone(true);
   };
 

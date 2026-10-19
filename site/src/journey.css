@@ -164,6 +164,7 @@
 .code-top { position: relative; flex: none; height: 330px; padding: calc(64px + env(safe-area-inset-top)) 20px 0; display: flex; flex-direction: column; align-items: center; text-align: center; color: #fff;
   background: linear-gradient(160deg, color-mix(in srgb, var(--c) 45%, #04121A), color-mix(in srgb, var(--c) 70%, #04121A)); }
 .code-back { position: absolute; left: 14px; top: calc(12px + env(safe-area-inset-top)); width: 44px; height: 44px; background: rgba(14, 23, 38, .55); }
+.code-top :focus-visible { outline-color: #fff; }
 .code-top img { width: 84px; height: 84px; border-radius: 50%; border: 4px solid #fff; background: #fff; }
 .code-top h2 { margin: 12px 0 0; max-width: 320px; font: 800 22px/26px var(--display); }
 .code-top p { margin: 4px 0 0; font: 600 14px var(--body); color: #fff; }

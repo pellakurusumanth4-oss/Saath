@@ -378,7 +378,7 @@ function Pin({ shop, saving, selected, dim, index, onPick }: {
 }) {
   const state = shop.status;
   return (
-    <button type="button" className={`pin is-${state}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
+    <button type="button" tabIndex={-1} className={`pin is-${state}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
       style={{ '--c': sectionOf(shop).color, '--i': index } as CSSProperties}
       aria-label={`${shop.name}, ${state}${saving ? `, save ${dollars(saving)}` : ''}`}
       onClick={(event) => {

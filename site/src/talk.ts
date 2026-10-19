@@ -22,6 +22,7 @@ export async function askFriend(friendId: string, messages: ChatMessage[], shop:
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({ friendId, messages, shop }),
+    signal: AbortSignal.timeout?.(20000), // a reply that never comes would leave the mascot thinking forever
   });
   if (!response.ok) {
     if (response.status === 429) {

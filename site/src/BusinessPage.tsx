@@ -14,7 +14,7 @@ export default function BusinessPage({ shops }: { shops: ShopWithMenu[] }) {
           <a href="#/">Explore the map →</a>
         </div>
         <p className="kicker">FOR LOCAL BUSINESSES</p>
-        <h1 className="business-title">Your mascot. Your landmark. Your walk-ins.</h1>
+        <h1 className="business-title">Your mascot. Your landmark. <span style={{ whiteSpace: 'nowrap' }}>Your walk-ins.</span></h1>
         <p className="business-lead">We design a mascot that is only yours and raise your billboard beside your shop on the Saath map, with your own ad on it. Visitors find you on the map, and walk over.</p>
         <ul className="benefits">
           <li><Icon name="star" /><div><b>A mascot made for you</b>Your pin on the map; it greets visitors and tells them what you do and when you’re open.</div></li>

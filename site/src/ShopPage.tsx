@@ -16,6 +16,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
 }) {
   const { shop, menu, missing } = useShop(slug);
   const [now, setNow] = useState(() => Date.now());
+  const [copied, setCopied] = useState(false); // where there's no share sheet, the link is copied instead
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(tick);
@@ -35,7 +36,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
   const share = () => {
     const url = window.location.href;
     if (navigator.share) void navigator.share({ title: shop.name, url }).catch(() => {});
-    else void navigator.clipboard?.writeText(url);
+    else void navigator.clipboard?.writeText(url).then(() => setCopied(true), () => {});
   };
 
   return (
@@ -44,7 +45,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
         <div className="shop-hero">
           <Ad shop={shop} height={262} width="100%" off={off} radius={0} className="hero-ad" />
           <a className="icon-btn glass hero-back" href="#/" aria-label="Back to the map"><Icon name="back" /></a>
-          <button type="button" autoFocus className="icon-btn glass hero-share" onClick={share} aria-label="Share"><Icon name="share" /></button>
+          <button type="button" autoFocus className="icon-btn glass hero-share" onClick={share} aria-label={copied ? 'Link copied' : 'Share'} title={copied ? 'Link copied' : undefined}><Icon name={copied ? 'check' : 'share'} /></button>
         </div>
         <div className="shop-body">
           <Podium mascot={mascot} color={section.color} grey={off} height={150} className="shop-podium" />

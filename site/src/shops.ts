@@ -207,7 +207,11 @@ export function useShop(slug: string): { shop: Shop | null; menu: MenuItem[]; mi
     let channel: RealtimeChannel | null = null;
     const load = async () => {
       const { data, error } = await db.from('shops').select(`${SHOP_COLUMNS},menu_items(${MENU_COLUMNS})`).eq('slug', slug).eq('published', true).maybeSingle();
-      if (!live || error) return; // on an error keep what's shown; the next change loads again
+      if (!live) return;
+      if (error) { // keep what's shown and try again, as useShops does
+        window.setTimeout(() => { if (live) void load(); }, 3000);
+        return;
+      }
       if (!data) {
         setState({ shop: null, menu: [], missing: true });
         return;

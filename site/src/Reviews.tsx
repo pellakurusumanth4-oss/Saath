@@ -51,7 +51,7 @@ function ReviewItem({ review, shopName, now, owner, onChange }: { review: Review
   return (
     <li className="review">
       <div className="review-top">
-        <span className="review-stars-s" aria-label={`${review.rating} of 5 stars`}>{'★'.repeat(review.rating)}<i>{'★'.repeat(5 - review.rating)}</i></span>
+        <span className="review-stars-s" role="img" aria-label={`${review.rating} of 5 stars`}>{'★'.repeat(review.rating)}<i>{'★'.repeat(5 - review.rating)}</i></span>
         {review.visit_id && <span className="review-verified"><Icon name="check" size={11} stroke={3} />Verified visit</span>}
         <span className="review-when">{ago(review.created_at, now)}</span>
       </div>

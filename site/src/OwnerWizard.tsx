@@ -271,7 +271,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
     <>
       <section className={`wizard is-${made ? 'live' : step}`} style={{ '--sheet': made ? LIVE_SHEET : STEPS[index].sheet } as CSSProperties} aria-label="Put your business on the map">
         <header className="wiz-head">
-          <button type="button" className="icon-btn" aria-label="Back" disabled={index === 0 || !!made} onClick={() => go(STEPS[index - 1].id)}><Icon name="back" /></button>
+          <button type="button" className="icon-btn" aria-label="Back" disabled={index === 0 || !!made || busy} onClick={() => go(STEPS[index - 1].id)}><Icon name="back" /></button>
           <div className="wiz-step">
             <small>{made ? 'Live on the map' : `Step ${index + 1} of ${STEPS.length}`}</small>
             <h2 ref={head} tabIndex={-1}>{made ? 'You’re live' : STEPS[index].label}</h2>
@@ -290,7 +290,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
           {action}
         </footer>
       </section>
-      {talking && made && <TalkPanel shop={{ ...made, menu: [] }} greet="Hi! What is this place?" onClose={() => setTalking(false)} />}
+      {talking && made && <TalkPanel shop={{ ...made, menu: [] }} greet="Hi! What is this place?" shopLink={false} onClose={() => setTalking(false)} />}
     </>
   );
 }

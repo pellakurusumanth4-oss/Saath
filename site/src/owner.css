@@ -145,3 +145,9 @@
 @media (prefers-reduced-motion: reduce) {
   .wizard, .wiz-podium .podium-figure { animation: none; transition: none; }
 }
+
+/* At 360 px the two setup buttons stack, so 'My shop is here' keeps its padding. */
+@media (max-width: 380px) {
+  .wiz-actions { flex-direction: column; }
+  .wiz-actions > *, .wiz-actions .btn-ghost { flex: none; }
+}

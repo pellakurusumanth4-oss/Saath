@@ -234,7 +234,7 @@ a { color: inherit; }
 
 /* ---------- near you ---------- */
 
-.near-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 36dvh; z-index: 30; border-radius: var(--r-panel) var(--r-panel) 0 0; padding: 8px 16px 0; overflow-y: auto; overscroll-behavior: contain; }
+.near-sheet { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; height: 36dvh; z-index: 30; border-radius: var(--r-panel) var(--r-panel) 0 0; padding: 8px 16px 0; overflow-y: auto; overscroll-behavior: contain; }
 .near-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 6px 0 4px; }
 .near-head h2 { margin: 0; font: 800 21px var(--display); letter-spacing: -.02em; }
 .seg { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: rgba(14, 23, 38, .06); }
@@ -463,6 +463,7 @@ a { color: inherit; }
 }
 
 @media (min-width: 1024px) {
+  .talk-hints { flex-wrap: wrap; justify-content: center; }
   .page { background: rgba(14, 23, 38, .3); }
   .page-sheet { margin: 24px auto; min-height: auto; border-radius: var(--r-panel); overflow: clip; }
   .business { background: transparent; }

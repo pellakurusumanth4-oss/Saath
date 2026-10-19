@@ -71,7 +71,7 @@ export default function OwnerApp() {
           focus={stage?.focus?.spot ?? null} focusKey={stage?.focus?.key ?? ''} settingSpot={!!stage?.onSpot} onSpotMove={stage?.onSpot ?? noop}
           onPick={noop} padding={padding} />
       </MapBoundary>
-      <OwnerWizard onStage={setStage} onDone={(made) => setShop(made)} />
+      <OwnerWizard onStage={setStage} onDone={(made) => setShop(made)} onClose={signOut} />
     </div>
   );
 }

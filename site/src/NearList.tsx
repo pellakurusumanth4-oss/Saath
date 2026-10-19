@@ -37,13 +37,14 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
             <span className="sk-lines"><i /><i /><i /></span>
           </li>
         ))}
+        {!loading && !rows.length && <li className="near-hint">No shops match. Try another word or category.</li>}
         {rows.map(({ shop, order }) => {
           const state = shop.status;
           const ring = state === 'busy' ? '#F59E0B' : state === 'closed' ? '#B9BDC8' : sectionOf(shop).color;
           return (
             <li key={shop.id} className={state === 'closed' ? 'is-closed' : ''}>
               <button type="button" className="near-row" onClick={() => onPick(shop)}>
-                <span className="near-thumb">
+                <span className="near-thumb" aria-hidden="true">
                   <Ad shop={shop} height={Math.round(thumb * 0.565)} width={thumb} radius={10} tag={false} off={state === 'closed'} />
                   <img src={portraitOf(hostOf(shop))} alt="" width={28} height={28} loading="lazy" decoding="async" className={state === 'closed' ? 'is-grey' : ''} style={{ '--ring': ring } as CSSProperties} />
                 </span>

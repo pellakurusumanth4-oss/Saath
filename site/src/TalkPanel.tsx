@@ -25,7 +25,7 @@ type State = 'idle' | 'listening' | 'thinking' | 'talking';
 const USE_CHROME = 'Voice works in Chrome. Open this page in Chrome to talk, or type your question.';
 
 /** greet: a first question asked as the panel opens (the owner's setup, so the mascot says hello). */
-export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu; onClose: () => void; greet?: string }) {
+export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { shop: ShopWithMenu; onClose: () => void; greet?: string; shopLink?: boolean }) {
   const mascot = hostOf(shop);
   const section = sectionOf(shop);
   const name = mascot.name.split(' ').pop()!;
@@ -44,6 +44,8 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
   const opener = useRef(document.activeElement as HTMLElement | null);
   const historyRef = useRef(history);
   historyRef.current = history;
+  const soundRef = useRef(soundOn); // the choice now, not when the question was asked
+  soundRef.current = soundOn;
 
   const hush = () => {
     speaking.current?.cancel();
@@ -77,7 +79,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       setHistory([...next, { role: 'assistant', content: answer }]);
       setReply(answer);
       setNamed(namedIn(answer, shop.menu));
-      if (soundOn) {
+      if (soundRef.current) {
         setState('talking');
         const handle = await speakReply(mascot.id, answer);
         if (mine !== turn.current) {
@@ -122,8 +124,9 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
         if (mine !== turn.current) return;
         recognition.current = null;
         setState('idle');
-        if (!speechSupported()) setTyping(true);
+        if (!speechSupported() || code === 'audio-capture') setTyping(true);
         setError(code === 'not-allowed' ? 'The mic is blocked. Allow it from the icon by the address bar, or type instead.'
+          : code === 'audio-capture' ? 'No microphone found. Type your question instead.'
           : !speechSupported() ? USE_CHROME : 'Couldn’t hear that. Try again, or type instead.');
       },
     });
@@ -199,7 +202,7 @@ export default function TalkPanel({ shop, onClose, greet }: { shop: ShopWithMenu
       )}
 
       <div className="talk-controls">
-        <a className="icon-btn glass round" href={`/visit/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>
+        {shopLink && <a className="icon-btn glass round" href={`/visit/#/shop/${shop.slug}`} onClick={onClose} aria-label={hasMenu ? 'See the menu' : 'See the shop'}><Icon name="list" /></a>}
         <button type="button" autoFocus className={`mic${state === 'listening' ? ' is-on' : ''}`} aria-disabled={state === 'thinking'} onClick={toggleMic} aria-label={state === 'listening' ? 'Stop listening' : `Talk to ${name}`}>
           <Icon name="mic" size={30} stroke={2.4} />
         </button>
