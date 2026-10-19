@@ -64,5 +64,10 @@ export default [
   "name": "20261019200000_remove_momos_test_shop",
   "done": "not exists (select 1 from public.shops where id = '978f92c7-6d37-41bb-9a18-706c9c886e38')",
   "sql": "/*\n  Remove the \"momos\" test shop (19 Oct 2026, the user: \"remove the 'momos' test shop from the live site\"). It was made with\n  the shared demo owner account while trying the one-tap demo login. Only this one row, by its id and owner, goes; its\n  menu, counter codes, visits, reviews, photos and code tries go with it (ON DELETE CASCADE). The demo account stays.\n  A copy of the row was saved before the delete.\n*/\n\nDELETE FROM shops\nWHERE id = '978f92c7-6d37-41bb-9a18-706c9c886e38'\n  AND slug = 'momos-rst5u'\n  AND owner = '5aa7de00-0000-4000-8000-0000000000d1';\n"
+ },
+ {
+  "name": "20261019210000_unpublish_test_shops",
+  "done": "not exists (select 1 from public.shops where id in ('559a36f9-46f2-4d1d-bded-3a5ebe5d79dc', '4dea2ead-eb04-4599-a900-a14efdf7d53f') and published)",
+  "sql": "/*\n  Take the two test shops off the map (19 Oct 2026, the user: \"unpublish both test shops, Momos and mamas spaaaa\").\n  The site review found them live among the demo shops: \"Momos\" (made from an email owner account while trying the\n  owner pages) and \"mamas spaaaa\" (made with the shared demo account). They are unpublished, not deleted: the rows, the\n  menu and the owners stay, and visitors no longer see them (the site and the shop links show published shops only).\n  Each row is matched by id, slug and owner, so nothing else can change. A copy of both rows was saved first.\n*/\n\nUPDATE shops SET published = false\nWHERE (id = '559a36f9-46f2-4d1d-bded-3a5ebe5d79dc' AND slug = 'momos' AND owner = 'ff1fa6ba-3a8d-44a3-bd5f-9205dcf52027')\n   OR (id = '4dea2ead-eb04-4599-a900-a14efdf7d53f' AND slug = 'mamas-spaaaa' AND owner = '5aa7de00-0000-4000-8000-0000000000d1');\n"
  }
 ];

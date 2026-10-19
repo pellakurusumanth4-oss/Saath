@@ -18,6 +18,7 @@ const steps = [
   ['20261019180000_code_tries_today', "position('ELSE 2000' in pg_get_functiondef('public.verify_visit(text,text)'::regprocedure)) > 0"],
   ['20261019190000_demo_owner_guard', "exists (select 1 from pg_trigger where tgname = 'keep_demo_owner_login')"],
   ['20261019200000_remove_momos_test_shop', "not exists (select 1 from public.shops where id = '978f92c7-6d37-41bb-9a18-706c9c886e38')"],
+  ['20261019210000_unpublish_test_shops', "not exists (select 1 from public.shops where id in ('559a36f9-46f2-4d1d-bded-3a5ebe5d79dc', '4dea2ead-eb04-4599-a900-a14efdf7d53f') and published)"],
 ].map(([name, done]) => ({ name, done, sql: fs.readFileSync(path.join(root, 'supabase', 'migrations', `${name}.sql`), 'utf8') }));
 fs.writeFileSync(path.join(root, 'supabase', 'functions', 'setup-db', 'migrations.mjs'),
   `// Generated from supabase/migrations/ by site/scripts/setup-db-steps.mjs; do not edit by hand.\nexport default ${JSON.stringify(steps, null, 1)};\n`);
