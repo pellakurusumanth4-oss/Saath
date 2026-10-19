@@ -1,10 +1,10 @@
 // Saath for businesses (/owner/): its own page, apart from the visitors' map (the user, 19 Oct ~16:00: "create two
 // webpages like owner and visitor"). Sign in (one tap on the shared demo account), register the business in four steps
 // over the 3D city, then a dashboard of the owner's own shop. No visitor UI and no prices here.
-import { lazy, Suspense, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import MapBoundary from './MapBoundary';
-import type { Padding } from './MapView';
+import MapView, { type Padding } from './MapView';
 import OwnerDashboard from './OwnerDashboard';
 import OwnerWizard, { forgetDraft, MINE, read, type Stage } from './OwnerWizard';
 import { useDesktop } from './hooks';
@@ -17,8 +17,6 @@ import { Icon } from './ui';
 const DEMO_EMAIL = 'demo.owner@saath.example';
 const DEMO_PASSWORD = 'saath-demo-owner-2026';
 const noop = () => {};
-// MapLibre is most of the bundle and the sign-in card needs none of it: fetch it only when the setup shows the city.
-const MapView = lazy(() => import('./MapView'));
 
 export default function OwnerApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -91,11 +89,9 @@ export default function OwnerApp() {
   return (
     <div className="owner-app">
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p></div>}>
-        <Suspense fallback={null}>
-          <MapView me={null} shops={stage?.shop ? [stage.shop] : []} selected={stage?.shop?.id ?? null} spotlight={!!stage?.spotlight}
-            focus={stage?.focus?.spot ?? null} focusKey={stage?.focus?.key ?? ''} settingSpot={!!stage?.onSpot} onSpotMove={stage?.onSpot ?? noop}
-            onPick={noop} padding={padding} />
-        </Suspense>
+        <MapView me={null} shops={stage?.shop ? [stage.shop] : []} selected={stage?.shop?.id ?? null} spotlight={!!stage?.spotlight}
+          focus={stage?.focus?.spot ?? null} focusKey={stage?.focus?.key ?? ''} settingSpot={!!stage?.onSpot} onSpotMove={stage?.onSpot ?? noop}
+          onPick={noop} padding={padding} />
       </MapBoundary>
       <OwnerWizard onStage={setStage} onDone={(made) => setShop(made)} onClose={signOut} />
     </div>

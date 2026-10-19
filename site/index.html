@@ -7,8 +7,6 @@
       const toMap = () => { if (location.hash) location.replace(location.hash === '#/owner' ? '/owner/' : '/visit/' + location.search + location.hash); };
       toMap();
       addEventListener('hashchange', toMap);   // a hash typed in on this page doesn't reload it
-      // Once this page has loaded, the service worker caches the map page's files, so "I'm exploring" opens warm (built site only).
-      if ('%PROD%' === 'true') addEventListener('load', () => navigator.serviceWorker?.register('/sw.js').catch(() => {}));
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#CFEFFF" />

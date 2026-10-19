@@ -250,14 +250,13 @@ export function elevenAvailable(): Promise<boolean> {
   return elevenStatus;
 }
 
-/** Audio already fetched for the 5 most recent lines, so ▶ replay doesn't pay for the same speech twice. */
+/** Audio already fetched for a line, so ▶ replay doesn't pay for the same speech twice. */
 const elevenClips = new Map<string, string>();
 
 /** Speak with the friend's ElevenLabs voice. Resolves null on any failure so callers can fall back. */
 async function speakWithEleven(friendId: string, text: string): Promise<SpeakHandle | null> {
   const key = `${friendId}:${text}`;
   let url = elevenClips.get(key);
-  elevenClips.delete(key);   // re-added below as the newest, so the clip about to play is never the one evicted
   if (!url) {
     try {
       const response = await fetch(TALK_URL, {
@@ -271,15 +270,10 @@ async function speakWithEleven(friendId: string, text: string): Promise<SpeakHan
         return null;
       }
       url = URL.createObjectURL(await response.blob());
+      elevenClips.set(key, url);
     } catch {
       return null;
     }
-  }
-  elevenClips.set(key, url);
-  for (const [k, old] of elevenClips) {   // Map keeps insertion order: drop the oldest beyond 5
-    if (elevenClips.size <= 5) break;
-    elevenClips.delete(k);
-    URL.revokeObjectURL(old);
   }
   const audio = new Audio(url);
   let finish!: (played: boolean) => void;

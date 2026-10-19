@@ -144,13 +144,10 @@ export function orderOf(shop: Pick<Shop, 'usual_order' | 'app_fee'>, menu: MenuI
   return { names, here, itemsApps, fee: shop.app_fee, apps, saving: apps - here };
 }
 
-// Made once: toLocaleString builds a formatter on every call, and the map and lists call this per row on each render.
-const withCents = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const whole = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 /** Prices are US dollars (the user's choice, 19 Oct): $3.50 with its cents, $15, $240,000. */
 export function dollars(amount: number): string {
   const cents = Math.round(amount * 100) / 100;   // sums of cents in floating point (3.9999…) show as $4
-  return `$${(cents % 1 ? withCents : whole).format(cents)}`;
+  return `$${cents.toLocaleString('en-US', { minimumFractionDigits: cents % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 
 export function ago(iso: string, now: number): string {

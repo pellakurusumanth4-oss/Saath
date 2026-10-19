@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import 'maplibre-gl/dist/maplibre-gl.css'; // here too, so styles.css still comes after it (.map must beat .maplibregl-map)
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MapView from './MapView';
 import MapBoundary from './MapBoundary';
 import NearList from './NearList';
 import ShopCard from './ShopCard';
+import ShopPage from './ShopPage';
 import BusinessPage from './BusinessPage';
 import TalkPanel from './TalkPanel';
 import SavedSheet from './SavedSheet';
@@ -20,13 +21,6 @@ import { useDesktop, useMe } from './hooks';
 import { figureOf, hostOf, orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
 import { distanceM, type LatLng } from '../../src/geo';
-
-// MapLibre is most of the JS: the list, search and location card render while it downloads. ShopPage imports it too.
-// Fetched as soon as this file runs, not after the first render: the list shows meanwhile, the map isn't held back.
-const mapViewChunk = import('./MapView');
-mapViewChunk.catch(() => {});   // offline: MapBoundary shows the failure when the map renders
-const MapView = lazy(() => mapViewChunk);
-const ShopPage = lazy(() => import('./ShopPage'));
 
 /** The page is in the hash (#/shop/<slug>, #/owner, #/business): the host serves only files, so paths would 404. */
 const useHash = () => {
@@ -111,8 +105,6 @@ export default function App() {
     return shops.filter((shop) => (!sections.length || sections.includes(shop.section))
       && (!q || [shop.name, sectionOf(shop).label, shop.area, ...shop.menu.map((item) => item.name)].some((text) => text.toLowerCase().includes(q))));
   }, [shops, category, query]);
-  // The map keeps every shop's marker and hides the rest, so a search or chip doesn't rebuild the city.
-  const visible = useMemo(() => new Set(shown.map((shop) => shop.id)), [shown]);
 
   // On a desktop one shop is always open in the right panel: the one picked, else the nearest open one with a saving.
   const fallback = useMemo(() => {
@@ -181,28 +173,18 @@ export default function App() {
     if (hash === '#/owner') window.location.replace(OWNER_PAGE);
   }, [hash]);
 
-  // 4 s after the page loads, in idle time, fetch the full figures of the first 3 shops' mascots, so those cards show them at once.
-  // Not all 12 (~700 KB), which slowed the map's tiles. Skipped on Data Saver and 2G; it's ~55 KB a mascot.
-  const loaded = shops.length > 0;
-  const latest = useRef({ shops, me });
-  latest.current = { shops, me };
+  // Once the city is up, fetch each mascot's full figure in idle time, so a shop card's mascot shows at once.
+  // Skipped on Data Saver and 2G; it's ~55 KB a mascot.
+  const mascots = useMemo(() => [...new Map(shops.map((shop) => [hostOf(shop).id, hostOf(shop)])).values()], [shops]);
+  const mascotKey = mascots.map((mascot) => mascot.id).sort().join();
   useEffect(() => {
     const net = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    if (!loaded || net?.saveData || /2g/.test(net?.effectiveType ?? '')) return;
+    if (!mascotKey || net?.saveData || /2g/.test(net?.effectiveType ?? '')) return;
     const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 1500));
-    const prefetch = () => {
-      const { shops: all, me: here } = latest.current;
-      // The list's first rows: open before closed, nearest when located, else the biggest saving.
-      const first = [...all].sort((a, b) => Number(a.status === 'closed') - Number(b.status === 'closed')
-        || (here ? distanceM(here, a) - distanceM(here, b) : (orderOf(b, b.menu)?.saving ?? 0) - (orderOf(a, a.menu)?.saving ?? 0)));
-      for (const url of new Set(first.slice(0, 3).map((shop) => figureOf(hostOf(shop), shop.status === 'closed')))) new Image().src = url;
-    };
-    let timer = 0;
-    const wait = () => { timer = window.setTimeout(() => idle(prefetch), 4000); };
-    if (document.readyState === 'complete') wait();
-    else window.addEventListener('load', wait, { once: true });
-    return () => { window.removeEventListener('load', wait); window.clearTimeout(timer); };
-  }, [loaded]);
+    idle(() => { for (const mascot of mascots) new Image().src = figureOf(mascot); });
+    // Once per set of mascots, not on every live menu change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mascotKey]);
 
   // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.
   useEffect(() => setTalkingId(null), [hash]);
@@ -253,6 +235,7 @@ export default function App() {
   const doorShop = door ? shops.find((shop) => shop.id === door.shopId) ?? null : null;
   // A shop that leaves the list (unpublished) ends its walk or door step, which would otherwise have no controls.
   // Not before the list loads: a step restored after a reload waits for its shop.
+  const loaded = shops.length > 0;
   useEffect(() => {
     if (!loaded) return;
     if (trip && !tripShop) stopTrip();
@@ -263,7 +246,7 @@ export default function App() {
   const talking = talkingId ? shops.find((shop) => shop.id === talkingId) ?? null : null;
   const busy = !!tripShop || !!doorShop; // a walk or the door covers the shop card and the phone's search
   const cardOpen = !desktop && !!selected && !busy;
-  // The phone card covers the near list, which is hidden while it's open: on close, focus that shop's row.
+  // The phone card replaces the near list, so its opener row is gone while it's open: on close, focus that shop's row.
   useEffect(() => {
     if (!selectedId && lastPicked.current) document.querySelector<HTMLElement>(`.near-row[data-shop="${lastPicked.current}"]`)?.focus();
   }, [selectedId]);
@@ -281,14 +264,12 @@ export default function App() {
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
       <h1 className="sr-only">Saath: local shops near you</h1>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
-        <Suspense fallback={null}>
-          <MapView me={walkView?.me ?? me} shops={shops} visible={visible} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)}
-            focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
-            settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={settingSpot ? () => {} : pick} padding={padding}
-            route={walkView?.route ?? (trip?.route ? { done: [], left: trip.route.line } : null)}
-            fit={trip?.route && !trip.walking ? { points: trip.route.line, key: `${trip.shopId}:${trip.route.metres}` } : null}
-            follow={!!trip?.walking} heading={walkView?.heading ?? null} />
-        </Suspense>
+        <MapView me={walkView?.me ?? me} shops={shown} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)}
+          focus={focus?.spot ?? null} focusKey={focus?.key ?? ''}
+          settingSpot={settingSpot} onSpotMove={onSpotMove} onPick={settingSpot ? () => {} : pick} padding={padding}
+          route={walkView?.route ?? (trip?.route ? { done: [], left: trip.route.line } : null)}
+          fit={trip?.route && !trip.walking ? { points: trip.route.line, key: `${trip.shopId}:${trip.route.metres}` } : null}
+          follow={!!trip?.walking} heading={walkView?.heading ?? null} />
       </MapBoundary>
 
       {desktop ? (
@@ -311,11 +292,10 @@ export default function App() {
               <Chips category={category} setCategory={setCategory} />
             </header>
           )}
-          {chrome && (
+          {!cardOpen && chrome && (
             <>
-              {!cardOpen && <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} floating />}
-              {/* Hidden, not unmounted, under the card: closing it doesn't rebuild the list, which keeps its scroll. */}
-              <div className="sheet glass-sheet near-sheet" style={cardOpen ? { display: 'none' } : undefined}>
+              <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} floating />
+              <div className="sheet glass-sheet near-sheet">
                 <div className="grabber" />
                 <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} />
                 <div className="near-links" style={{ flexWrap: 'wrap' }}>
@@ -367,16 +347,14 @@ export default function App() {
       )}
 
       {page === 'shop' && shopSlug && (
-        <Suspense fallback={null}>
-          <ShopPage key={shopSlug} slug={shopSlug} me={me} onTalk={setTalkingId} onWalk={(id) => {
-            const shop = shops.find((s) => s.id === id);
-            if (shop) {
-              pick(shop);
-              startTrip(shop);
-            }
-            window.location.replace('#/');
-          }} />
-        </Suspense>
+        <ShopPage key={shopSlug} slug={shopSlug} me={me} onTalk={setTalkingId} onWalk={(id) => {
+          const shop = shops.find((s) => s.id === id);
+          if (shop) {
+            pick(shop);
+            startTrip(shop);
+          }
+          window.location.replace('#/');
+        }} />
       )}
       {page === 'business' && <BusinessPage shops={shops} />}
 

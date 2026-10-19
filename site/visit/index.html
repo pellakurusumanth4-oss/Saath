@@ -12,40 +12,10 @@
     <meta name="apple-mobile-web-app-title" content="Saath" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- The shops query and the map tiles start only after the app runs: open their connections now. -->
-    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
-    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root">
-      <!-- The first screen while the app's script loads (the app replaces it): the brand and grey rows where the shops go. -->
-      <style>
-        .boot .sk-thumb { width: 92px; height: 52px; }
-        @media (min-width: 1280px) {
-          .boot .near-sheet { top: 20px; bottom: 20px; left: 20px; right: auto; width: 384px; max-width: none; height: auto; margin: 0; border-radius: var(--r-panel); padding: 18px 20px 0; }
-          .boot .grabber { display: none; }
-          .boot .sk-thumb { width: 76px; height: 43px; }
-          .boot .boot-gap { height: 244px; }   /* where the desktop panel puts the search and the category chips */
-        }
-      </style>
-      <div class="app boot">
-        <div class="map-wrap"></div>
-        <div class="sheet glass-sheet near-sheet">
-          <div class="grabber"></div>
-          <div class="brand"><img src="/icons/favicon.svg" alt="" width="40" height="40" /><div><b>saath</b><span>Local shops near you</span></div></div>
-          <div class="boot-gap"></div>
-          <section class="near" aria-label="Shops near you">
-            <div class="near-head"><h2>Near you</h2></div>
-            <ul class="near-rows" aria-busy="true">
-              <li class="near-skeleton" aria-hidden="true"><span class="sk-thumb"></span><span class="sk-lines"><i></i><i></i><i></i></span></li>
-              <li class="near-skeleton" aria-hidden="true"><span class="sk-thumb"></span><span class="sk-lines"><i></i><i></i><i></i></span></li>
-              <li class="near-skeleton" aria-hidden="true"><span class="sk-thumb"></span><span class="sk-lines"><i></i><i></i><i></i></span></li>
-            </ul>
-          </section>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
