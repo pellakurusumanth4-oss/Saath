@@ -15,7 +15,6 @@
     test), 1.2-5 m away, and a tap calls them there (18 Oct: the automatic spot took over a minute in a
     cluttered room); they are anchored there; within 1 m the view greys and asks you to step back;
   - you only hear them talk: no words on screen (18 Oct);
-  - with ?shop=, the shop's billboard stands beside them, running its ad as the site's map does (20 Oct);
   - a tight contact shadow plus a soft one away from the room's main light, and the room's light dims
     them gently (no colour cast). No occlusion: on the S24 ARCore's coarse depth of the floor around
     their feet hid their feet and legs in open floor (17 Oct), so they are always drawn whole.
@@ -36,8 +35,18 @@
   #overlay.close #tip, #overlay.talk.close #tip { bottom: 46%; }   /* .talk.close outranks the .talk rule below */
   /* 96px up: Chrome's "to exit full screen" banner covers the bottom ~80px for a few seconds after AR starts, which hid
      "Tap to bring…" on the S24 (18 Oct) just as the first ring showed. */
-  #tip { position: absolute; left: 16px; right: 16px; bottom: 96px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
+  #tip, #finding { position: absolute; left: 16px; right: 16px; bottom: 96px; padding: 14px 16px; border-radius: 18px; background: #fff; color: var(--ink);
          border: 2.5px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 800; font-size: 17px; text-align: center; display: none; }
+  /* Finding the floor (the user, 20 Oct: "prompt user wait for sometime until ring appears"): the tip's card, with a pulsing gold dot. */
+  #finding { font-weight: 600; font-size: 15px; line-height: 1.4; }
+  #finding b { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 800; }
+  #finding b::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 9px; vertical-align: 1px; border-radius: 50%;
+                       background: var(--gold); border: 2px solid var(--ink); animation: seek 1.2s ease-out infinite; }
+  @keyframes seek { from { box-shadow: 0 0 0 0 rgba(255, 200, 61, .9); } to { box-shadow: 0 0 0 9px rgba(255, 200, 61, 0); } }
+  @media (prefers-reduced-motion: reduce) { #finding b::before { animation: none; } }
+  #still { margin-top: 6px; }
+  /* Under Start AR: what Chrome is waiting for, or why AR didn't start (two short lines at most, in the 36 px below the button). */
+  #note { position: fixed; left: 16px; right: 16px; bottom: 4px; margin: 0; text-align: center; color: #fff; font: 700 12.5px/15px system-ui, Roboto, sans-serif; }
   #hud { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 5px 12px; border-radius: 99px; white-space: nowrap;
          background: rgba(17, 19, 24, .62); color: #fff; font: 700 13px system-ui, Roboto, sans-serif; }
   #hud:empty { display: none; }
@@ -96,9 +105,12 @@
 <iframe id="rig" title="Your friend's drawing" aria-hidden="true"></iframe>
 <div id="intro">Saath<br><span id="introLine" style="font-weight:500;opacity:.8"></span></div>
 <button id="start">Loading…</button>
+<p id="note" role="status"></p>
 <a id="home" href="#" role="button">Back to Saath</a>
 <a id="map" href="/visit/">Back to the map</a>
 <div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div>
+  <div id="finding" role="status"><b>Finding the floor…</b><div>Point your phone at the floor a few steps ahead and move it slowly. The gold ring appears in a few seconds.</div>
+    <div id="still" hidden>Still looking: try a brighter spot or a floor with some pattern.</div></div>
   <div id="talk" hidden>
     <div class="talk-row">
       <div class="talk-words"><div id="hint" role="status">Hold to talk</div><div id="credit">AI friend · Voices: ElevenLabs</div></div>
@@ -300,18 +312,15 @@ const menuEl = document.getElementById('menu');
 // naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
 let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;
 // Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
-const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,friend,status,status_note,special,offers,hours,`
-  + `ad_headline,ad_sub,ad_art,ad_color,ad_image_url,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
+const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
   { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
   .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
-const shopLoaded = loadShop();
+loadShop();
 // Prices are US dollars, as on the site (site/src/shops.ts dollars): $3.50 with its cents, $15, $240,000.
 const dollars = (p) => { const c = Math.round(Number(p) * 100) / 100; return `$${c.toLocaleString('en-US', { minimumFractionDigits: c % 1 ? 2 : 0, maximumFractionDigits: 2 })}`; };
 // The site's section colours (site/src/shops.ts SECTIONS): the named row is tinted in the shop's.
 const SECTION_COLOURS = { restaurant: '#E5533D', cafe: '#14897C', juice: '#7CB82F', bakery: '#8C5A3C', grocery: '#2E8B57', streetfood: '#E8A317',
   boutique: '#7B4BA8', mall: '#F28C28', realestate: '#23395B', salon: '#E35D9A', pharmacy: '#1AA3C2', books: '#8E6B3E', electronics: '#3D5AFE', gym: '#D9480F', hotel: '#0B7285' };
-const SECTION_ICONS = { restaurant: '🍛', cafe: '☕', juice: '🧃', bakery: '🥐', grocery: '🛒', streetfood: '🌯', boutique: '👗', mall: '🏬', realestate: '🏠',
-  salon: '💇', pharmacy: '💊', books: '📚', electronics: '📱', gym: '🏋️', hotel: '🏨' };
 // The one item a sentence names: the longest full name in it, else the only item whose last word (4+ letters) is in it
 // ("the brownie" names Walnut brownie, but "chai" names nothing when two items end in chai). Whole words, in any script.
 const words = (t) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
@@ -383,139 +392,6 @@ const menuTick = () => {   // each frame while the card shows: highlight what hi
   if (item && item.name !== naming) { naming = item.name; drawMenu(); }
 };
 
-// ---- The shop's billboard (20 Oct): a pole and a 16:9 screen beside him, 1.1 m to his side and 0.4 m behind, in his group
-// so it keeps his spot, turns with him and pops in with him. It runs the shop's ad as the site's map billboards do: the
-// shop's own ad, its offer, then him, each held 3.5 s with a 0.45 s slide between. Each frame is painted once; the screen's
-// texture is repainted only when the frame changes (and SLIDE_STEPS times during a slide), never every frame. Only with a
-// shop (?shop=) whose row loaded. Copy is the shop's own text plus a few fixed words; names no city.
-const AW = 512, AH = 288, U = AH / 135;   // U: the site's Ad (site/src/Ad.tsx) is laid out for 135 px tall
-const BOARD_W = 0.62, BOARD_H = (BOARD_W * 9) / 16, BOARD_UP = 1.3, HOLD_S = 3.5, SLIDE_S = 0.45, SLIDE_STEPS = 9;
-const DISPLAY = "'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif", BODY = "'Plus Jakarta Sans', system-ui, Roboto, sans-serif";
-const board = new THREE.Group();
-// Close beside him, so it stays on a portrait phone's screen at 2.5-3 m.
-board.position.set(0.56, 0, -0.4); board.visible = false; figure.add(board);
-const adCanvas = Object.assign(document.createElement('canvas'), { width: AW, height: AH }), adG = adCanvas.getContext('2d');
-const adTex = new THREE.CanvasTexture(adCanvas); adTex.colorSpace = THREE.SRGBColorSpace;
-{
-  const dark = new THREE.MeshBasicMaterial({ color: '#1B1E27' });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, BOARD_UP, 12), dark), box = new THREE.Mesh(new THREE.BoxGeometry(BOARD_W + 0.06, BOARD_H + 0.06, 0.08), dark);
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), new THREE.MeshBasicMaterial({ map: adTex }));
-  pole.position.y = BOARD_UP / 2; box.position.y = face.position.y = BOARD_UP + BOARD_H / 2; face.position.z = 0.043;   // 3 mm in front of the box: no z-fighting
-  board.add(blob(0.34, 0.22, [[0, 0.7], [0.5, 0.35], [1, 0]]), pole, box, face);
-}
-let adFrames = null, boardAt = null, painted = '';
-// Owner pictures may be on another origin: crossOrigin keeps the canvas usable as a texture (or the picture fails, and is left out).
-const picture = (src) => new Promise((done) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => done(i); i.onerror = () => done(null); i.src = src; });
-const shade = (hex, k) => `#${[1, 3, 5].map((i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k))).toString(16).padStart(2, '0')).join('')}`;
-// Words into at most `max` lines `w` px wide in g's font, the last cut with …; .cut says something was.
-const wrap = (g, text, w, max) => {
-  const out = [];
-  for (const word of String(text).split(/\s+/).filter(Boolean)) {
-    if (out.length && g.measureText(`${out.at(-1)} ${word}`).width <= w) out[out.length - 1] += ` ${word}`; else out.push(word);
-  }
-  let cut = out.length > max;
-  if (cut) { out.length = max; out[max - 1] += '…'; }
-  const lines = out.map((l) => { while (l.length > 1 && g.measureText(l).width > w) { l = `${l.slice(0, -2)}…`; cut = true; } return l; });
-  return Object.assign(lines, { cut });
-};
-// The biggest display size from `size` down to `min` px at which the text fits in `max` lines.
-const fit = (g, text, w, max, size, min) => { for (;; size -= 2) { g.font = `800 ${size}px ${DISPLAY}`; const l = wrap(g, text, w, max); if (!l.cut || size <= min) return { l, size }; } };
-const sheet = (paint) => { const c = Object.assign(document.createElement('canvas'), { width: AW, height: AH }), g = c.getContext('2d'); g.textBaseline = 'middle'; paint(g); return c; };
-const glyphShadow = (g, on) => { g.shadowColor = on ? 'rgba(0,0,0,.4)' : 'transparent'; g.shadowBlur = 4; g.shadowOffsetY = 1; };
-const disc = (g, img, x, y, d, border) => {   // a round portrait with a white ring
-  g.save(); g.beginPath(); g.arc(x + d / 2, y + d / 2, d / 2, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.clip();
-  g.drawImage(img, x + border, y + border, d - 2 * border, d - 2 * border); g.restore();
-};
-const adTag = (g) => {
-  g.font = `800 ${9 * U}px ${BODY}`; g.letterSpacing = `${0.54 * U}px`;
-  const w = g.measureText('AD').width + 10 * U, x = AW - 8 * U - w, y = AH - 23 * U;
-  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.roundRect(x, y, w, 15 * U, 4 * U); g.fill();
-  g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText('AD', x + w / 2 + 0.27 * U, y + 7.5 * U); g.textAlign = 'left'; g.letterSpacing = '0px';
-};
-const makeBoard = async (sh) => {
-  const colour = /^#[0-9a-f]{6}$/i.test(sh.ad_color ?? '') ? sh.ad_color : SECTION_COLOURS[sh.section] ?? SECTION_COLOURS.restaurant;
-  const [art, face, photo] = await Promise.all([/^[a-z0-9-]{1,40}$/.test(sh.ad_art ?? '') ? picture(`/ads/art/${sh.ad_art}.svg`) : null, picture(`/mascots/${FRIEND}.png?v=2`),
-    /^https?:\/\//.test(sh.ad_image_url ?? '') ? picture(sh.ad_image_url) : null,
-    document.fonts.load(`800 40px ${DISPLAY}`).catch(() => {}), document.fonts.load(`700 20px ${BODY}`).catch(() => {})]);
-  const back = (g) => {   // the owner's colour, lit from the top left, and the glow behind the picture
-    const r = (AW + AH) / 4, grad = g.createLinearGradient(AW / 2 - r, AH / 2 - r, AW / 2 + r, AH / 2 + r);
-    grad.addColorStop(0, shade(colour, 1.12)); grad.addColorStop(0.45, colour); grad.addColorStop(1, shade(colour, 0.62));
-    g.fillStyle = grad; g.fillRect(0, 0, AW, AH);
-    g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.arc(AW - 57 * U, 51 * U, 75 * U, 0, Math.PI * 2); g.fill();
-  };
-  const small = (g, text, x, y, w) => { g.font = `700 ${11 * U}px ${BODY}`; g.fillStyle = 'rgba(255,255,255,.92)'; glyphShadow(g, true); g.fillText(wrap(g, text, w, 1)[0] ?? '', x, y); glyphShadow(g, false); };
-  if (sh.status === 'closed') {   // lights off, as on the map: no ad runs
-    adFrames = [sheet((g) => {
-      g.fillStyle = '#14172B'; g.fillRect(0, 0, AW, AH); g.textAlign = 'center';
-      g.font = `800 ${0.14 * AH}px ${DISPLAY}`; g.fillStyle = '#6B7194'; g.fillText('Lights off', AW / 2, AH / 2 - 0.07 * AH);
-      g.font = `700 ${0.1 * AH}px ${BODY}`; g.fillStyle = '#5A607E'; g.fillText(wrap(g, sh.status_note || 'closed now', AW - 28 * U, 1)[0], AW / 2, AH / 2 + 0.09 * AH);
-    })];
-    return;
-  }
-  // 1. The shop's own ad: its uploaded picture, else its colour, picture (or section icon), headline, mascot and small line.
-  const brand = sheet((g) => {
-    back(g);   // also behind a picture with see-through parts
-    if (photo) {   // covers the screen, as background-size: cover
-      const k = Math.max(AW / photo.naturalWidth, AH / photo.naturalHeight), w = photo.naturalWidth * k, h = photo.naturalHeight * k;
-      g.drawImage(photo, (AW - w) / 2, (AH - h) / 2, w, h); adTag(g); return;
-    }
-    if (art) g.drawImage(art, AW - 112 * U, 14 * U, 104 * U, 104 * U);
-    else { g.font = `${62 * U}px ${BODY}`; g.fillStyle = '#fff'; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText(SECTION_ICONS[sh.section] ?? SECTION_ICONS.restaurant, AW - 22 * U, 22 * U); g.textAlign = 'left'; g.textBaseline = 'middle'; }
-    g.font = `800 ${23 * U}px ${DISPLAY}`; g.letterSpacing = `${-0.46 * U}px`; g.fillStyle = '#fff'; glyphShadow(g, true);
-    wrap(g, sh.ad_headline || sh.name, 0.58 * AW, 3).forEach((l, i) => g.fillText(l, 14 * U, (16 + 12.5 + 25 * i) * U));
-    glyphShadow(g, false); g.letterSpacing = '0px';
-    let x = 14 * U;
-    if (face) { disc(g, face, x, AH - 38 * U, 26 * U, 2 * U); x += 32 * U; }
-    small(g, sh.ad_sub || sh.name, x, AH - 25 * U, 0.7 * AW - x);
-    adTag(g);
-  });
-  // 2. Its offer, big: the usual order's saving, else today's special, its first offer, its hours or its status note.
-  const order = orderOf(sh), hours = sh.hours?.trim();
-  // A big line and a small one, as the website's ad (site/src/Ad.tsx offerOf).
-  const offerLine = sh.offers?.find((o) => o?.trim())?.trim();
-  const offer = order ? { big: `Save ${dollars(order.apps - order.here)}`, small: 'when you walk in' } : sh.special?.trim() ? { big: sh.special.trim(), small: 'today' }
-    : offerLine ? { big: offerLine } : hours ? { big: hours, small: 'open' } : sh.status_note?.trim() ? { big: sh.status_note.trim() } : null;
-  const deal = offer && sheet((g) => {
-    back(g);
-    const { l, size } = fit(g, offer.big, AW - 28 * U, offer.small ? 2 : 3, Math.round(30 * U), Math.round(15 * U)), lh = size * 1.08;
-    const top = AH / 2 - (l.length * lh + (offer.small ? 18 * U : 0)) / 2;
-    g.fillStyle = '#fff'; glyphShadow(g, true); l.forEach((line, i) => g.fillText(line, 14 * U, top + (i + 0.5) * lh)); glyphShadow(g, false);
-    if (offer.small) small(g, offer.small, 14 * U, top + l.length * lh + 11 * U, AW - 28 * U);
-    adTag(g);
-  });
-  // 3. Him, big: "Meet Kiran at the door", the shop's name small under it.
-  const meet = sheet((g) => {
-    back(g);
-    const d = 80 * U, x = face ? 14 * U + d + 12 * U : 14 * U, w = AW - x - 14 * U;
-    if (face) disc(g, face, 14 * U, (AH - d) / 2, d, 3 * U);
-    const { l, size } = fit(g, `Meet ${NAME.split(' ').pop()}`, w, 2, Math.round(24 * U), Math.round(13 * U)), lh = size * 1.08;
-    const top = AH / 2 - (l.length * lh + 36 * U) / 2;
-    g.fillStyle = '#fff'; glyphShadow(g, true); l.forEach((line, i) => g.fillText(line, x, top + (i + 0.5) * lh)); glyphShadow(g, false);
-    small(g, 'at the door', x, top + l.length * lh + 11 * U, w);
-    small(g, sh.name, x, top + l.length * lh + 29 * U, w);
-    adTag(g);
-  });
-  // Reduced motion: only the shop's own ad, still.
-  adFrames = matchMedia('(prefers-reduced-motion: reduce)').matches ? [brand] : [brand, deal, meet].filter(Boolean);
-};
-// Each frame he is out, a cheap check: the screen is repainted only when what it shows changes. k: seconds since it came out.
-const showAd = (k) => {
-  const n = adFrames.length, i = n > 1 ? Math.floor(k / HOLD_S) : 0;
-  const step = i ? Math.min(SLIDE_STEPS, Math.ceil(((k - i * HOLD_S) / SLIDE_S) * SLIDE_STEPS)) : SLIDE_STEPS, key = `${i % n}:${step}`;
-  if (key === painted) return;
-  painted = key;
-  const e = 1 - (1 - step / SLIDE_STEPS) ** 3, d = 0.18 * AH;   // eased out; the old frame slides up and fades as the new one comes
-  adG.globalAlpha = 1;
-  if (e < 1) {
-    adG.fillStyle = '#14172B'; adG.fillRect(0, 0, AW, AH);
-    adG.globalAlpha = 1 - e; adG.drawImage(adFrames[(i - 1) % n], 0, -e * d); adG.globalAlpha = e;
-  }
-  adG.drawImage(adFrames[i % n], 0, (1 - e) * d);
-  adTex.needsUpdate = true;
-};
-// Its first frame, shaders and texture readied before he comes out, so it adds no hitch to his pop-in; no board, rather than a broken page.
-shopLoaded.then(() => shop && makeBoard(shop)).then(() => { if (adFrames) { showAd(0); renderer.compile(board, camera, scene); renderer.initTexture(adTex); } }).catch(() => {});
-
 // Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face to his voice. No words
 // are shown, his or yours (the user, 18 Oct: "just audio"): the hint under the mic says what to do, that he is
 // thinking, or what went wrong.
@@ -558,7 +434,7 @@ for (const el of [home, back]) {
 }
 if (BACK) home.style.display = 'block';
 document.getElementById('introLine').textContent = `Point your phone at the floor a few steps away, then tap the gold ring: ${NAME} comes to it`;
-const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2, pop = (k) => (k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
+const backOut = (x) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
 const UP = new THREE.Vector3(0, 1, 0), facing = new THREE.Vector3(), away = new THREE.Vector3(), lit = new THREE.Color(), want = new THREE.Color();
 let lastNow = 0, close = false;
 // Each frame: the pop-in, the sparkles, the pulsing ring; he turns to face the camera, takes the
@@ -576,8 +452,7 @@ const update = (now, cam, est) => {
   close = dist < NEAR_M || (close && dist < CLEAR_M);
   overlay.classList.toggle('close', close);
   tip(close ? 'You’re too close — step back a little' : k < 3.6 ? `${NAME} is here! Walk around to see them.` : '');   // then only him and the mic
-  card.scale.setScalar(pop(k));
-  if (adFrames) { boardAt ??= now; board.visible = true; board.scale.setScalar(pop(now - boardAt)); showAd(now - boardAt); }   // with him, or once the shop's ad arrives
+  card.scale.setScalar(k < 0.45 ? Math.max(0.001, backOut(k / 0.45)) : 1);
   for (const s of shadows) s.material.opacity = Math.min(1, k / 0.35);
   figure.rotation.y = Math.atan2(cam.x - figure.position.x, cam.z - figure.position.z);
   // Gentle room light: the brightness of the light falling on his front, kept between 80% and 100%, eased over ~0.3 s.
@@ -615,11 +490,16 @@ const update = (now, cam, est) => {
 // tap as you hold still never misses it. p: where the middle of the screen meets a surface facing up, or null.
 const NEAR_SPOT = 1.2, FAR_SPOT = 5, RING_S = 0.3;
 let ringAt = -Infinity;
+// seeking: from Start AR until ARCore first finds a surface facing up, the "Finding the floor" card shows instead of the tip;
+// a surface out of range ends it too, so "Too close/far" can say why no ring shows.
+let seeking = false;
+const findingEl = document.getElementById('finding');
 const aim = (p, cam, now) => {
   const d = p ? Math.hypot(p.x - cam.x, p.z - cam.z) : NaN;
   if (d >= NEAR_SPOT && d <= FAR_SPOT) { reticle.matrix.makeTranslation(p.x, p.y, p.z); floorY = p.y; ringAt = now; }
   reticle.visible = now - ringAt < RING_S;
-  tip(reticle.visible ? `Tap to bring ${NAME} to the ring` : d < NEAR_SPOT ? 'Too close: point at the floor a bit further away'
+  if (p && seeking) { seeking = false; findingEl.style.display = 'none'; }
+  tip(seeking ? '' : reticle.visible ? `Tap to bring ${NAME} to the ring` : d < NEAR_SPOT ? 'Too close: point at the floor a bit further away'
     : d > FAR_SPOT ? 'Too far: point at the floor a bit closer' : 'Point your phone at the floor a few steps away and move it slowly');
 };
 // For tests: what the page is doing.
@@ -627,8 +507,7 @@ window.state = () => ({ placed: placedAt !== null, at: figure.position.toArray()
   ringAt: reticle.visible ? new THREE.Vector3().setFromMatrixPosition(reticle.matrix).toArray().map((v) => +v.toFixed(3)) : null, close, tip: tipEl.textContent, color: card.material.color.toArray().map((v) => +v.toFixed(3)),
   backShown: back.style.display === 'block', back: BACK ? homeLink() : null, talk: talk.state, heard, hint: hintEl.textContent,
   menu: !cardShown() ? null : [...menuEl.querySelectorAll('.row')].map((r) => (r.classList.contains('on') ? '*' : '') + r.querySelector('.n b').textContent),
-  save: !cardShown() ? null : menuEl.querySelector('.save')?.textContent ?? null, status: !cardShown() ? null : menuEl.querySelector('.chip')?.textContent ?? null,
-  ad: board.visible ? { frames: adFrames.length, showing: painted } : null });
+  save: !cardShown() ? null : menuEl.querySelector('.save')?.textContent ?? null, status: !cardShown() ? null : menuEl.querySelector('.chip')?.textContent ?? null });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
@@ -727,12 +606,21 @@ if (PREVIEW) {
   const comeOut = (p, xrFrame, now) => { place(p, now); base.copy(p); anchorAt(xrFrame, p); };
   // Talking needs the mic, and its prompt comes as the page opens, before AR: inside AR it may not show, and on a
   // tap it outlasted the tap AR needs, so Start took two taps (18 Oct).
+  // micAsking: that question is on screen (its getUserMedia unsettled). Chrome asks one thing at a time, so a Start tap then
+  // would wait behind it or be lost (20 Oct): Start says so instead. A state of 'prompt' alone blocks nothing.
+  const note = document.getElementById('note'), MIC_ASK = 'Chrome is asking about the microphone: answer it, then tap Start AR';
+  let micAsking = false;
   if (ok) navigator.permissions?.query({ name: 'microphone' }).then((p) => {
-    if (p.state === 'prompt') navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()), () => {});
+    if (p.state !== 'prompt') return;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()), () => {})
+      .finally(() => { micAsking = false; if (note.textContent === MIC_ASK) note.textContent = ''; });
+    micAsking = true;   // after the call: one that throws asked nothing
   }, () => {});
   start.onclick = async () => {
+    if (micAsking) { note.textContent = MIC_ASK; return; }
+    note.textContent = 'Waiting for Chrome: allow the camera if it asks';
     let session = null;
-    try {
+    try {   // requestSession stays the first await: it needs this tap's user activation
       // No plane-detection: his spot comes from the hit test alone, and Chrome handing over every plane's outline each
       // frame was work the phone no longer needs to do.
       session = await navigator.xr.requestSession('immersive-ar', {
@@ -748,8 +636,10 @@ if (PREVIEW) {
     } catch (e) {   // camera refused, ARCore declined, or no hit tests: say so, rather than a button that does nothing
       session?.end().catch(() => {});
       start.textContent = e?.name === 'NotAllowedError' ? 'Camera blocked: allow it for this site, then tap again' : 'AR couldn’t start: tap to try again';
+      note.textContent = e?.name ?? String(e);   // Chrome's own word for it, to tell the cases apart on the phone
       return;
     }
+    note.textContent = '';
     // A tap on the screen (not on the mic or Back, which stop it) calls him to the ring.
     session.addEventListener('select', (e) => {
       if (placedAt !== null || !reticle.visible) return;
@@ -758,7 +648,8 @@ if (PREVIEW) {
     session.addEventListener('end', () => location.reload());
     start.style.display = 'none'; intro.style.display = 'none'; home.style.display = 'none';
     back.style.display = BACK ? 'block' : 'none';   // a way out before he comes (met=1 is added only once he's out)
-    tip('Point your phone at the floor a few steps away and move it slowly');
+    seeking = true; findingEl.style.display = 'block';
+    setTimeout(() => { document.getElementById('still').hidden = false; }, 8000);   // hidden with the card if a surface came first
   };
   rasterise();   // a first picture of him, as the loop copies him only once he is out: his card is never blank
   renderer.setAnimationLoop((time, xrFrame) => {
