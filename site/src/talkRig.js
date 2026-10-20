@@ -607,6 +607,12 @@ function makeRig(ID) {
     return s + `</g><path d="${d}" fill="none" stroke="${INK}" stroke-width="0.7" stroke-linejoin="round"/>`;
   }
 
+  // The beard and its fixed mouth moved under the face (the talking mouth then shows on the beard).
+const BEARD = /(<g id="beard"><g [^>]*><path [^>]*\/><\/g><path [^>]*\/><\/g>)<path d="M-3\.8,-6\.6[^>]*\/>/;
+const BLUSH = /<g transform="translate\([^"]*\)">(?:<ellipse cx="-?12\.2" cy="-10\.6"[^>]*\/>){2}<\/g>|(?:<ellipse cx="-?12\.2" cy="-10\.6"[^>]*\/>){2}/;
+const beardUnder = (g) => { const m = g.match(BEARD), k = g.match(BLUSH)?.[0] ?? '';   // the blush stays under the beard
+  return m && g.includes('<g id="face">') ? g.replace(m[0], '').replace(k, '').replace('<g id="face">', k + m[1] + '<g id="face">') : g; };
+
   // ---- Hair and hats on springs -----------------------------------------------------------------------------------------
   // a: the swing in degrees (from the director's spring), yaw: the head turn (the back hair moves the other way)
   function hairAt(a, yaw) {
@@ -640,7 +646,7 @@ function makeRig(ID) {
     return { x: Q(p.x, 0.1), y: Q(p.y, 0.1), rot: Q(p.rot, 0.1), breath: Q(p.breath, 1 / 12), shrug: Q(p.shrug, 0.04), foot: p.foot, sway: Q(p.sway, 0.15),
       head: { roll: Q(h.roll, 0.15), yaw: Q(h.yaw, 0.01), nod: Q(h.nod, 0.05) },
       face: { blink: Q(fc.blink, 0.05), look: L && [Q(L[0], 0.05), Q(L[1], 0.05)], squint: Q(fc.squint, 0.02), browUp: Q(fc.browUp, 0.02), browIn: Q(fc.browIn, 0.02),
-        browTilt: Q(fc.browTilt, 0.02), smile: fc.smile == null ? undefined : Q(fc.smile, 0.02), open: Q(fc.open, 0.02), wide: Q(fc.wide, 0.04), teeth: fc.teeth || 0, blush: Q(fc.blush, 0.04) },
+        browTilt: Q(fc.browTilt, 0.02), smile: fc.smile == null ? undefined : Q(fc.smile, 0.02), open: Q(fc.open, 0.02), wide: Q(fc.wide, 0.04), teeth: fc.teeth || 0, blush: Q(fc.blush, 0.04), speaking: !!fc.speaking },
       arms: p.arms && { [-1]: arm(p.arms[-1]), [1]: arm(p.arms[1]) } };
   }
   function apply(svg, pose) {
@@ -670,7 +676,8 @@ function makeRig(ID) {
     if (c.hat && sway && sway.hat) HATS[c.hat] = (cc) => brows + `<g transform="rotate(${f(sa * sway.hat.k)} ${sway.hat.pivot[0]} ${sway.hat.pivot[1]}) translate(${f(yaw * 0.6)} 0)">${HATS0[c.hat](cc)}</g>`;
     else if (c.hat) HATS[c.hat] = (cc) => brows + `<g transform="translate(${f(yaw * 0.6)} 0)">${HATS0[c.hat](cc)}</g>`;
     face = () => { const r = faceDraw({ ...(p.face || {}), yaw, nod }, id); brows = r.brows; return r.face; };
-    const head = headGroup(c, b, 0).replace(/^<g id="head-[^"]*" transform="[^"]*">/, '').replace(/<\/g>$/, '') + (c.hat ? '' : brows);
+    let head = headGroup(c, b, 0).replace(/^<g id="head-[^"]*" transform="[^"]*">/, '').replace(/<\/g>$/, '') + (c.hat ? '' : brows);
+    if (c.beard && p.face?.speaking) head = beardUnder(head);
     HAIR[ID] = HAIR0[ID]; if (c.hat) HATS[c.hat] = HATS0[c.hat];
     const props = [-1, 1].map((side, i) => c.props[i] ? { svg: PROPS[c.props[i]](arms[side].C), behind: arms[side].W[1] > arms[side].E[1] + 2 } : null);
     const bb = lift ? { ...b, sy: b.sy - lift } : b, TOR = torso(bb, c, sw);
@@ -728,7 +735,8 @@ const EXPR = {   // face targets; anything left out is neutral (0)
 };
 const FACEKEYS = ['smile', 'squint', 'browUp', 'browIn', 'browTilt', 'blush', 'roll', 'jaw'];   // jaw: an open smile between words
 // how fast each part follows (s): brows quick, the smile slower, blush slowest
-const TAU = { jaw: 0.12, smile: 0.16, squint: 0.14, browUp: 0.08, browIn: 0.12, browTilt: 0.12, blush: 0.45, roll: 0.25, yaw: 0.12, open: 0.035, wide: 0.05, look0: 0.03, look1: 0.03 };
+const LEAD = 0.07;   // s the mouth shows ahead of its sound (it lands about 15 ms ahead after the jaw's easing)
+const TAU = { jaw: 0.12, smile: 0.16, squint: 0.14, browUp: 0.08, browIn: 0.12, browTilt: 0.12, blush: 0.45, roll: 0.25, yaw: 0.12, open: 0.02, wide: 0.03, look0: 0.03, look1: 0.03 };
 
 const W = {
   greet: /^(hi|hello|hey|welcome|namaste)$/, self: /^(i|i'm|im|me|my|i'll|i've)$/, you: /^(you|your|you're|you'll|you'd)$/,
@@ -938,10 +946,11 @@ class Performance {
     return out;
   }
   mouthAt(t) {
+    t += LEAD;
     if (t > this.T.end + 0.05) return { open: 0, wide: 0 };   // done, or cut off
     for (const s of this.talk.sentences) {
       const a = this.T.talk + s.t0, u = t - a; if (u < -0.05 || u > s.dur + 0.05) continue;
-      const e = s.env[Math.max(0, Math.floor((u + 0.03) * 100))] || 0, P = s.phones;
+      const e = s.env[Math.max(0, Math.floor(u * 100))] || 0, P = s.phones;
       let i = P.findIndex((p) => u >= p[1] && u < p[2]);
       if (i < 0 || e < 0.06) return { open: 0, wide: 0, speech: 1 };
       const v = viseme(P[i][0]), nx = P[i + 1] ? viseme(P[i + 1][0]) : v, k = clamp((u - P[i][1]) / (P[i][2] - P[i][1]) - 0.6, 0, 0.4) / 0.4 * 0.5;   // lean into the next sound
@@ -974,6 +983,7 @@ class Performance {
   step(dt) {
     const t = this.t, tg = this.targets(t), s = this.s;
     for (const k in TAU) if (k in tg) s[k] += (tg[k] - s[k]) * (1 - Math.exp(-dt / TAU[k]));
+    if (tg._m.shut) s.open = 0;   // lips meet at once: smoothed, a 60 ms m only half closed them
     this.m = tg._m;
     // hair: a damped spring towards hanging straight down (against the head's roll), kicked by the head's sideways
     // acceleration and its turn
@@ -1029,7 +1039,7 @@ class Performance {
     return {
       x: p.x, rot: p.rot, breath: p.breath, shrug: p.shrug,
       head: this.headAt(t, p),
-      face: { blink: this.blinkAt(t), look: [s.look0, s.look1], squint: s.squint, browUp: s.browUp + 0.55 * p.flash, browIn: s.browIn, browTilt: s.browTilt,
+      face: { speaking: t >= this.T.talk - 0.1 && t <= this.T.end + 0.3, blink: this.blinkAt(t), look: [s.look0, s.look1], squint: s.squint, browUp: s.browUp + 0.55 * p.flash, browIn: s.browIn, browTilt: s.browTilt,
         smile: m.shut ? Math.min(smile, 0.3) : smile, open: s.open, wide: s.wide, teeth: m.teeth || 0, blush: s.blush },
       arms: { [-1]: this.arm(-1, t), [1]: this.arm(1, t) },
       sway: this.hair.a,
@@ -1096,6 +1106,11 @@ function layout(text, env, dur) {
     }
     from = to + 1; t0 = cutAt.get(to)?.[1] ?? t1;
   }
+  return sentencesOf(placed, env, dur);
+}
+
+// placed: [{ w, end, t0, t1, letters: [[sound, t0, t1]] }] in voice time -> the director's talk
+function sentencesOf(placed, env, dur) {
   // sentences end at . ! ?; times inside a sentence count from its start (the director's format)
   const sentences = []; let group = [];
   placed.forEach((w, i) => { group.push(w); if (w.end || i === placed.length - 1) {
@@ -1110,6 +1125,41 @@ function layout(text, env, dur) {
 
 function alignSpeech(text, pcm, rate) { return layout(text, loudness(pcm, rate), pcm.length / rate); }
 
+// Lines the words up with the voice from ElevenLabs' character timings (text-to-speech with-timestamps): every letter at
+// the time it was spoken, so the lips meet on m, b and p and round on o and u when the voice does.
+//   alignTimed(pcm, rate, { characters, character_start_times_seconds, character_end_times_seconds }) -> as alignSpeech
+const PAIRS = { oo: 'u', ou: 'o', ow: 'o', oa: 'o', oy: 'ɔ', oi: 'ɔ', ee: 'i', ea: 'i', ie: 'i', ey: 'e', ay: 'e', ai: 'e', th: 'θ', sh: 'ʃ', ch: 'ʃ', ph: 'f', ng: 'ŋ', ck: 'k', wh: 'w', qu: 'w' };
+const SOUND = { c: 'k', q: 'k', x: 'k', j: 'ʃ', y: 'j' };
+function soundsOf(L) {   // one word's letters [[letter, t0, t1]] -> its sounds
+  const out = [];
+  for (let i = 0; i < L.length; i++) {
+    const pair = PAIRS[L[i][0] + (L[i + 1]?.[0] ?? '')];
+    if (pair) { out.push([pair, L[i][1], L[i + 1][2]]); i++; continue; }
+    let p = SOUND[L[i][0]] ?? L[i][0];
+    if (p === 'e' && i === L.length - 1 && i > 1) { out[out.length - 1][2] = L[i][2]; continue; }   // a silent final e
+    if (p === 'j' && i > 0) p = 'i';   // y inside a word is a vowel ("my", "any")
+    if (/\d/.test(p)) p = 'ə';
+    out.push([p, L[i][1], L[i][2]]);
+  }
+  return out;
+}
+function alignTimed(pcm, rate, timing) {
+  const chars = timing.characters || [], st = timing.character_start_times_seconds || [], en = timing.character_end_times_seconds || [];
+  const placed = []; let w = null;
+  const close = () => { if (w?.letters.length) placed.push({ w: w.w, end: /[.!?]["'”)]*$/.test(w.w), t0: w.letters[0][1], t1: w.letters[w.letters.length - 1][2], letters: soundsOf(w.letters) }); w = null; };
+  for (let i = 0; i < Math.min(chars.length, st.length, en.length); i++) {
+    const ch = chars[i];
+    if (/[\p{L}\p{N}'’]/u.test(ch)) {
+      if (w?.done) close();
+      (w ??= { w: '', letters: [] }).w += ch;
+      if (/[\p{L}\p{N}]/u.test(ch)) w.letters.push([ch.toLowerCase(), st[i], en[i]]);
+    } else if (w && /\S/.test(ch)) { w.w += ch; w.done = true; }   // punctuation stays on its word (for . ? and commas)
+    else close();
+  }
+  close();
+  return sentencesOf(placed, loudness(pcm, rate), pcm.length / rate);
+}
+
 function estimateSpeech(text) {
   // about 9 letter-weights a second, a breath at commas and a longer one at full stops; loudness from the letters
   const env = [0, 0, 0, 0, 0];
@@ -1121,4 +1171,4 @@ function estimateSpeech(text) {
   return layout(text, env, env.length / 100);
 }
 
-export { makeRig, Performance, alignSpeech, estimateSpeech };
+export { makeRig, Performance, alignSpeech, alignTimed, estimateSpeech };

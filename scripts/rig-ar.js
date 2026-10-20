@@ -50,6 +50,21 @@ const roleOf = (i) => (i === R.arrive ? 'arrive' : i === R.hi ? 'hi' : i === R.i
 let mystery = false, quiet = false, held = false, queue = [], cur = R.idle, since = 0, rest = 8, clock = 0, shown = '', at = null, flip = 1;
 // Talking (saath.face, saath.act): the face laid over every drawing, and a clip waiting until he stops talking.
 let faceOn = {}, afterTalk = null;
+// Talking only: a wide mouth for ee and i, drawn like the design's half mouth but wider and flatter, with the upper
+// teeth showing (as its big mouth shows them). The design's own drawings are untouched; faceAt is the rig's face drawer.
+if (typeof faceAt === 'function') {
+  const faceAt0 = faceAt, HALF = /<path d="M-2\.6,-6\.2Q0,-5\.8 2\.6,-6\.2Q1\.8,-3\.4 0,-3\.4Q-1\.8,-3\.4 -2\.6,-6\.2Z"([^>]*)\/>/;
+  faceAt = (cc, st) => (st.mouth !== 'wide' ? faceAt0(cc, st) : faceAt0(cc, { ...st, mouth: 'half' }).replace(HALF, (_, rest) =>
+    `<path d="M-3.5,-6.5Q0,-6.1 3.5,-6.5Q2.4,-4.3 0,-4.3Q-2.4,-4.3 -3.5,-6.5Z"${rest}/><path d="M-3.1,-6.35Q0,-5.95 3.1,-6.35L2.75,-5.5Q0,-5.2 -2.75,-5.5Z" fill="#FFFFFF"/>`));
+}
+// A beard (Omar) is drawn over the face with its own fixed open mouth, which hid his talking mouth: while he talks the
+// beard goes under the face, so his mouth moves on it. At rest, and in his clips, he keeps the design's look.
+if (typeof headGroup === 'function') {
+  const headGroup0 = headGroup, BEARD = /(<g id="beard"><g [^>]*><path [^>]*\/><\/g><path [^>]*\/><\/g>)<path d="M-3\.8,-6\.6[^>]*\/>/;
+  const BLUSH = /(?:<ellipse cx="-?12\.2" cy="-10\.6"[^>]*\/>){2}/;   // the blush stays under the beard
+  headGroup = (c, b, chinY) => { const g = headGroup0(c, b, chinY), m = c.beard && faceOn.mouth && g.match(BEARD), k = g.match(BLUSH)?.[0] ?? '';
+    return m && g.includes('<g id="face">') ? g.replace(m[0], '').replace(k, '').replace('<g id="face">', k + m[1] + '<g id="face">') : g; };
+}
 
 // The page's visible size in CSS pixels. Android's WebView may zoom the page a little (1.037 on the
 // S24), and reports innerWidth/innerHeight in device pixels (2.6x too big), so use the visual viewport.

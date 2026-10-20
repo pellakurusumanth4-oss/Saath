@@ -17,8 +17,8 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 // an extra now and then.
 // face: the round portrait's size and centre (dx, dy), relative to his head's box.
 // talk: what saath.face and saath.act use while he talks (web/talk). mouths and moods map the shared names
-// to this rig's own existing parts (no new drawings; a mood's `closed` replaces his usual closed mouth, so he
-// doesn't smile while sad); actions map the gesture words in Claude's replies
+// to this rig's own parts (its existing drawings, and the wide mouth for ee that rig-ar.js adds; a mood's `closed`
+// replaces his usual closed mouth, so he doesn't smile while sad); actions map the gesture words in Claude's replies
 // (web/talk/reply.mjs lists the same words) to his clips; later = gestures that hide or shut his face, so
 // they wait until he stops talking.
 // roles.extras play by themselves while a friend stands idle, so they keep only clips where his feet stay within about 15 cm of
@@ -30,7 +30,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 // 1.75 face widths), whatever the hat, bun or ponytail does to the head's box.
 const MASCOT = {
   roles: { idle: 'Idle', hi: 'Hi!', arrive: 'Welcome!', extras: ['Show', 'Think', 'Laugh'] },
-  talk: { mouths: { closed: 'closed', half: 'half', open: 'open', round: 'round' },
+  talk: { mouths: { closed: 'closed', half: 'half', open: 'open', round: 'round', wide: 'wide' },
     moods: { neutral: {}, happy: { eyes: 'happy' }, excited: { eyes: 'happy', brows: 'up', closed: 'grin' }, surprised: { brows: 'up', closed: 'round' },
       curious: { look: [1, 0], brows: 'tilt' }, sad: { brows: 'sad', closed: 'flat' }, worried: { brows: 'sad', look: [0, 0.6], closed: 'flat' },
       sleepy: { blink: 0.55 }, thinking: { look: [1, -1], brows: 'tilt' } },

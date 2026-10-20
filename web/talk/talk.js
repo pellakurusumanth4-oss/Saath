@@ -7,12 +7,12 @@
 //   either) and may mark a reply's cue `menu` (it talks about the menu or prices) or `long` (a listening turn).
 //   onEvent(type, data): 'state' (idle | listening | thinking | speaking), 'heard' (text), 'cue' ({emotion, action, menu}: menu when he talks about the shop's menu or prices),
 //   'error' (a message to show), 'timing' ({name, ms} since letting go: heard, cue, audio, sound).
-//   face() -> {mood, mouth: 'closed'|'half'|'open'} while he thinks or talks, for the rig's saath.face() each frame;
+//   face() -> {mood, mouth: 'closed'|'half'|'open'|'round'|'wide'} while he thinks or talks, for the rig's saath.face() each frame;
 //   then null when he has finished (his own face; a gesture held back until he stopped talking plays now), or false
 //   when he was cut off or the reply failed (his own face, and that gesture is dropped).
 //   cloud() -> {thinking: true} | {text} | null: what he is doing or saying, for tests (since 18 Oct the AR page shows no words).
 //   lip: seconds added to the audio clock, to line the mouth up by hand (e.g. Bluetooth earbuds).
-import { MOUTH, closures, loudness, mouthAt } from './mouth.mjs';
+import { MOUTH, closures, loudness, mouthAt, vowels } from './mouth.mjs';
 
 // Where /api/talk and /api/hear live: this page's own server (the laptop's web/serve.mjs), unless a hosted page names
 // one in <meta name="saath-api" content="https://…/functions/v1/ar" data-key="…">; the key is a public one, sent as
@@ -56,8 +56,8 @@ export function createTalk({ friend, shop = null, onEvent, lip = 0 }) {
   const hush = () => { for (const s of sources) try { s.stop(); } catch {} sources = []; sounds = []; next = firstAt = 0; };
 
   // One chunk of 16-bit 24 kHz speech, queued right after the last. Each sentence also keeps its samples (from where
-  // it starts playing; a late chunk is padded with silence so they stay in step), its lip closures (a sentence's
-  // first chunk carries the timings of the whole sentence) and its text. face() reads the mouth from them
+  // it starts playing; a late chunk is padded with silence so they stay in step), its letters' timings (a long
+  // sentence's come in several chunks, each for its own part), the lip closures and vowels they give, and its text. face() reads the mouth from them
   // (web/talk/mouth.mjs), cloud() the words.
   const play = (o) => {
     const bytes = Uint8Array.from(atob(o.pcm), (c) => c.charCodeAt(0)), pcm = new Int16Array(bytes.buffer, 0, bytes.length >> 1);
@@ -68,11 +68,11 @@ export function createTalk({ friend, shop = null, onEvent, lip = 0 }) {
     src.buffer = buf; src.connect(ctx.destination);
     const at = Math.max(next, ctx.currentTime + 0.05);
     src.start(at); sources.push(src); next = at + buf.duration;
-    const s = (sounds[o.s] ??= { at, pcm: new Float32Array(0), ref: 0, shut: [], text: o.text });
+    const s = (sounds[o.s] ??= { at, pcm: new Float32Array(0), ref: 0, shut: [], vowels: [], timing: { chars: [], starts: [], ends: [] }, text: o.text });
     const from = Math.max(s.pcm.length, Math.round((at - s.at) * RATE)), all = new Float32Array(from + ch.length);
     all.set(s.pcm); all.set(ch, from);
     s.pcm = all; s.ref = loudness(all);
-    if (o.chars.length) s.shut = closures(o);
+    if (o.chars.length) { for (const k of ['chars', 'starts', 'ends']) s.timing[k].push(...o[k]); s.shut = closures(s.timing); s.vowels = vowels(s.timing); }
     if (!firstAt) { firstAt = at; time('audio'); }
   };
 
@@ -213,7 +213,7 @@ export function createTalk({ friend, shop = null, onEvent, lip = 0 }) {
       }
       // The shape for the next 83 ms of voice, asked every frame: the rig shows it from its next drawing.
       const s = sounds.findLast((x) => x && x.at <= t);
-      return { mood: emotion, mouth: MOUTH[s ? mouthAt(s, t - s.at) : 'X'] };
+      return { mood: emotion, mouth: MOUTH[s ? mouthAt(s, t - s.at, true) : 'X'] };
     },
     // Three dots while he thinks (until his voice reaches you), then the sentence he is saying; null once face() has
     // seen him finish.

@@ -116,3 +116,18 @@ test('a shop\'s mascot: the page sends the shop\'s id instead of a friend, and t
   talk.warm(); await settle();
   assert.deepEqual(asked.at(-1), { shop: 'kettle-and-kulhad', warm: true });
 });
+
+test('a long sentence\'s timings come in several chunks: the first part keeps its m, b and p', async () => {
+  const talk = createTalk({ friend: 'juno', onEvent: () => {} });
+  // one sentence in two 0.2 s chunks: "am" in the first (the m at 0.1-0.2 s), "aa" in the second
+  const part = (chars, from) => ({ type: 'audio', s: 0, text: 'am aa', pcm, chars, starts: chars.map((_, i) => from + i * 0.1), ends: chars.map((_, i) => from + i * 0.1 + 0.1) });
+  answer = () => new Response([{ type: 'cue', emotion: 'happy', action: 'idle' }, part(['a', 'm'], 0), part(['a', 'a'], 0.2), { type: 'done', reply: '[happy|idle] am aa' }]
+    .map((l) => JSON.stringify(l)).join('\n') + '\n');
+  globalThis.__ctx && (globalThis.__ctx.currentTime = 0);
+  talk.send('hi'); await settle();
+  __ctx.currentTime = 0.05 + 0.05;   // the voice started at 0.05: this drawing shows its 0.1-0.18 s, the m
+  assert.equal(talk.face().mouth, 'closed');
+  __ctx.currentTime = 0.05 + 0.3;
+  assert.notEqual(talk.face().mouth, 'closed');
+  talk.stop();
+});

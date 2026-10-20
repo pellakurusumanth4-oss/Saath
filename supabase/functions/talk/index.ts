@@ -111,11 +111,14 @@ Deno.serve(async (req: Request) => {
       if (limited) return limited;
 
       const voiceId = Deno.env.get(`ELEVENLABS_VOICE_${friendId.toUpperCase()}`) || defaultVoice;
+      // timings: ElevenLabs' with-timestamps answer instead (JSON: the same mp3 as base64, and when each letter is
+      // spoken), so the mascot's lips follow the real sounds; the same credits as the plain mp3
+      const timed = body?.timings === true;
       const tts = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_64`,
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}${timed ? "/with-timestamps" : ""}?output_format=mp3_44100_64`,
         {
           method: "POST",
-          headers: { "xi-api-key": elevenKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
+          headers: { "xi-api-key": elevenKey, "Content-Type": "application/json", Accept: timed ? "application/json" : "audio/mpeg" },
           body: JSON.stringify({
             text: text.trim(),
             model_id: "eleven_flash_v2_5",
@@ -127,7 +130,7 @@ Deno.serve(async (req: Request) => {
         console.error("ElevenLabs failed", tts.status, (await tts.text()).slice(0, 300));
         return json({ error: "Voice failed", status: tts.status }, 502);
       }
-      return new Response(tts.body, { headers: { ...corsHeaders, "Content-Type": "audio/mpeg" } });
+      return new Response(tts.body, { headers: { ...corsHeaders, "Content-Type": timed ? "application/json" : "audio/mpeg" } });
     }
 
     // ---- A shop's mascot answers from the shop's live data (the page sends only the shop's slug) ----

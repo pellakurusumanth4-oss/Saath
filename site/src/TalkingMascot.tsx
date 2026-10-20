@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { Mascot } from './mascots';
 import { Podium } from './ui';
 import type { Performance as Director, Rig, Talk } from './talkRig';
+import type { Timing } from './kokoro';
 
-export type Speech = { key: number; text: string; audio?: HTMLAudioElement };
+export type Speech = { key: number; text: string; audio?: HTMLAudioElement; timing?: Timing };
 type State = 'idle' | 'listening' | 'thinking' | 'talking';
 type Live = { rig: Rig; director: Director; mod: typeof import('./talkRig'); clock: number; last: number; until: number; audio?: HTMLAudioElement; t0?: number };
 
@@ -69,7 +70,8 @@ export default function TalkingMascot({ mascot, color, state, speech, grey = fal
     else if (state === 'thinking') L.director.think(L.clock);
   }, [state, ready]);
 
-  // a reply: line its words up with the voice (or estimate them for the browser's own voice), then perform it
+  // a reply: line its words up with the voice (by ElevenLabs' letter timings when it sent them, else from the sound;
+  // estimated for the browser's own voice), then perform it
   useEffect(() => {
     const L = live.current;
     if (!L || !speech) return;
@@ -86,7 +88,8 @@ export default function TalkingMascot({ mascot, color, state, speech, grey = fal
     if (a?.src) {
       fetch(a.src).then((r) => r.arrayBuffer())
         .then((buf) => new OfflineAudioContext(1, 1, 44100).decodeAudioData(buf))
-        .then((sound) => start(L.mod.alignSpeech(speech.text, sound.getChannelData(0), sound.sampleRate)))
+        .then((sound) => start(speech.timing ? L.mod.alignTimed(sound.getChannelData(0), sound.sampleRate, speech.timing)
+          : L.mod.alignSpeech(speech.text, sound.getChannelData(0), sound.sampleRate)))
         .catch(estimate)
         .catch(() => setFailed(true));   // the rig itself failed: the still figure, not a broken page
     } else {

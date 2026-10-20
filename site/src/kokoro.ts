@@ -17,7 +17,11 @@ export type SpeakHandle = {
   done: Promise<boolean | void>;
   /** The playing voice when it is a sound file (ElevenLabs): the talking mascot follows its time and loudness. */
   audio?: HTMLAudioElement;
+  /** When ElevenLabs spoke each letter (seconds into the audio): the mascot's lips follow the real sounds. */
+  timing?: Timing;
 };
+
+export type Timing = { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] };
 
 /** Resolves once speechSynthesis stops speaking (capped at 20 s). */
 async function synthDone(): Promise<void> {
@@ -250,44 +254,50 @@ export function elevenAvailable(): Promise<boolean> {
   return elevenStatus;
 }
 
-/** Audio already fetched for the 5 most recent lines, so ▶ replay doesn't pay for the same speech twice. */
-const elevenClips = new Map<string, string>();
+/** Audio (and its letter timings) already fetched for the 5 most recent lines, so ▶ replay doesn't pay for the same speech twice. */
+const elevenClips = new Map<string, { url: string; timing?: Timing }>();
 
 /** Speak with the friend's ElevenLabs voice. Resolves null on any failure so callers can fall back. */
 async function speakWithEleven(friendId: string, text: string): Promise<SpeakHandle | null> {
   const key = `${friendId}:${text}`;
-  let url = elevenClips.get(key);
+  let clip = elevenClips.get(key);
   elevenClips.delete(key);   // re-added below as the newest, so the clip about to play is never the one evicted
-  if (!url) {
+  if (!clip) {
     try {
+      // timings: the function answers JSON (the mp3 as base64 and when each letter is spoken); an older function
+      // ignores the flag and sends the mp3 itself, which still plays (the lips then follow the loudness alone)
       const response = await fetch(TALK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ mode: 'speak', friendId, text }),
+        body: JSON.stringify({ mode: 'speak', friendId, text, timings: true }),
         signal: AbortSignal.timeout?.(20000),
       });
       if (!response.ok) {
         console.warn('ElevenLabs voice unavailable', response.status, await response.text().catch(() => ''));
         return null;
       }
-      url = URL.createObjectURL(await response.blob());
+      if (response.headers.get('Content-Type')?.includes('json')) {
+        const body = await response.json() as { audio_base64: string; alignment?: Timing | null; normalized_alignment?: Timing | null };
+        const bytes = Uint8Array.from(atob(body.audio_base64), (c) => c.charCodeAt(0));
+        clip = { url: URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' })), timing: body.normalized_alignment ?? body.alignment ?? undefined };
+      } else clip = { url: URL.createObjectURL(await response.blob()) };
     } catch {
       return null;
     }
   }
-  elevenClips.set(key, url);
+  elevenClips.set(key, clip);
   for (const [k, old] of elevenClips) {   // Map keeps insertion order: drop the oldest beyond 5
     if (elevenClips.size <= 5) break;
     elevenClips.delete(k);
-    URL.revokeObjectURL(old);
+    URL.revokeObjectURL(old.url);
   }
-  const audio = new Audio(url);
+  const audio = new Audio(clip.url);
   let finish!: (played: boolean) => void;
   const done = new Promise<boolean>((resolve) => { finish = resolve; });
   audio.addEventListener('ended', () => finish(true), { once: true });
   audio.addEventListener('error', () => finish(false), { once: true });
   audio.play().catch(() => finish(false)); // autoplay blocked: don't leave the hangout waiting forever
-  return { cancel: () => { audio.pause(); finish(true); }, done, audio };
+  return { cancel: () => { audio.pause(); finish(true); }, done, audio, timing: clip.timing };
 }
 
 /** Stop any speech playback in flight. */

@@ -21,4 +21,5 @@ export class Performance {
 }
 export function makeRig(id: string): Rig;
 export function alignSpeech(text: string, pcm: Float32Array, rate: number): Talk;
+export function alignTimed(pcm: Float32Array, rate: number, timing: { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] }): Talk;
 export function estimateSpeech(text: string): Talk;

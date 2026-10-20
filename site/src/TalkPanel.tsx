@@ -96,7 +96,7 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
           return;
         }
         speaking.current = handle;
-        setSpeech({ key: mine, text: answer, audio: handle.audio });
+        setSpeech({ key: mine, text: answer, audio: handle.audio, timing: handle.timing });
         // The voice couldn't play (iPhone blocks audio outside a tap): show the reply instead, without saving that choice.
         if ((await handle.done) === false && mine === turn.current) {
           setSoundOn(false);

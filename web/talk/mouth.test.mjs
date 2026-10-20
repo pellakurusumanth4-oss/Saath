@@ -1,7 +1,7 @@
 // Run: node --test "web/talk/*.test.mjs"
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEAD, TICK, closures, flap, loudness, mouthAt } from './mouth.mjs';
+import { LEAD, TICK, closures, flap, loudness, mouthAt, vowels } from './mouth.mjs';
 
 // Synthetic speech at 24 kHz: segments of [seconds, loudness 0-1] of a 200 Hz tone.
 const tone = (segments) => {
@@ -10,7 +10,9 @@ const tone = (segments) => {
   return Float32Array.from(out);
 };
 // A sound as the page keeps it: the samples, its loudness scale and when its lips are shut.
-const sound = (segments, timings = { chars: [], starts: [], ends: [] }) => { const pcm = tone(segments); return { pcm, ref: loudness(pcm), shut: closures(timings) }; };
+const sound = (segments, timings = { chars: [], starts: [], ends: [] }) => { const pcm = tone(segments); return { pcm, ref: loudness(pcm), shut: closures(timings), vowels: vowels(timings) }; };
+// A word's letters a tenth of a second each, from `at` s.
+const spelt = (word, at = 0) => ({ chars: [...word], starts: [...word].map((_, i) => at + i * 0.1), ends: [...word].map((_, i) => at + i * 0.1 + 0.1) });
 const changesPerSecond = (seq) => [...seq].filter((c, i) => i && c !== seq[i - 1]).length / (seq.length * TICK);
 
 test('12 drawings a second, each drawn a little before its sound', () => {
@@ -65,4 +67,21 @@ test('it ends closed, and syllables at 4-5 a second flap 4-9 times a second', ()
 
 test('a sentence that is all one loudness still opens (each sentence scales itself)', () => {
   assert.match(flap(sound([[0.6, 0.05]])), /O/);
+});
+
+test('an open mouth on o, oo or w is drawn round; on ee or i wide, only for a rig that has the wide mouth', () => {
+  const s = sound([[1.2, 0.5]], spelt('a moo meet', 0.1));   // oo at 0.4-0.6 s, ee at 0.8-1.0 s
+  assert.equal(mouthAt(s, 0.45 - LEAD), 'U');
+  assert.equal(mouthAt(s, 0.85 - LEAD, true), 'E');
+  assert.equal(mouthAt(s, 0.85 - LEAD), 'O');   // no wide drawing: plain open
+  assert.equal(mouthAt(s, 0.3 - LEAD), 'X');   // the m of "moo" still shuts the lips
+});
+
+test('vowels read sounds, not single letters: the u of Juno is round, of but is not; a silent final e is not wide', () => {
+  const kinds = (word) => vowels(spelt(word)).map((v) => v[2]).join('');
+  assert.equal(kinds('juno'), 'UU');
+  assert.equal(kinds('but'), '');
+  assert.equal(kinds('make'), '');
+  assert.equal(kinds('see'), 'E');
+  assert.equal(kinds('you'), 'U');
 });
