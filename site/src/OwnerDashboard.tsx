@@ -3,6 +3,7 @@
 // reaches visitors live. No prices: the mascot answers visitors from what the owner wrote.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ArLink, ArQr, arLinkOf } from './ArQr';
+import OwnerInsights from './OwnerInsights';
 import TalkPanel from './TalkPanel';
 import { TodayCode, useOwnerDay } from './OwnerToday';
 import { plainError } from './net';
@@ -28,6 +29,24 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
   /** Sign out was tapped with changes still unsaved: ask first. */
   const [leaving, setLeaving] = useState(false);
   const day = useOwnerDay(shop.id);
+  // Insights is a view of this page (/owner/#insights): it shares this dashboard's copy of the shop and its save, so an
+  // idea put on the billboard there saves like a field here. Back on the dashboard, focus returns to the Insights link.
+  const [insights, setInsights] = useState(() => window.location.hash === '#insights');
+  const cta = useRef<HTMLAnchorElement>(null);
+  const back = useRef(false);
+  useEffect(() => {
+    const onHash = () => setInsights((was) => {
+      const now = window.location.hash === '#insights';
+      back.current = was && !now;
+      return now;
+    });
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  useEffect(() => {
+    if (!insights && back.current) cta.current?.focus();
+    back.current = false;
+  }, [insights]);
   useEffect(() => {
     gone.current = false;
     return () => {
@@ -71,6 +90,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
     else onSignOut();
   };
 
+  if (insights) return <OwnerInsights shop={shop} state={state} onSave={save} />;
   const mascot = hostOf(shop);
   const section = sectionOf(shop);
   return (
@@ -95,6 +115,12 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
       </div>
       <div className="owner-live"><i className="live-dot" />Live: visitors see every change within a second</div>
       <p className="owner-state" role="status">{state}</p>
+
+      <a ref={cta} className="ins-cta" href="#insights">
+        <span className="ins-cta-icon"><Icon name="star" size={20} /></span>
+        <span><b>Insights</b><small>How your mascot and billboard bring people in, and ideas to bring more</small></span>
+        <Icon name="arrow" size={18} />
+      </a>
 
       <div className="dash-cols">
         <div className="dash-col">
@@ -125,7 +151,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
             </label>
             <label className="wiz-field">
               <span>Road or landmark <em>optional</em></span>
-              <input name="area" value={shop.area} maxLength={120} placeholder="FC Road, Shivajinagar" onChange={(e) => save({ area: e.target.value })} />
+              <input name="area" value={shop.area} maxLength={120} placeholder="Main Street, near the station" onChange={(e) => save({ area: e.target.value })} />
             </label>
             <label className="wiz-field">
               <span>What you do <em>{shop.about.length}/160</em></span>

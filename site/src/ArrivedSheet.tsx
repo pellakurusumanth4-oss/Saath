@@ -4,6 +4,7 @@
 import { useEffect, useRef } from 'react';
 import MeetAr from './MeetAr';
 import { hostOf, sectionOf, statusText, type ShopWithMenu } from './shops';
+import { isFood } from './kinds';
 import { Icon, Podium } from './ui';
 import { useInert } from './useInert';
 
@@ -35,7 +36,7 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
           <a className="btn-ghost" href={`#/shop/${shop.slug}`}><Icon name="list" size={19} />{shop.menu.length ? 'See the menu' : 'See the shop'}</a>
         </div>
         <button type="button" className="arrived-bought" onClick={onBought}>
-          <span>Bought something? Get your verified visit and your saving.</span><b>I bought ›</b>
+          <span>Bought something? Get your verified visit{isFood(shop) ? ' and your saving' : ''}.</span><b>I bought ›</b>
         </button>
       </section>
     </div>

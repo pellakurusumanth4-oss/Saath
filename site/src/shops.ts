@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { distanceM, type LatLng } from '../../src/geo';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './talk';
+import { isFood } from './kinds';
 import { MASCOTS, type Mascot } from './mascots';
 import { MENU_COLUMNS, SHOP_COLUMNS } from './shopQuery';
 
@@ -130,8 +131,10 @@ export const boardOf = (shop: Shop): LatLng =>
 export type Order = { names: string; here: number; itemsApps: number; fee: number; apps: number; saving: number };
 
 /** The usual order's sum: the shop's own app prices + typical fees against its walk-in price. Null when an item is
- * missing, sold out or has no app price (the saving is then hidden), or when walking in saves nothing. */
-export function orderOf(shop: Pick<Shop, 'usual_order' | 'app_fee'>, menu: MenuItem[]): Order | null {
+ * missing, sold out or has no app price (the saving is then hidden), or when walking in saves nothing; and for every
+ * business that isn't food: walking in against delivery apps is the food places' own comparison (kinds.ts). */
+export function orderOf(shop: Pick<Shop, 'usual_order' | 'app_fee' | 'section'>, menu: MenuItem[]): Order | null {
+  if (!isFood(shop)) return null;
   const lines = shop.usual_order.map(({ item, qty }) => ({ item: menu.find((m) => m.id === item), qty }));
   if (!lines.length) return null;
   let here = 0;
@@ -168,9 +171,11 @@ export function ago(iso: string, now: number): string {
 export const updatedAt = (menu: MenuItem[]) => menu.reduce((newest, item) => (item.updated_at > newest ? item.updated_at : newest), '');
 
 const sortMenu = (items: MenuItem[]) => [...items].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+/** A visitor's copy of a menu: delivery-app prices are shown for food places only (the owner's own data keeps them). */
+const forVisitors = (shop: Pick<Shop, 'section'>, items: MenuItem[]) => (isFood(shop) ? items : items.map((item) => ({ ...item, app_price: null })));
 
 /** The shared demo owner account (migration 20261019170500): its shops are marked demo and capped on the map. */
-const DEMO_OWNER = '5aa7de00-0000-4000-8000-0000000000d1';
+export const DEMO_OWNER = '5aa7de00-0000-4000-8000-0000000000d1';
 
 /** Every published shop with its menu, for the map and the list, kept live (a demo-sized table: any change reloads it all). */
 export function useShops(): ShopWithMenu[] {
@@ -189,7 +194,7 @@ export function useShops(): ShopWithMenu[] {
         window.setTimeout(() => { if (live) void load(); }, 3000);
         return;
       }
-      const rows = (data as (Shop & { created_at: string; menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: sortMenu(items) }));
+      const rows = (data as (Shop & { created_at: string; menu_items: MenuItem[] })[]).map(({ menu_items: items, ...shop }) => ({ ...shop, menu: forVisitors(shop, sortMenu(items)) }));
       // shortcut: the shared demo account's shops are capped to its 5 newest on the map (plus the one this device made),
       // so test entries can't crowd it; move to a database clean-up if the demo account stays public after judging.
       let mine: string | null = null;
@@ -230,7 +235,7 @@ export function useShop(slug: string): { shop: Shop | null; menu: MenuItem[]; mi
         return;
       }
       const { menu_items: items, ...shop } = data as Shop & { menu_items: MenuItem[] };
-      setState({ shop, menu: sortMenu(items), missing: false });
+      setState({ shop, menu: forVisitors(shop, sortMenu(items)), missing: false });
       // Deletes can't be filtered by shop, so any menu delete reloads; it's a small table.
       channel ??= db
         .channel(`shop-${shop.id}`)

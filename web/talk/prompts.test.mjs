@@ -55,6 +55,20 @@ test('the usual order gives the mascot the same saving the shop\'s card shows', 
   assert.throws(() => shopData({ ...cafe, usualOrder: { items: 'chai', here: -1, apps: 2, fee: 1 } }), /bad shop: usualOrder/);
 });
 
+test('delivery-app prices and the walk-in saving are the food places\' own: any other kind\'s mascot gets neither', () => {
+  const order = { items: 'linen kurta', here: 30, apps: 55, fee: 0 };
+  const menu = [{ name: 'Linen kurta', price: 30, appPrice: 45, available: true }, { name: 'Phone case', price: 12, appPrice: 20, available: true }];
+  for (const section of ['realestate', 'boutique', 'salon', 'pharmacy', 'electronics', 'mall', 'books', 'gym', 'hotel']) {
+    const data = shopData({ id: 'x', name: 'Thread and Bloom', section, currency: 'USD', usualOrder: order, menu });
+    assert.ok(data.includes('- Linen kurta: 30 dollars') && data.includes('- Phone case: 12 dollars'), data);
+    for (const word of ['delivery', 'apps', 'usual order', 'saved', '45', '55']) assert.ok(!data.includes(word), `${section}: ${word}`);
+  }
+  for (const section of ['restaurant', 'cafe', 'juice', 'bakery', 'streetfood', 'grocery']) {
+    const data = shopData({ id: 'x', name: 'Copper Ladle', section, currency: 'USD', usualOrder: order, menu });
+    assert.ok(data.includes('- Linen kurta: 30 dollars (about 45 dollars on delivery apps)') && data.includes('25 dollars saved by walking in'), `${section}: ${data}`);
+  }
+});
+
 test('what the database leaves empty (null, or an empty note) counts as not given, as bolt.one\'s loader sends it', () => {
   const row = { id: 'wada-chai-katta', name: 'Wada Chai Katta', section: 'cafe', story: null, special: null, status: 'busy', statusNote: '',
     menu: [{ name: 'Misal pav', price: 80, appPrice: 139, available: true }, { name: 'Chai', price: 20, appPrice: null, available: true }], mascot: { name: null, voice: 'LFWwdLzOs2fj7AQXGqNp' } };

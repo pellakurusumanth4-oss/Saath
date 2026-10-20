@@ -5,6 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { LatLng } from '../../src/geo';
 import TalkPanel from './TalkPanel';
+import { Waitlist } from './ComingSoon';
+import { isFood } from './kinds';
 import { plainError } from './net';
 import { BillboardFields, KindPicker, MascotHero, MascotPicker, agentOf, mascotFor, shortName } from './ownerParts';
 import { boardOf, db, hostOf, SECTIONS, SHOP_COLUMNS, type Shop, type ShopWithMenu } from './shops';
@@ -140,7 +142,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
       if (earlier) return earlier as unknown as Shop;
       // Otherwise another shop has the name's link: try a short ending (names themselves can repeat).
     }
-    setError('That name is taken: add your area to it, like “Chai Corner Kothrud”.');
+    setError('That name is taken: add your area to it, like “Chai Corner Riverside”.');
     return null;
   };
 
@@ -201,6 +203,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
         <fieldset className="wiz-field">
           <legend>What kind of business?</legend>
           <KindPicker value={draft.section} onPick={(section) => change({ section })} />
+          {SECTIONS[draft.section] && !isFood(draft) && <Waitlist section={draft.section} />}
         </fieldset>
         <label className="wiz-field">
           <span>What you do, in a line or two <em>{draft.about.length}/160</em></span>
@@ -256,7 +259,7 @@ export default function OwnerWizard({ onStage, onDone, onClose }: {
         <p className="wiz-hint"><Icon name="map" size={18} />Drag the map until the pin sits on your door.</p>
         <label className="wiz-field">
           <span>Road or landmark <em>optional</em></span>
-          <input name="area" value={draft.area} maxLength={120} placeholder="FC Road, Shivajinagar" onChange={(e) => change({ area: e.target.value })} />
+          <input name="area" value={draft.area} maxLength={120} placeholder="Main Street, near the station" onChange={(e) => change({ area: e.target.value })} />
         </label>
       </>
     );

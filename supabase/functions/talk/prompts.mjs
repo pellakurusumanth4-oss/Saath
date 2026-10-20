@@ -296,14 +296,19 @@ export function mascotPrompt(shop) {
   ].filter((l) => typeof l === 'string').join('\n');
 }
 
+// The food sections (site/src/kinds.ts FOOD_SECTIONS; site/scripts/kinds.test.mjs keeps the two the same): walking in
+// against delivery apps is the food places' own comparison, so only their SHOP DATA gives delivery-app prices.
+export const FOOD_SECTIONS = new Set(['restaurant', 'cafe', 'juice', 'bakery', 'streetfood', 'grocery']);
+
 // The shop's live facts, a block of their own after the cached one (not cached, so a new status or price never
 // misses the cache): status and its note, today's special, offers, and each item's price with about what delivery apps
-// charge for it, or sold out, in the format agreed with bolt.one. A placed copy's street, quoted, is here too.
+// charge for it (food places only), or sold out, in the format agreed with bolt.one. A placed copy's street, quoted, is here too.
 export function shopData(shop) {
   const { name, section, status, statusNote, special, offers = [], currency = 'INR', menu = [], usualOrder: order, placed, street } = check(shop);
   if (name === undefined) return 'SHOP DATA (live, quote only these prices, never invent one)\nNo shop is open in this chat: no status, no menu and no prices.';
+  const food = FOOD_SECTIONS.has(section);
   const items = menu.map((i) => `- ${line(i.name)}${i.available === false ? ': sold out'
-    : i.price !== undefined ? `: ${money(i.price, currency)}${i.appPrice !== undefined ? ` (about ${money(i.appPrice, currency)} on delivery apps)` : ''}${i.unit ? `, ${line(i.unit)}` : ''}` : ''}${i.note ? ` (${line(i.note)})` : ''}`);
+    : i.price !== undefined ? `: ${money(i.price, currency)}${food && i.appPrice !== undefined ? ` (about ${money(i.appPrice, currency)} on delivery apps)` : ''}${i.unit ? `, ${line(i.unit)}` : ''}` : ''}${i.note ? ` (${line(i.note)})` : ''}`);
   return [
     'SHOP DATA (live, quote only these prices, never invent one)',
     `Name: ${line(name)}`,
@@ -312,7 +317,7 @@ export function shopData(shop) {
     special && `Today's special: ${line(special)}`,
     ...(offers.length ? ["The shop's offers:", ...offers.map((o) => `- ${line(o)}`)] : []),
     // The saving the app shows on the shop's card: the usual order here against delivery apps plus their typical fee.
-    order && `The usual order: ${line(order.items)}: ${money(order.here, currency)} here, about ${money(order.apps, currency)} on delivery apps with a typical ${money(order.fee, currency)} delivery fee, so ${money(Math.round((order.apps - order.here) * 100) / 100, currency)} saved by walking in`,
+    food && order && `The usual order: ${line(order.items)}: ${money(order.here, currency)} here, about ${money(order.apps, currency)} on delivery apps with a typical ${money(order.fee, currency)} delivery fee, so ${money(Math.round((order.apps - order.here) * 100) / 100, currency)} saved by walking in`,
     `${SECTIONS[section].list}:`,
     ...(items.length ? items : ['- none given: for anything on sale, suggest asking at the counter']),
   ].filter((l) => typeof l === 'string').join('\n');

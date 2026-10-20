@@ -1,6 +1,8 @@
 // The usual order's saving: the shop's own app prices + typical app fees against walking in, and how it's worked out.
+// Food places only: every other kind of business says on its card and page what its own section will show.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { isFood, soonLine } from './kinds';
 import { ago, orderOf, dollars, updatedAt, type MenuItem, type Order, type Shop } from './shops';
 import { Icon, SaveChip } from './ui';
 import { useInert } from './useInert';
@@ -36,6 +38,7 @@ export default function Compare({ shop, menu, mode = 'card', walk = null, countU
   const order = orderOf(shop, menu);
   const [how, setHow] = useState(false);
   const shown = useCountUp(order?.saving ?? 0, countUp);
+  if (!isFood(shop)) return mode === 'card' || mode === 'full' ? <p className="soon-note"><Icon name="info" size={16} />{soonLine(shop)}</p> : null;
   if (!order) return null;
   const off = shop.status === 'closed';
   if (mode === 'line') return <div className="cmp-line"><s>{dollars(order.apps)} apps</s> → <b>{dollars(order.here)} here</b></div>;

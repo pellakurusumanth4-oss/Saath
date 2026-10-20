@@ -11,6 +11,8 @@ import WalkHud, { type WalkView } from './WalkHud';
 import ArrivedSheet from './ArrivedSheet';
 import CodeSheet from './CodeSheet';
 import ReviewSheet from './ReviewSheet';
+import ComingSoon from './ComingSoon';
+import { KINDS, type Kind } from './kinds';
 import { walkingRoute, type Route } from './route';
 import { unlockSound } from './walking';
 import LocationAsk from './LocationAsk';
@@ -44,19 +46,6 @@ const useHash = () => {
 const stored = (store: () => Storage, key: string) => { try { return store().getItem(key); } catch { return null; } };
 const store = (store: () => Storage, key: string, value: string) => { try { store().setItem(key, value); } catch { /* not kept */ } };
 
-/** The category chips: which sections each one shows. */
-const CATEGORIES: { label: string; sections: string[]; glyph?: string }[] = [
-  { label: 'All', sections: [] },
-  { label: 'Food', sections: ['restaurant', 'streetfood'], glyph: 'restaurant' },
-  { label: 'Café', sections: ['cafe'], glyph: 'cafe' },
-  { label: 'Juice', sections: ['juice'], glyph: 'juice' },
-  { label: 'Bakery', sections: ['bakery'], glyph: 'bakery' },
-  { label: 'Grocery', sections: ['grocery'], glyph: 'grocery' },
-  { label: 'Pharmacy', sections: ['pharmacy'], glyph: 'pharmacy' },
-  { label: 'Shopping', sections: ['boutique', 'mall', 'electronics', 'books'], glyph: 'boutique' },
-  { label: 'Services', sections: ['salon', 'realestate', 'gym', 'hotel'], glyph: 'salon' },
-];
-
 /** J4/J5: walking to a shop: the route preview, then turn by turn. */
 type Trip = { shopId: string; route: Route | null; walking: boolean; started: number };
 /** J6–J8: at the door: arrived, the counter code, the review, the saving. */
@@ -83,7 +72,11 @@ export default function App() {
   const hash = useHash();
   const desktop = useDesktop();
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState(0);
+  // Which kind of business the visitor is browsing (kinds.ts): Nearby (every business) or Food for now; a kind that
+  // isn't live yet, tapped, opens its coming-soon sheet instead.
+  const [kind, setKind] = useState('nearby');
+  const [soon, setSoon] = useState<Kind | null>(null);
+  const closeSoon = useCallback(() => setSoon(null), []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ spot: LatLng; key: string } | null>(null);
   const [settingSpot, setSettingSpot] = useState(false);
@@ -108,11 +101,11 @@ export default function App() {
   const page = shopSlug ? 'shop' : hash === '#/business' ? 'business' : 'map';
 
   const shown = useMemo(() => {
-    const { sections } = CATEGORIES[category];
+    const sections = KINDS.find((k) => k.id === kind)?.sections ?? null;
     const q = query.trim().toLowerCase();
-    return shops.filter((shop) => (!sections.length || sections.includes(shop.section))
+    return shops.filter((shop) => (!sections || sections.includes(shop.section))
       && (!q || [shop.name, sectionOf(shop).label, shop.placed ? '' : shop.area, ...shop.menu.map((item) => item.name)].some((text) => text.toLowerCase().includes(q))));
-  }, [shops, category, query]);
+  }, [shops, kind, query]);
   // The map keeps every shop's marker and hides the rest, so a search or chip doesn't rebuild the city.
   const visible = useMemo(() => new Set(shown.map((shop) => shop.id)), [shown]);
 
@@ -321,8 +314,8 @@ export default function App() {
             <a className="for-business" href="#/business">For businesses →</a>
           </div>
           <Search query={query} setQuery={setQuery} />
-          <Chips category={category} setCategory={setCategory} />
-          <NearList shops={shown} me={me} thumb={76} loading={!shops.length} onPick={pick} />
+          <Chips kind={kind} setKind={setKind} onSoon={setSoon} />
+          <NearList shops={shown} me={me} thumb={76} loading={!shops.length} onPick={pick} title={kind === 'food' ? 'Food near you' : 'Near you'} />
           <SpotTools locating={locating} settingSpot={settingSpot} onLocate={onLocate} onSetSpot={() => setSettingSpot((v) => !v)} />
         </aside>
       ) : (
@@ -330,7 +323,7 @@ export default function App() {
           {!cardOpen && chrome && (
             <header className="top">
               <Search query={query} setQuery={setQuery} logo />
-              <Chips category={category} setCategory={setCategory} />
+              <Chips kind={kind} setKind={setKind} onSoon={setSoon} />
             </header>
           )}
           {chrome && (
@@ -339,7 +332,7 @@ export default function App() {
               {/* Hidden, not unmounted, under the card: closing it doesn't rebuild the list, which keeps its scroll. */}
               <div className="sheet glass-sheet near-sheet" style={cardOpen ? { display: 'none' } : undefined}>
                 <div className="grabber" />
-                <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} />
+                <NearList shops={shown} me={me} loading={!shops.length} onPick={pick} title={kind === 'food' ? 'Food near you' : 'Near you'} />
                 <div className="near-links" style={{ flexWrap: 'wrap' }}>
                   {!installed && <button type="button" onClick={() => setInstalling(true)}>Install app</button>}
                   <a className="for-business" href="#/business">For businesses →</a>
@@ -375,6 +368,7 @@ export default function App() {
       )}
       {asking && <LocationAsk onAllow={() => { setAsking(false); whereAmI(); }} onPick={() => { setAsking(false); setSettingSpot(true); }} />}
       {installing && <InstallSheet onClose={() => setInstalling(false)} />}
+      {soon && <ComingSoon kind={soon} onClose={closeSoon} />}
 
       {/* A walk restored after a reload shows here (Back, "Finding the walking route…") until its route is in. */}
       {trip && tripShop && !(trip.walking && trip.route) && !settingSpot && !asking && (
@@ -426,20 +420,27 @@ function Search({ query, setQuery, logo = false }: { query: string; setQuery: (q
   return (
     <label className="search glass">
       {logo ? <a className="brand-tile small" href="/" aria-label="Footfall home"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></a> : <Icon name="search" size={19} />}
-      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shops, food, services" aria-label="Search shops, food, services" />
+      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search businesses, food, services" aria-label="Search businesses, food, services" />
     </label>
   );
 }
 
-function Chips({ category, setCategory }: { category: number; setCategory: (i: number) => void }) {
+/** The kinds of business: Nearby (every business) and Food work now; the rest open what is coming (ComingSoon). */
+function Chips({ kind, setKind, onSoon }: { kind: string; setKind: (id: string) => void; onSoon: (kind: Kind) => void }) {
   return (
-    <div className="cats" role="group" aria-label="Categories">
-      {CATEGORIES.map((c, i) => (
-        <button key={c.label} type="button" className={`cat${i === category ? ' is-on' : ' glass'}`} aria-pressed={i === category} onClick={() => setCategory(i)}>
-          {c.glyph && <span className="glyph" style={{ background: sectionOf({ section: c.glyph }).color }}>{sectionOf({ section: c.glyph }).icon}</span>}
-          {c.label}
-        </button>
-      ))}
+    <div className="cats" role="group" aria-label="Kinds of business">
+      {KINDS.map((k) => {
+        const on = k.id === kind;
+        const look = k.glyph ? sectionOf({ section: k.glyph }) : null;
+        return (
+          <button key={k.id} type="button" className={`cat${on ? ' is-on' : ' glass'}${k.live ? '' : ' is-soon'}`}
+            aria-pressed={k.live ? on : undefined} aria-haspopup={k.live ? undefined : 'dialog'} onClick={() => (k.live ? setKind(k.id) : onSoon(k))}>
+            {look && <span className="glyph" style={{ background: look.color }} aria-hidden="true">{look.icon}</span>}
+            {k.label}
+            {!k.live && <span className="soon">Soon</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
 import { speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
 import { hostOf, orderOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
+import { isFood } from './kinds';
 import { Icon, MenuRow } from './ui';
 import TalkingMascot, { type Speech } from './TalkingMascot';
 import { useInert } from './useInert';
@@ -189,7 +190,8 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
       {error && <p className="talk-error" role="alert">{error}</p>}
 
       <div className="talk-hints">
-        {HINTS.filter((hint) => priced || hint !== HINTS[0]).map((hint) => (
+        {/* The saving question is the food places' own (kinds.ts): a flat or a haircut has no delivery-app price. */}
+        {HINTS.filter((hint) => (priced && isFood(shop)) || hint !== HINTS[0]).map((hint) => (
           <button key={hint.label} type="button" className="glass" aria-disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>

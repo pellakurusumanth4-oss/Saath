@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <!--
-  Saath's AR camera: a friend standing on your real floor, tracked by ARCore through Chrome's WebXR.
+  Footfall's AR camera: a mascot standing on your real floor, tracked by ARCore through Chrome's WebXR.
   The app opens it in Chrome at a friend's spot: ?friend=<mascot id: rosa|kiran|juno|otto|sunny|nia|mika|max|omar|lina|sana|kai>&shop=<slug>
   &name=&tall=(metres)&return=<a deep link back into the app>.
   - you choose their spot: a gold ring sits where the middle of the screen meets the floor (ARCore's hit
@@ -315,10 +315,12 @@ const REST = SHOP && apiMeta?.content ? `${new URL(apiMeta.content).origin}/rest
 const menuEl = document.getElementById('menu');
 // naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
 let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;
+// The food sections (site/src/kinds.ts): only their card shows delivery-app prices and the walk-in saving.
+const FOOD = ['restaurant', 'cafe', 'juice', 'bakery', 'streetfood', 'grocery'];
 // Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
 const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,special,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
   { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
-  .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
+  .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort).map((i) => (FOOD.includes(s.section) ? i : { ...i, app_price: null })) }; }, () => {});
 loadShop();
 // Prices are US dollars, as on the site (site/src/shops.ts dollars): $3.50 with its cents, $15, $240,000.
 const dollars = (p) => { const c = Math.round(Number(p) * 100) / 100; return `$${c.toLocaleString('en-US', { minimumFractionDigits: c % 1 ? 2 : 0, maximumFractionDigits: 2 })}`; };

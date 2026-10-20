@@ -1,4 +1,5 @@
-// "Near you": the shops with their ads, status, walk and saving, by biggest saving or nearest. Closed ones sink.
+// "Near you": the businesses with their ads, status and walk, and for food places the saving (every other kind shows
+// its kind); by biggest saving (food with a saving first) or nearest. Closed ones sink.
 import { useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
@@ -16,8 +17,8 @@ const onNetwork = (changed: () => void) => {
   };
 };
 
-export default function NearList({ shops, me, thumb = 92, loading = false, onPick }: {
-  shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; loading?: boolean; onPick: (shop: ShopWithMenu) => void;
+export default function NearList({ shops, me, thumb = 92, loading = false, onPick, title = 'Near you' }: {
+  shops: ShopWithMenu[]; me: LatLng | null; thumb?: number; loading?: boolean; onPick: (shop: ShopWithMenu) => void; title?: string;
 }) {
   const [sort, setSort] = useState<'saving' | 'near'>('saving');
   const rows = useMemo(() => {
@@ -34,9 +35,9 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
   const offline = loading && !online; // useShops keeps retrying; say why nothing comes instead of grey rows forever
 
   return (
-    <section className="near" aria-label="Shops near you">
+    <section className="near" aria-label={title === 'Near you' ? 'Businesses near you' : title}>
       <div className="near-head">
-        <h2>Near you</h2>
+        <h2>{title}</h2>
         <div className="seg" role="group" aria-label="Sort">
           <button type="button" aria-pressed={sort === 'saving'} onClick={() => setSort('saving')}>Biggest saving</button>
           <button type="button" aria-pressed={sort === 'near'} onClick={() => setSort('near')}>Nearest</button>
@@ -52,7 +53,7 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
             <span className="sk-lines"><i /><i /><i /></span>
           </li>
         ))}
-        {!loading && !rows.length && <li className="near-hint">No shops match. Try another word or category.</li>}
+        {!loading && !rows.length && <li className="near-hint">Nothing matches. Try another word or kind of business.</li>}
         {rows.map(({ shop, order }) => {
           const state = shop.status;
           const ring = state === 'busy' ? '#F59E0B' : state === 'closed' ? '#B9BDC8' : sectionOf(shop).color;
@@ -70,7 +71,7 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
                     {state === 'busy' ? `Busy${shop.status_note ? ` · ${shop.status_note}` : ''}` : state === 'closed' ? (shop.status_note || 'Closed') : 'Open'}
                     {me && <span className="near-walk"> · {walkText(me, shop)}</span>}
                   </span>
-                  {order && <Compare shop={shop} menu={shop.menu} mode="line" />}
+                  {order ? <Compare shop={shop} menu={shop.menu} mode="line" /> : <span className="near-kind"><span aria-hidden="true">{sectionOf(shop).icon}</span> {sectionOf(shop).label}</span>}
                 </span>
                 {order && <SaveChip amount={order.saving} grey={state === 'closed'} />}
               </button>
