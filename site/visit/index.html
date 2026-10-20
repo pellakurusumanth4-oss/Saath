@@ -15,7 +15,9 @@
     <!-- The shops query and the map tiles start only after the app runs: open their connections now. -->
     <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- The shop list starts loading now, beside the app's script instead of after it (useShops takes this answer first). -->
+    <script>window.saathShops = '%SAATH_SHOPS%' && fetch('%SAATH_SHOPS%').then((r) => (r.ok ? r.json() : null)).catch(() => null);</script>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root">

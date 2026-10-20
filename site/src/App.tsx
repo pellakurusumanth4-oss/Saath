@@ -16,7 +16,7 @@ import { unlockSound } from './walking';
 import LocationAsk from './LocationAsk';
 import InstallSheet from './InstallSheet';
 import { useInstall } from './install';
-import { useDesktop, useMe } from './hooks';
+import { mapIdle, useDesktop, useMe } from './hooks';
 import { figureOf, hostOf, orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
 import { useDemoNearMe } from './relocate';
 import { Icon } from './ui';
@@ -199,8 +199,9 @@ export default function App() {
     if (hash === '#/owner') window.location.replace(OWNER_PAGE);
   }, [hash]);
 
-  // 4 s after the page loads, in idle time, fetch the full figures of the first 3 shops' mascots, so those cards show them at once.
-  // Not all 12 (~700 KB), which slowed the map's tiles. Skipped on Data Saver and 2G; it's ~55 KB a mascot.
+  // Once the map has drawn its first view (15 s after load at the latest), in idle time, fetch the full figures of the first
+  // 3 shops' mascots, so those cards show them at once; any sooner, they took a weak line's bandwidth from the map's tiles.
+  // Not all 12 (~350 KB), which slowed the map's tiles. Skipped on Data Saver and 2G; it's ~27 KB a mascot.
   const loaded = shops.length > 0;
   const latest = useRef({ shops, me });
   latest.current = { shops, me };
@@ -215,11 +216,13 @@ export default function App() {
         || (here ? distanceM(here, a) - distanceM(here, b) : (orderOf(b, b.menu)?.saving ?? 0) - (orderOf(a, a.menu)?.saving ?? 0)));
       for (const url of new Set(first.slice(0, 3).map((shop) => figureOf(hostOf(shop), shop.status === 'closed')))) new Image().src = url;
     };
-    let timer = 0;
-    const wait = () => { timer = window.setTimeout(() => idle(prefetch), 4000); };
+    let timer = 0, gone = false;
+    const go = () => { if (!gone) { gone = true; window.clearTimeout(timer); idle(prefetch); } };
+    const wait = () => { timer = window.setTimeout(go, 15000); };
+    void mapIdle.then(go);
     if (document.readyState === 'complete') wait();
     else window.addEventListener('load', wait, { once: true });
-    return () => { window.removeEventListener('load', wait); window.clearTimeout(timer); };
+    return () => { gone = true; window.removeEventListener('load', wait); window.clearTimeout(timer); };
   }, [loaded]);
 
   // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.

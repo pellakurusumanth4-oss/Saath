@@ -10,6 +10,7 @@ import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
 import { boardOf, hostOf, orderOf, portraitOf, dollars, sectionOf, type ShopWithMenu } from './shops';
 import { Icon, SaveChip } from './ui';
+import { markMapIdle } from './hooks';
 
 /** Where the map opens: JM Road and Apte Road, where five demo shops stand close together. */
 const DECCAN: [number, number] = [73.8448, 18.5194];
@@ -36,7 +37,8 @@ function cityDay(style: { layers: StyleLayer[]; light?: unknown }) {
         'fill-extrusion-color': BUILDING_COLOURS,
         'fill-extrusion-height': ['get', 'render_height'],
         'fill-extrusion-base': ['get', 'render_min_height'],
-        'fill-extrusion-opacity': 0.95,
+        // Opaque: MapLibre draws translucent extrusions twice every frame (depth, then colour); at 0.95 nothing showed through anyway.
+        'fill-extrusion-opacity': 1,
       };
     } else if (layer.id === 'building-roof') layer.layout = { ...layer.layout, visibility: 'none' };
     else if (source === 'water' || source === 'waterway') paint(layer, layer.type === 'line' ? 'line-color' : 'fill-color', '#7FD3F7');
@@ -52,6 +54,13 @@ function cityDay(style: { layers: StyleLayer[]; light?: unknown }) {
 }
 // Baked in up front: recolouring the running map drew the old palette first and made every tile reload. JSON copy: old Safari has no structuredClone.
 const CITY_STYLE = cityDay(JSON.parse(JSON.stringify(MAP_STYLE))) as unknown as maplibregl.StyleSpecification;
+// The map asks for its label glyphs only once the first tiles are parsed, and 'load' waits for them: start the Latin
+// ranges (8192-8447 is the punctuation in street names) and the sprite now, beside the tiles. Same URLs as the map's own
+// requests, so those come from the HTTP cache.
+for (const url of [
+  ...[['Noto Sans Regular', '0-255'], ['Noto Sans Bold', '0-255'], ['Noto Sans Bold', '8192-8447']].map(([font, range]) => String(CITY_STYLE.glyphs).replace('{fontstack}', encodeURIComponent(font)).replace('{range}', range)),
+  ...['json', 'png'].map((ext) => `${String(CITY_STYLE.sprite)}${window.devicePixelRatio > 1 ? '@2x' : ''}.${ext}`),
+]) void fetch(url).catch(() => {});
 
 const youFeature = (me: LatLng | null): FeatureCollection<Point> => ({
   type: 'FeatureCollection',
@@ -117,6 +126,7 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
       bearing: -17,
       maxPitch: 60,
       attributionControl: { compact: true },
+      fadeDuration: 100,   // labels fade in 100 ms, not 300: the map redraws every frame while any label fades
     });
     map.touchZoomRotate.disableRotation();
     map.setPadding(latest.current.padding);
@@ -135,6 +145,7 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
       (window as unknown as { saathMap?: MapLibreMap }).saathMap = map; // for the browser checks
       setScale(boardScale(map.getZoom()));
       setReady(true);
+      map.once('idle', markMapIdle);
     });
     return () => {
       // Torn down after the next screen paints; StrictMode's re-mount reuses this container, so that one goes now.
@@ -409,7 +420,7 @@ const Pin = memo(function Pin({ shop, saving, selected, dim, hidden, index, onPi
         event.stopPropagation();
         onPick(shop);
       }}>
-      <span className="pin-face"><img src={portraitOf(hostOf(shop))} alt="" /></span>
+      <span className="pin-face"><img src={portraitOf(hostOf(shop))} alt="" decoding="async" /></span>
       <svg className="pin-tail" width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M0 0h14L7 9.5z" /></svg>
       {state !== 'open' && <span className="pin-badge"><Icon name={state === 'busy' ? 'hourglass' : 'moon'} size={11} color="#fff" stroke={2.8} /></span>}
       {saving > 0 && <SaveChip amount={saving} size="s" grey={state === 'closed'} />}

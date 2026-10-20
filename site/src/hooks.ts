@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LatLng } from '../../src/geo';
 
+let settleMapIdle = () => {};
+/** Settles when the map has drawn its first full view (tiles, labels): idle-time downloads wait for it. */
+export const mapIdle = new Promise<void>((resolve) => { settleMapIdle = resolve; });
+export const markMapIdle = () => settleMapIdle();
+
 /** Where "here" is: real GPS if allowed, or a spot set by hand on the map. */
 export const useMe = () => {
   const [me, setMe] = useState<LatLng | null>(null);

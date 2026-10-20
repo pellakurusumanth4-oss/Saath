@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { SHOPS_LIST_QUERY } from './src/shopQuery';
 
 // The phone's AR camera page (web/ar) and its talk client (web/talk) ride along at /ar/ and /talk/, so the app can
 // open them over HTTPS without the laptop. The hosted page alone gets a <meta name="saath-api"> pointing talk.js at
@@ -24,13 +25,20 @@ function arPage(url: string, anonKey: string): Plugin {
   };
 }
 
+// The map page's HTML starts the shop list's query itself (useShops takes that answer first): it no longer waits for the
+// app's script to download and run. The key is the public anon key the bundle already carries; empty without a project.
+function earlyShops(url: string, anonKey: string): Plugin {
+  const query = url && anonKey ? `${url}/rest/v1/shops?${SHOPS_LIST_QUERY}&apikey=${anonKey}` : '';
+  return { name: 'saath-early-shops', transformIndexHtml: (html) => html.replace(/%SAATH_SHOPS%/g, () => query) };
+}
+
 export default defineConfig(({ mode }) => {
   // The root .env uses EXPO_PUBLIC_ names; expose the same values to the site as VITE_ vars.
   const env = loadEnv(mode, '..', '');
   const url = env.EXPO_PUBLIC_SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '';
   const anonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY ?? '';
   return {
-    plugins: [react(), arPage(url, anonKey)],
+    plugins: [react(), arPage(url, anonKey), earlyShops(url, anonKey)],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(url),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(anonKey),

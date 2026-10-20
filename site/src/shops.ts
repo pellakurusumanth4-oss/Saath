@@ -3,6 +3,7 @@ import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { distanceM, type LatLng } from '../../src/geo';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './talk';
 import { MASCOTS, type Mascot } from './mascots';
+import { MENU_COLUMNS, SHOP_COLUMNS } from './shopQuery';
 
 /** Shops, live menus and owner sign-in. Anyone may read; owners write only their own shop (row level security). */
 export const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -70,9 +71,7 @@ export type MenuItem = {
 
 export type ShopWithMenu = Shop & { menu: MenuItem[] };
 
-export const SHOP_COLUMNS = 'id,slug,name,section,friend,lat,lng,area,story,special,offers,status,status_note,owner,claimable,demo,'
-  + 'ad_headline,ad_sub,ad_art,ad_image_url,ad_schedule,usual_order,app_fee,board_lat,board_lng,about,ad_color,published,hours';
-const MENU_COLUMNS = 'id,shop_id,name,price,app_price,available,note,sort,updated_at';
+export { SHOP_COLUMNS };
 
 /** The business sections, by the database's ids: their name, colour (the mascots' own), icon and what their list is called (as in web/talk/prompts.mjs). */
 export const SECTIONS: Record<string, { label: string; icon: string; color: string; list: string }> = {
@@ -101,8 +100,9 @@ export const hostOf = (shop: Pick<Shop, 'friend' | 'section'>): Mascot =>
   MASCOTS.find((mascot) => mascot.id === shop.friend) ?? sectionMascot(shop.section) ?? MASCOTS.find((mascot) => mascot.id === 'juno')!;
 
 // ?v= changes when a mascot's images do (v2: Sana's new hair, 19 Oct): the same URL would stay cached for hours.
-export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.png?v=2`;
-export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.png?v=2`;
+// Lossless WebP: the same pixels as the PNGs (kept for the AR page and the app), about half the bytes.
+export const portraitOf = (mascot: Mascot) => `/mascots/${mascot.id}.webp?v=2`;
+export const figureOf = (mascot: Mascot, grey = false) => `/mascots/figures/${mascot.id}${grey ? '-grey' : ''}.webp?v=2`;
 
 /** What the status says, in words: "Busy · about a 10 min wait", "Closed · opens at 11 am". */
 export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
@@ -175,7 +175,12 @@ export function useShops(): ShopWithMenu[] {
   useEffect(() => {
     let live = true;
     const load = async () => {
-      const { data } = await db.from('shops').select(`${SHOP_COLUMNS},created_at,menu_items(${MENU_COLUMNS})`).eq('published', true).order('name');
+      // The first load takes the answer the map page's HTML already asked for (the same query); later ones ask afresh.
+      const page = window as Window & { saathShops?: Promise<unknown> | null | '' };
+      const early = page.saathShops;
+      page.saathShops = null;
+      const data = (early ? await early : null)
+        ?? (await db.from('shops').select(`${SHOP_COLUMNS},created_at,menu_items(${MENU_COLUMNS})`).eq('published', true).order('name')).data;
       if (!live) return;
       if (!data) {   // a failed load (offline, a weak signal): try again, so the list doesn't stay empty
         window.setTimeout(() => { if (live) void load(); }, 3000);
