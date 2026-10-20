@@ -4,6 +4,7 @@ import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
 import { hostOf, orderOf, portraitOf, sectionOf, walkText, type ShopWithMenu } from './shops';
+import { NEAR_M } from './relocate';
 import { SaveChip } from './ui';
 
 const onNetwork = (changed: () => void) => {
@@ -21,8 +22,10 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
   const [sort, setSort] = useState<'saving' | 'near'>('saving');
   const rows = useMemo(() => {
     const ranked = shops.map((shop) => ({ shop, order: orderOf(shop, shop.menu), away: me ? distanceM(me, shop) : null }));
+    const nearReal = (row: (typeof ranked)[number]) => !row.shop.demo && row.away !== null && row.away <= NEAR_M;
     ranked.sort((a, b) =>
-      Number(a.shop.status === 'closed') - Number(b.shop.status === 'closed')
+      Number(nearReal(b)) - Number(nearReal(a))   // a real shop near the visitor always comes before the demo shops
+      || Number(a.shop.status === 'closed') - Number(b.shop.status === 'closed')
       || (sort === 'near' && a.away !== null && b.away !== null ? a.away - b.away : (b.order?.saving ?? 0) - (a.order?.saving ?? 0))
       || a.shop.name.localeCompare(b.shop.name));
     return ranked;
@@ -62,6 +65,7 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
                 </span>
                 <span className="near-text">
                   <b>{shop.name}{shop.demo && <em className="demo">DEMO</em>}</b>
+                  {shop.placed && <span className="placed-line">Demo shop · placed near you</span>}
                   <span className={`near-state is-${state}`}>
                     {state === 'busy' ? `Busy${shop.status_note ? ` · ${shop.status_note}` : ''}` : state === 'closed' ? (shop.status_note || 'Closed') : 'Open'}
                     {me && <span className="near-walk"> · {walkText(me, shop)}</span>}

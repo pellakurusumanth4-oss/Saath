@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { distanceM, type LatLng } from '../../src/geo';
-
-// The demo shops are all in one city (Pune); a fix farther than this from its centre would show walks of thousands of minutes.
-const PUNE: LatLng = { lat: 18.5195, lng: 73.8452 };
-const PUNE_RANGE_M = 50000;
+import type { LatLng } from '../../src/geo';
 
 /** Where "here" is: real GPS if allowed, or a spot set by hand on the map. */
 export const useMe = () => {
@@ -24,11 +20,7 @@ export const useMe = () => {
       (position) => {
         const spot = { lat: position.coords.latitude, lng: position.coords.longitude };
         setLocating(false);
-        if (distanceM(spot, PUNE) > PUNE_RANGE_M) {
-          setError('There are no Saath shops near you yet. Try the demo city: browse the list, or pick a spot on the map.');
-          return;
-        }
-        setMe(spot);
+        setMe(spot);   // anywhere: far from every shop, the demo shops are placed around it (relocate.ts)
       },
       (err) => {
         setLocating(false);

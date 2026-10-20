@@ -49,6 +49,8 @@ export type Shop = LatLng & {
   published: boolean;
   /** Its timings in the owner's words ("Mon–Sat, 8 am – 9 pm"); the mascot answers "when are you open?" from them. */
   hours: string;
+  /** Set in this browser only, on a demo shop's copy placed near the visitor (relocate.ts); never a database column. */
+  placed?: boolean;
 };
 
 export type MenuItem = {

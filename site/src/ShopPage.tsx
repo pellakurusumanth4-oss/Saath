@@ -11,12 +11,14 @@ import MeetAr from './MeetAr';
 import Reviews from './Reviews';
 import { boardOf, hostOf, orderOf, sectionOf, updatedAt, useShop, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
+import { useRelocated } from './relocate';
 import { useInert } from './useInert';
 
 export default function ShopPage({ slug, me, onTalk, onWalk }: {
   slug: string; me: LatLng | null; onTalk: (shopId: string) => void; onWalk: (shopId: string) => void;
 }) {
-  const { shop, menu, missing } = useShop(slug);
+  const { shop: loaded, menu, missing } = useShop(slug);
+  const shop = useRelocated(loaded);   // a demo shop placed near the visitor stands there on its page too
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false); // where there's no share sheet, the link is copied instead
   const page = useRef<HTMLDivElement>(null);
@@ -65,7 +67,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           <Podium mascot={mascot} color={section.color} grey={off} height={150} className="shop-podium" />
           <p className="card-section">{section.label.toUpperCase()}{shop.demo && <> · <em className="demo">DEMO SHOP</em></>}</p>
           <h1 className="shop-title">{shop.name}</h1>
-          {shop.area && <p className="shop-area">{shop.area}</p>}
+          {shop.placed ? <p className="shop-area">Demo shop · placed near you</p> : shop.area && <p className="shop-area">{shop.area}</p>}
           {shop.about && <p className="shop-area">{shop.about}</p>}
           {shop.hours && <p className="shop-area">Hours: {shop.hours}</p>}
           <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(menu)} now={now} grey={off} /></div>
@@ -121,9 +123,9 @@ function BoardPreview({ shop, off, saving }: { shop: Shop; off: boolean; saving:
       marker.remove();
       map.remove();
     };
-    // One preview per shop page.
+    // One preview per shop page and spot (a demo shop placed near the visitor moves once, when its street point comes).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shop.id]);
+  }, [shop.id, shop.lat, shop.lng, shop.board_lat, shop.board_lng]);
   return (
     <div className="board-preview">
       <div ref={box} className="board-preview-map" />

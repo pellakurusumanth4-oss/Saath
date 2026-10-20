@@ -18,6 +18,7 @@ import InstallSheet from './InstallSheet';
 import { useInstall } from './install';
 import { useDesktop, useMe } from './hooks';
 import { figureOf, hostOf, orderOf, sectionOf, useShops, type ShopWithMenu } from './shops';
+import { useDemoNearMe } from './relocate';
 import { Icon } from './ui';
 import { distanceM, type LatLng } from '../../src/geo';
 
@@ -77,7 +78,8 @@ if (window.location.hash === '#/owner') window.location.replace(OWNER_PAGE);
 export default function App() {
   const { me, locating, error, denied, whereAmI, setMySpot, clearError } = useMe();
   const { installed } = useInstall();
-  const shops = useShops();
+  // Far from every shop, the demo shops come to the visitor: these are the copies placed around them.
+  const { shops, placing, placed } = useDemoNearMe(useShops(), me);
   const hash = useHash();
   const desktop = useDesktop();
   const [query, setQuery] = useState('');
@@ -109,7 +111,7 @@ export default function App() {
     const { sections } = CATEGORIES[category];
     const q = query.trim().toLowerCase();
     return shops.filter((shop) => (!sections.length || sections.includes(shop.section))
-      && (!q || [shop.name, sectionOf(shop).label, shop.area, ...shop.menu.map((item) => item.name)].some((text) => text.toLowerCase().includes(q))));
+      && (!q || [shop.name, sectionOf(shop).label, shop.placed ? '' : shop.area, ...shop.menu.map((item) => item.name)].some((text) => text.toLowerCase().includes(q))));
   }, [shops, category, query]);
   // The map keeps every shop's marker and hides the rest, so a search or chip doesn't rebuild the city.
   const visible = useMemo(() => new Set(shown.map((shop) => shop.id)), [shown]);
@@ -155,8 +157,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (!me && page === 'map' && !stored(() => sessionStorage, 'saath:asked')) void startLocation();
-    // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks.
+    if (me || page !== 'map') return;
+    if (!stored(() => sessionStorage, 'saath:asked')) void startLocation();
+    else void navigator.permissions?.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') whereAmI(); }, () => {});
+    // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks, except
+    // where the location is already allowed: a reload reads it again, so the demo shops come back around the visitor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
   // Blocked, or a walk waiting for a position that didn't come: pick the spot by hand (each failed try opens it again).
@@ -170,6 +175,19 @@ export default function App() {
     const timer = window.setTimeout(clearError, 8000);
     return () => window.clearTimeout(timer);
   }, [error, clearError]);
+  // The first time this session places the demo shops around the visitor, say so; it clears itself like the notice above.
+  const [placedNote, setPlacedNote] = useState(false);
+  useEffect(() => {
+    if (placed && !stored(() => sessionStorage, 'saath:placed-told')) {
+      store(() => sessionStorage, 'saath:placed-told', '1');
+      setPlacedNote(true);
+    }
+  }, [placed]);
+  useEffect(() => {
+    if (!placedNote) return;
+    const timer = window.setTimeout(() => setPlacedNote(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [placedNote]);
   useEffect(() => {
     if (!settingSpot) return;
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setSettingSpot(false);
@@ -207,9 +225,10 @@ export default function App() {
   // Going to another page (a link, or the back button) ends a talk, which would otherwise cover that page.
   useEffect(() => setTalkingId(null), [hash]);
 
-  // The page for businesses shows the city's billboards through on the right.
+  // The page for businesses shows the city's billboards through on the right: around the visitor when they were placed there.
   useEffect(() => {
-    if (page === 'business') setFocus({ spot: { lat: 18.5195, lng: 73.8452 }, key: `business:${Date.now()}` });
+    if (page === 'business') setFocus({ spot: placed && me ? me : { lat: 18.5195, lng: 73.8452 }, key: `business:${Date.now()}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   // When a fresh fix arrives, fly to it.
@@ -227,13 +246,13 @@ export default function App() {
     if (!me) void startLocation();
   };
   useEffect(() => {
-    if (!trip || trip.route || !tripShop || !me) return;
+    if (!trip || trip.route || !tripShop || !me || placing) return;   // a demo shop still settling onto its street waits
     let live = true;
     void walkingRoute(me, tripShop, tripShop.name).then((route) => {
       if (live) setTrip((t) => (t && t.shopId === tripShop.id ? { ...t, route } : t));
     });
     return () => { live = false; };
-  }, [trip, tripShop, me]);
+  }, [trip, tripShop, me, placing]);
   const startWalking = () => {
     unlockSound(); // inside the tap, so the chime may play later on iPhone
     setTrip((t) => t && { ...t, walking: true, started: Date.now() });
@@ -334,6 +353,12 @@ export default function App() {
         <div className="notice" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'max-content' }}>
           <span>{error}</span>
           <button type="button" className="icon-btn" style={{ width: 28, height: 28, borderRadius: '50%', color: 'inherit' }} onClick={clearError} aria-label="Dismiss"><Icon name="close" size={14} stroke={2.6} /></button>
+        </div>
+      )}
+      {placedNote && !error && (
+        <div className="notice" role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'max-content' }}>
+          <span>Demo shops placed around you so you can try Saath here.</span>
+          <button type="button" className="icon-btn" style={{ width: 28, height: 28, borderRadius: '50%', color: 'inherit' }} onClick={() => setPlacedNote(false)} aria-label="Dismiss"><Icon name="close" size={14} stroke={2.6} /></button>
         </div>
       )}
       {settingSpot && (

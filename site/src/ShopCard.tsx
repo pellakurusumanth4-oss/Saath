@@ -66,6 +66,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
             <div>
               <h2 className="card-name">{shop.name}</h2>
               <p>{mascot.name} is the shop’s mascot · {section.label}{shop.demo && <em className="demo">DEMO</em>}</p>
+              {shop.placed && <p className="placed-line">Demo shop · placed near you</p>}
             </div>
           </div>
           <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(shop.menu)} now={now} grey={off} /></div>
@@ -87,6 +88,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
       <section className="card glass-sheet" aria-label={shop.name}>
         <p className="card-section"><span className="glyph" style={{ background: off ? '#B9BDC8' : section.color }}>{section.icon}</span>{section.label.toUpperCase()}{shop.demo && <em className="demo">DEMO</em>}</p>
         <h2 ref={name} tabIndex={-1} className="card-name">{shop.name}</h2>
+        {shop.placed && <p className="placed-line">Demo shop · placed near you</p>}
         <div className="chips"><StatusChip shop={shop} /><LiveChip updated={updatedAt(shop.menu)} now={now} grey={off} /></div>
         <Ad shop={shop} height={118} width="100%" off={off} radius={16} className="card-ad" />
         <Compare shop={shop} menu={shop.menu} mode="card" walk={walk} countUp={landed} />

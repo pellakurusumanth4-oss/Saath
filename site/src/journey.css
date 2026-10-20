@@ -372,3 +372,7 @@ button, a, [role='button'], .near-row, .pin, .board-panel { -webkit-tap-highligh
 @media (prefers-reduced-motion: reduce) {
   .sk-thumb, .sk-lines i { animation: none; }
 }
+
+/* ---------- demo shops placed near the visitor (relocate.ts): said where a shop's street would be ---------- */
+
+.placed-line, .card-who .placed-line { display: block; margin: 2px 0 0; font: 600 12.5px/17px var(--body); color: var(--ink-3); }
