@@ -133,14 +133,15 @@ Deno.serve(async (req: Request) => {
       return new Response(tts.body, { headers: { ...corsHeaders, "Content-Type": timed ? "application/json" : "audio/mpeg" } });
     }
 
-    // ---- A shop's mascot answers from the shop's live data (the page sends only the shop's slug) ----
+    // ---- A shop's mascot answers from the shop's live data (the page sends only the shop's slug, and placed: true with
+    // the street for a demo shop's copy placed near the visitor: the mascot says that street, never the shop's area) ----
     const messages = body?.messages;
     if (typeof body?.shop !== "string" || !validMessages(messages)) return json({ error: "Send a shop and messages" }, 400);
 
     const limited = await checkRateLimit(req);
     if (limited) return limited;
 
-    const shop = await loadShop(db, body.shop);
+    const shop = await loadShop(db, body.shop, body);
     if (!shop) return json({ error: "Unknown shop" }, 404);
     let system;
     try {

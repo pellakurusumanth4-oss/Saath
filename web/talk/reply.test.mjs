@@ -204,6 +204,13 @@ test('checkInput: a shop\'s mascot is asked by the shop\'s id (its data comes fr
   assert.equal(checkInput({ shop: 'kettle-and-kulhad', text: 'call 9876543210' }).text, 'call private');
 });
 
+test('checkInput: a placed copy of a shop keeps placed and its street (checked later with the shop\'s data); nothing else does', () => {
+  assert.deepEqual(checkInput({ shop: 'green-glass', placed: true, street: 'Post Street', text: 'hi' }), { shop: 'green-glass', placed: true, street: 'Post Street', text: 'hi', history: [] });
+  assert.deepEqual(checkInput({ shop: 'green-glass', placed: true, street: { x: 1 }, text: 'hi' }).street, '');
+  assert.deepEqual(checkInput({ shop: 'green-glass', placed: 'yes', street: 'Post Street', text: 'hi' }), { shop: 'green-glass', text: 'hi', history: [] });
+  assert.deepEqual(checkInput({ friend: 'juno', placed: true, street: 'Post Street', text: 'hi' }), { friend: 'juno', text: 'hi', history: [] });
+});
+
 test('any question asking someone\'s name is dropped (a mascot asked a seven-year-old "Could you tell me your first name?", 19 Oct)', () => {
   for (const s of ['Could you tell me your first name?', 'May I know your name, friend?', 'And what should I call you?', 'So, your name is?']) assert.equal(safe(s), false, s);
   for (const s of ['My name is Kiran.', 'Your name sounds lovely.', 'What a nice name.']) assert.equal(safe(s), true, s);

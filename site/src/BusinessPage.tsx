@@ -20,13 +20,13 @@ export default function BusinessPage({ shops }: { shops: ShopWithMenu[] }) {
     <div ref={page} className="page business" role="dialog" aria-label="For local businesses">
       <div className="business-left">
         <div className="business-top">
-          <a className="brand-tile" href="/" aria-label="Saath home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
-          <b className="brand-word">saath</b>
+          <a className="brand-tile" href="/" aria-label="Footfall home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
+          <b className="brand-word">footfall</b>
           <a href="#/">Explore the map →</a>
         </div>
         <p className="kicker">FOR LOCAL BUSINESSES</p>
         <h1 className="business-title">Your mascot. Your landmark. <span style={{ whiteSpace: 'nowrap' }}>Your walk-ins.</span></h1>
-        <p className="business-lead">Pick your mascot from Saath’s cast. We raise your billboard beside your shop on the Saath map, with your own ad on it. Visitors find you on the map, and walk over.</p>
+        <p className="business-lead">A new way to market your business: pick your mascot from Footfall’s cast, and your billboard goes up beside your business on the 3D map, with your own ad on it. Visitors find you on the map, and walk in.</p>
         <ul className="benefits">
           <li><Icon name="star" /><div><b>A mascot at your door</b>Your pin on the map; it greets visitors and tells them what you do and when you’re open.</div></li>
           <li><Icon name="map" /><div><b>A billboard beside your shop</b>Your ad, your colours; change it any time from your phone.</div></li>

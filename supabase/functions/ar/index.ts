@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
       const friend = data.friend ?? "";
       if (data.shop === undefined && !Object.hasOwn(ACTIONS, friend) && !Object.hasOwn(MASCOTS, friend)) throw new Error("unknown friend");
       if (await overLimit(req)) return json(429, { error: "Too many messages, try again in a minute" }, cors);
-      const who = data.shop === undefined ? friend : await loadShop(db, data.shop);
+      const who = data.shop === undefined ? friend : await loadShop(db, data.shop, data);
       if (who) (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(warm(who));
       return new Response(null, { status: 204, headers: cors });
     }
@@ -89,7 +89,8 @@ Deno.serve(async (req: Request) => {
   }
   if (await overLimit(req)) return json(429, { error: "Too many messages, try again in a minute" }, cors);
   if (input.shop !== undefined) {
-    const shop = await loadShop(db, input.shop);
+    // placed and street (a demo shop's copy placed near the visitor) came through checkInput; the prompts check the street.
+    const shop = await loadShop(db, input.shop, input);
     if (!shop) return json(404, { error: "unknown shop" }, cors);
     input = { ...input, shop };
   }

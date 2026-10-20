@@ -1,6 +1,6 @@
-// J3d: arrived. The mascot stands at the door above the sheet: meet it in AR (Android Chrome with ARCore opens it in a
-// new tab so this sheet stays; anywhere else a QR hands it to a phone that can), talk to it on screen, see the menu, or
-// get the verified visit.
+// J3d: arrived. The mascot stands at the door above the sheet: meet it in AR (an iPhone's AR Quick Look, or Android
+// Chrome with ARCore in a new tab, so this sheet stays; anywhere else a QR hands it to a phone that can), talk to it on
+// screen, see the menu, or get the verified visit.
 import { useEffect, useRef } from 'react';
 import MeetAr from './MeetAr';
 import { hostOf, sectionOf, statusText, type ShopWithMenu } from './shops';

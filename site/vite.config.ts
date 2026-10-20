@@ -15,6 +15,8 @@ function arPage(url: string, anonKey: string): Plugin {
     generateBundle() {
       const meta = url ? `<head>\n<meta name="saath-api" content="${url}/functions/v1/ar" data-key="${anonKey}">` : '<head>';
       this.emitFile({ type: 'asset', fileName: 'ar/index.html', source: fs.readFileSync(`${web}ar/index.html`, 'utf8').replace('<head>', meta) });
+      // iPhones' AR Quick Look helper (the site bundles its own copy); its .usdz files are in public/ar/quicklook.
+      this.emitFile({ type: 'asset', fileName: 'ar/quicklook.mjs', source: fs.readFileSync(`${web}ar/quicklook.mjs`) });
       for (const rig of fs.readdirSync(`${web}ar/rigs`).filter((f) => f.endsWith('.html'))) {
         this.emitFile({ type: 'asset', fileName: `ar/rigs/${rig}`, source: fs.readFileSync(`${web}ar/rigs/${rig}`) });
       }

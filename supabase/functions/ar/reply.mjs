@@ -18,9 +18,10 @@ export const redact = (s) => s.replace(EMAIL, 'private').replace(/\+?\d(?:[\s-]?
 
 // What the page sends: a known friend, or a shop's id for its mascot (the shop's data is added by the server, never
 // taken from the page), 1-300 characters, and at most 8 earlier messages (user first, alternating; 400 characters a user
-// message, 1200 a reply). Throws an Error whose message is the 400 response.
+// message, 1200 a reply). With a shop, placed: true and its street say it is a demo shop's copy placed near the visitor
+// (the street is checked with the shop's data, prompts.mjs). Throws an Error whose message is the 400 response.
 export function checkInput(body) {
-  const { friend, shop, text, history = [] } = body ?? {};
+  const { friend, shop, text, history = [], placed, street } = body ?? {};
   if (shop !== undefined && friend !== undefined) throw new Error('send a friend or a shop, not both');
   if (shop !== undefined) { if (typeof shop !== 'string' || !/^[\w-]{1,64}$/.test(shop)) throw new Error('unknown shop'); }
   else if (!Object.hasOwn(ACTIONS, friend ?? '')) throw new Error('unknown friend');   // a business mascot by its id
@@ -29,7 +30,7 @@ export function checkInput(body) {
   const ok = Array.isArray(history) && history.length <= 8 && history.length % 2 === 0 &&
     history.every((m, i) => m?.role === (i % 2 ? 'assistant' : 'user') && typeof m.content === 'string' && m.content.length <= HISTORY_CHARS[m.role]);
   if (!ok) throw new Error('bad history');
-  return { ...(shop !== undefined ? { shop } : { friend }), text: said, history: history.map(({ role, content }) => ({ role, content: role === 'user' ? redact(content) : content })) };
+  return { ...(shop !== undefined ? { shop, ...(placed === true && { placed, street: typeof street === 'string' ? street : '' }) } : { friend }), text: said, history: history.map(({ role, content }) => ({ role, content: role === 'user' ? redact(content) : content })) };
 }
 
 // What someone says when they want to listen for a while, a shop's story included. The prompt asks for such a turn to

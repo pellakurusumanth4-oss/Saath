@@ -69,5 +69,10 @@ export default [
   "name": "20261019210000_unpublish_test_shops",
   "done": "not exists (select 1 from public.shops where id in ('559a36f9-46f2-4d1d-bded-3a5ebe5d79dc', '4dea2ead-eb04-4599-a900-a14efdf7d53f') and published)",
   "sql": "/*\n  Take the two test shops off the map (19 Oct 2026, the user: \"unpublish both test shops, Momos and mamas spaaaa\").\n  The site review found them live among the demo shops: \"Momos\" (made from an email owner account while trying the\n  owner pages) and \"mamas spaaaa\" (made with the shared demo account). They are unpublished, not deleted: the rows, the\n  menu and the owners stay, and visitors no longer see them (the site and the shop links show published shops only).\n  Each row is matched by id, slug and owner, so nothing else can change. A copy of both rows was saved first.\n*/\n\nUPDATE shops SET published = false\nWHERE (id = '559a36f9-46f2-4d1d-bded-3a5ebe5d79dc' AND slug = 'momos' AND owner = 'ff1fa6ba-3a8d-44a3-bd5f-9205dcf52027')\n   OR (id = '4dea2ead-eb04-4599-a900-a14efdf7d53f' AND slug = 'mamas-spaaaa' AND owner = '5aa7de00-0000-4000-8000-0000000000d1');\n"
+ },
+ {
+  "name": "20261020220000_footfall_name",
+  "done": "not exists (select 1 from public.shops where demo and array_to_string(offers, ' ') like '%Saath%')",
+  "sql": "/*\n  The product's public name is Footfall now (20 Oct 2026, the user's rename; it was Saath). A read of the live demo rows'\n  visible text (shops: name, area, about, story, special, status_note, offers, hours, ad_headline, ad_sub, usual_order;\n  menu_items: name, note) found the old name in one place only: Kettle and Kulhad's offer \"Saath walkers get 10 percent\n  off any chai before 11 am\". The word is replaced in the demo shops' offers only, keeping each offer's order; owners'\n  own text is left as they wrote it. Running it again changes nothing.\n*/\n\nUPDATE shops\nSET offers = ARRAY(SELECT replace(o, 'Saath', 'Footfall') FROM unnest(offers) WITH ORDINALITY AS t(o, n) ORDER BY n)\nWHERE demo AND array_to_string(offers, ' ') LIKE '%Saath%';\n"
  }
 ];

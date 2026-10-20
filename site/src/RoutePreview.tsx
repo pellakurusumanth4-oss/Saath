@@ -43,7 +43,7 @@ export default function RoutePreview({ shop, route, onBack, onStart }: {
           </ol>
         )}
         <button type="button" className="btn-go trip-start" disabled={!route} onClick={onStart}><Icon name="walk" size={20} />Start walking</button>
-        <p className="j-note"><Icon name="sun" size={15} />Keep this tab open while you walk. Saath keeps your screen on.</p>
+        <p className="j-note"><Icon name="sun" size={15} />Keep this tab open while you walk. Footfall keeps your screen on.</p>
       </section>
     </>
   );

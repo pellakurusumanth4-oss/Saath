@@ -8,8 +8,8 @@ export default function InstallSheet({ onClose }: { onClose: () => void }) {
   const { canInstall, isIOS, install } = useInstall();
   const [ios, setIos] = useState(isIOS);
   return (
-    <Sheet label="Put Saath on your home screen" onClose={onClose}>
-      <h2 className="j-title">Put Saath on your home screen</h2>
+    <Sheet label="Put Footfall on your home screen" onClose={onClose}>
+      <h2 className="j-title">Put Footfall on your home screen</h2>
       <p className="j-text">It opens like an app, full screen, straight to the map.</p>
       <div className="j-tabs" role="group" aria-label="Your phone">
         <button type="button" aria-pressed={!ios} onClick={() => setIos(false)}>Android · Chrome</button>
@@ -27,7 +27,7 @@ export default function InstallSheet({ onClose }: { onClose: () => void }) {
       ) : (
         <div className="j-install-row">
           <span className="brand-tile"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></span>
-          <div><b>Install Saath</b><span>runs from your home screen</span></div>
+          <div><b>Install Footfall</b><span>runs from your home screen</span></div>
           {canInstall
             ? <button type="button" className="btn-go small" onClick={() => void install().then(onClose)}>Install</button>
             : <span className="j-install-how">Open Chrome’s ⋮ menu → Install app</span>}

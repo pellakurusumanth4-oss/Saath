@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Saath AR camera</title>
+<title>Footfall AR camera</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -103,12 +103,12 @@
 </head>
 <body>
 <iframe id="rig" title="Your friend's drawing" aria-hidden="true"></iframe>
-<div id="intro">Saath<br><span id="introLine" style="font-weight:500;opacity:.8"></span></div>
+<div id="intro">Footfall<br><span id="introLine" style="font-weight:500;opacity:.8"></span></div>
 <button id="start">Loading…</button>
 <p id="note" role="status"></p>
-<a id="home" href="#" role="button">Back to Saath</a>
+<a id="home" href="#" role="button">Back to Footfall</a>
 <a id="map" href="/visit/">Back to the map</a>
-<div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Saath</a><div id="tip" role="status"></div>
+<div id="overlay"><div id="hud" aria-hidden="true"></div><a id="back" href="#" role="button">Back to Footfall</a><div id="tip" role="status"></div>
   <div id="finding" role="status"><b>Finding the floor…</b><div>Point your phone at the floor a few steps ahead and move it slowly. The gold ring appears in a few seconds.</div>
     <div id="still" hidden>Still looking: try a brighter spot or a floor with some pattern.</div></div>
   <div id="talk" hidden>
@@ -126,7 +126,8 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { createTalk } from '../talk/talk.js?v=2026-10-19';   // bump on each talk.js change: the host caches it for 4 h
+import { createTalk } from '../talk/talk.js?v=2026-10-20-place';   // bump on each talk.js change: the host caches it for 4 h
+import { canQuickLook, openQuickLook, prefetchQuickLook } from './quicklook.mjs?v=2026-10-20-ql';   // bump on each change, as talk.js
 
 const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
 // Which friend, from the app (src/friends.ts): only the rigs there are; the name is only ever used as text. An id
@@ -306,13 +307,16 @@ const place = (pos, now) => {
 // with the site's public key from the Supabase project behind the talk API (the <meta name="saath-api"> talk.js uses);
 // on the laptop there is no such meta, and no card. Shop names and items are the owner's text: set as text, never HTML.
 const SHOP = /^[a-z0-9-]{3,40}$/.test(Q.get('shop') ?? '') ? Q.get('shop') : null;
+// &placed=1&street=: a demo shop's copy the website placed near the visitor; he says that street (the server checks
+// it), never the shop's own area.
+const PLACE = SHOP && Q.get('placed') === '1' ? { placed: true, street: (Q.get('street') ?? '').slice(0, 60) } : null;
 const apiMeta = document.querySelector('meta[name="saath-api"]');
 const REST = SHOP && apiMeta?.content ? `${new URL(apiMeta.content).origin}/rest/v1` : null;
 const menuEl = document.getElementById('menu');
 // naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
 let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;
 // Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
-const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
+const loadShop = () => !REST ? Promise.resolve() : fetch(`${REST}/shops?slug=eq.${SHOP}&select=name,section,special,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,sort)`,
   { headers: apiMeta.dataset.key ? { apikey: apiMeta.dataset.key, authorization: `Bearer ${apiMeta.dataset.key}` } : {} })
   .then((r) => (r.ok ? r.json() : [])).then(([s]) => { if (s) shop = { ...s, menu_items: [...s.menu_items].sort((a, b) => a.sort - b.sort) }; }, () => {});
 loadShop();
@@ -321,6 +325,10 @@ const dollars = (p) => { const c = Math.round(Number(p) * 100) / 100; return `$$
 // The site's section colours (site/src/shops.ts SECTIONS): the named row is tinted in the shop's.
 const SECTION_COLOURS = { restaurant: '#E5533D', cafe: '#14897C', juice: '#7CB82F', bakery: '#8C5A3C', grocery: '#2E8B57', streetfood: '#E8A317',
   boutique: '#7B4BA8', mall: '#F28C28', realestate: '#23395B', salon: '#E35D9A', pharmacy: '#1AA3C2', books: '#8E6B3E', electronics: '#3D5AFE', gym: '#D9480F', hotel: '#0B7285' };
+// And their names: an iPhone's AR Quick Look banner says the shop's kind when it has no saving or special.
+const SECTION_LABELS = { restaurant: 'Restaurant', cafe: 'Café & Chai', juice: 'Juice & Smoothies', bakery: 'Bakery & Sweets', grocery: 'Grocery & Kirana',
+  streetfood: 'Street Food', boutique: 'Fashion Boutique', mall: 'Shopping Mall', realestate: 'Real Estate', salon: 'Salon & Spa', pharmacy: 'Pharmacy',
+  books: 'Bookshop', electronics: 'Electronics & Mobile', gym: 'Gym', hotel: 'Hotel' };
 // The one item a sentence names: the longest full name in it, else the only item whose last word (4+ letters) is in it
 // ("the brownie" names Walnut brownie, but "chai" names nothing when two items end in chai). Whole words, in any script.
 const words = (t) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
@@ -400,7 +408,7 @@ const talkEl = document.getElementById('talk'), hintEl = document.getElementById
 const talkTimes = {}, HOLD = 'Hold to talk', LISTENING = 'Listening… let go to send';
 let heard = '', error = '', listening = false, thinking = false;
 const hint = () => { hintEl.textContent = listening ? LISTENING : thinking ? `${NAME} is thinking…` : error || HOLD; };
-const talk = createTalk({ friend: FRIEND, shop: SHOP, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
+const talk = createTalk({ friend: FRIEND, shop: SHOP, place: PLACE, lip: Number(Q.get('lip')) || 0, onEvent: (type, data) => {
   if (type === 'state') { listening = data === 'listening'; thinking = data === 'thinking'; if (listening || thinking) error = ''; mic.classList.toggle('on', listening); hint(); menuState(data); }
   else if (type === 'heard') heard = data;
   else if (type === 'error') { error = data; hint(); }
@@ -651,6 +659,18 @@ if (PREVIEW) {
     seeking = true; findingEl.style.display = 'block';
     setTimeout(() => { document.getElementById('still').hidden = false; }, 8000);   // hidden with the card if a surface came first
   };
+  // An iPhone or iPad (the door's QR scanned with its camera): no WebXR, but Apple's AR Quick Look stands them in the room.
+  // Its banner names the shop and the saving; no "Walk there", they are at the door.
+  if (!ok && canQuickLook) {
+    prefetchQuickLook(FRIEND);
+    document.getElementById('introLine').textContent = `${NAME} stands in your room at true size`;
+    start.textContent = `See ${NAME} in your room`; start.disabled = false;
+    start.onclick = () => {
+      const order = shop && orderOf(shop);
+      openQuickLook(FRIEND, { title: shop ? `${NAME} · ${shop.name}` : NAME,
+        subtitle: order ? `Save ${dollars(order.apps - order.here)}` : shop?.special || SECTION_LABELS[shop?.section] });
+    };
+  }
   rasterise();   // a first picture of him, as the loop copies him only once he is out: his card is never blank
   renderer.setAnimationLoop((time, xrFrame) => {
     if (!xrFrame) return;   // before Start AR nothing here shows, so nothing is drawn

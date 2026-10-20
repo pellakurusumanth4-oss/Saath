@@ -46,7 +46,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   const thisMonth = month.current.walks.filter((w) => w.day.slice(0, 7) === dayOf().slice(0, 7)).length;
   const days = fortnight(month.current.walks);
   const top = Math.max(1, ...days);
-  const share = () => void navigator.share?.({ title: 'Saath', text: order ? `I saved ${dollars(saving)} by walking to ${shop.name}` : `I walked to ${shop.name}`, url: `${location.origin}/visit/#/shop/${shop.slug}` }).catch(() => {});
+  const share = () => void navigator.share?.({ title: 'Footfall', text: order ? `I saved ${dollars(saving)} by walking to ${shop.name}` : `I walked to ${shop.name}`, url: `${location.origin}/visit/#/shop/${shop.slug}` }).catch(() => {});
   const shown = useCountUp(saving, true);
   const mascot = hostOf(shop);
   const box = useRef<HTMLDivElement>(null);

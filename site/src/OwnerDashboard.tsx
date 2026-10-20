@@ -77,7 +77,7 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
     <main className="owner-dash" style={{ '--c': section.color } as CSSProperties}>
       <header className="dash-head">
         <span className="brand-tile small"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></span>
-        <b className="dash-brand">saath <span>for businesses</span></b>
+        <b className="dash-brand">footfall <span>for businesses</span></b>
         <button type="button" className="owner-link-btn dash-signout" onClick={() => void leave()}>Sign out</button>
       </header>
       {leaving && (

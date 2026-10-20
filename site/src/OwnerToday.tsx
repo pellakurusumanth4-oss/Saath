@@ -45,7 +45,7 @@ export function TodayCode({ shop, code, days, failed }: { shop: Shop; code: stri
         {(code ?? '······').split('').map((digit, i) => <span key={i}>{digit}</span>)}
       </div>
       {!code && failed && <p role="status">Couldn’t load today’s code. Retrying…</p>}
-      <p>Customers type this in Saath after they pay. It changes at midnight.</p>
+      <p>Customers type this in Footfall after they pay. It changes at midnight.</p>
       <button type="button" disabled={!code} onClick={() => setTill(true)}>Show at the till</button>
       {till && code && <Till shop={shop} code={code} today={days?.[days.length - 1]?.visits ?? 0} onClose={() => setTill(false)} />}
     </section>
@@ -74,7 +74,7 @@ function Till({ shop, code, today, onClose }: { shop: Shop; code: string; today:
       <img src={portraitOf(hostOf(shop))} alt="" />
       <small>TODAY’S CODE · {shop.name.toUpperCase()}</small>
       <div className="code-tiles">{code.split('').map((digit, i) => <span key={i}>{digit}</span>)}</div>
-      <p>Customers type this in Saath after they pay. It changes at midnight.</p>
+      <p>Customers type this in Footfall after they pay. It changes at midnight.</p>
       <div className="till-count"><div><b>{today}</b><span>verified {today === 1 ? 'visit' : 'visits'} today</span></div><em>Tap to close</em></div>
     </div>
   );

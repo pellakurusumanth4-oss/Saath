@@ -52,6 +52,9 @@ export type Shop = LatLng & {
   hours: string;
   /** Set in this browser only, on a demo shop's copy placed near the visitor (relocate.ts); never a database column. */
   placed?: boolean;
+  /** With placed: the name of the street it stands on there, from the router; empty when the way has none. Its
+   * mascot says this instead of the area (talk.ts, ArQr.tsx). */
+  street?: string;
 };
 
 export type MenuItem = {

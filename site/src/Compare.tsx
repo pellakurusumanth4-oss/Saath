@@ -101,7 +101,7 @@ export function HowSheet({ shop, order, updated, onClose }: { shop: Shop; order:
           <span>Apps {dollars(order.itemsApps)} + ~{dollars(order.fee)} fees = {dollars(order.apps)} · walk in {dollars(order.here)}</span>
           <b>You save {dollars(order.saving)}</b>
         </div>
-        <p className="how-fine">Saath isn’t linked to any delivery app.{updated ? ` Prices updated ${ago(updated, Date.now())} by the shop.` : ''}</p>
+        <p className="how-fine">Footfall isn’t linked to any delivery app.{updated ? ` Prices updated ${ago(updated, Date.now())} by the shop.` : ''}</p>
         <button type="button" className="btn-go wide" onClick={onClose}>Got it</button>
       </div>
     </div>

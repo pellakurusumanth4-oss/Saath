@@ -48,7 +48,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
   const walk = walkText(me, shop);
   const actions = (
     <div className="actions">
-      <MeetAr shop={shop} className="btn-ghost ar-meet" onTalk={onTalk} />
+      <MeetAr shop={shop} className="btn-ghost ar-meet" onTalk={onTalk} onWalk={off ? undefined : onWalk} />
       <button type="button" className="btn-dark" onClick={onTalk}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
       {off
         ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>

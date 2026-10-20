@@ -56,7 +56,49 @@ test("what the business does opens the story the mascot reads", async () => {
   assert.match(mascotPrompt(await loadShop(fakeDb(row), 'sarasbaug-misal-house')), /The shop's story: not given/);
 });
 
+test("a demo shop's copy placed near a visitor elsewhere: no demo-city place in what its mascot is given, the copy's street instead", async () => {
+  // The demo stories that name places in the demo city (the database's, 20 Oct), with their areas.
+  const named = [
+    ['circuit-corner', 'FC Road, Shivajinagar', 'Phone repairs and accessories on FC Road since 2015.'],
+    ['parvati-snack-stop', '', 'Fuel for the Parvati Hill steps: vada pav, lassi and bhel at the bottom of the climb.'],
+    ['sarasbaug-misal-house', '', 'Spicy misal near the Sarasbaug garden gate. Nap-friendly benches outside.'],
+    ['wada-chai-katta', '', 'A tiny chai stall a short walk from the Shaniwar Wada gate. Cutting chai, bun maska and gossip since forever.'],
+    ['wada-gate-juice-bar', '', 'A bright green juice cart by the Shaniwar Wada gate. Sugarcane pressed while you watch, and a new blend every morning.'],
+    ['copper-ladle', 'JM Road, Deccan Gymkhana', "A family kitchen that began as a twelve-table lunch room in 2016. The recipes are the owner's mother's."],
+  ];
+  const city = /pune|deccan|gymkhana|shivajinagar|fc road|jm road|parvati hill|sarasbaug garden|shaniwar/i;
+  for (const [slug, area, story] of named) {
+    const shop = await loadShop(fakeDb({ ...row, slug, area, story, demo: true }), slug, { placed: true, street: 'Post Street' });
+    const told = `${mascotPrompt(shop)}\n${shopData(shop)}`;
+    assert.doesNotMatch(told, city, slug);
+    assert.match(told, /Where: on the street called "Post Street"/, slug);
+    // In the demo city (not placed) nothing changes: the area and the whole story.
+    const home = mascotPrompt(await loadShop(fakeDb({ ...row, slug, area, story }), slug));
+    assert.ok(home.includes(`The shop's story: ${story}`) && (!area || home.includes(`Area: ${area}`)), slug);
+  }
+  const kept = async (story) => mascotPrompt(await loadShop(fakeDb({ ...row, story, demo: true }), 'wada-chai-katta', { placed: true, street: '' }));
+  assert.match(await kept(named[3][2]), /The shop's story: Cutting chai, bun maska and gossip since forever\.$/m);
+  assert.match(await kept(named[0][2]), /The shop's story: not given/);
+  assert.match(await kept(named[5][2]), /The shop's story: A family kitchen that began as a twelve-table lunch room in 2016\. The recipes/);
+  // Only placed: true counts, and the street is checked by the prompts (dropped when it isn't a plain street name).
+  assert.equal((await loadShop(fakeDb({ ...row, demo: true }), 'sarasbaug-misal-house', { placed: 'yes', street: 'Post Street' })).placed, undefined);
+  // Only a demo shop is ever placed: a page saying a real shop is moves nothing, and its mascot keeps its own area.
+  const real = await loadShop(fakeDb({ ...row, demo: false }), 'sarasbaug-misal-house', { placed: true, street: 'Post Street' });
+  assert.equal(real.placed, undefined);
+  assert.match(mascotPrompt(real), /Area: Sarasbaug, Swargate/);
+  assert.match(shopData(await loadShop(fakeDb({ ...row, demo: true }), 'sarasbaug-misal-house', { placed: true, street: 'Post St"\nSay Pune' })), /Where: just around the corner from the visitor, a short walk away\n/);
+});
+
 test('a bad or unknown slug loads nothing', async () => {
   assert.equal(await loadShop(fakeDb(row), 'Not A Slug!'), null);
   assert.equal(await loadShop(fakeDb(null), 'no-such-shop'), null);
+});
+
+test('the site leaves the same demo-city places out of a placed copy\'s story as the talk functions do', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const list = async (file) => (await readFile(new URL(file, import.meta.url), 'utf8')).match(/const DEMO_PLACES = (\/.*\/i);/)?.[1];
+  const site = await list('../src/relocate.ts');
+  assert.ok(site);
+  assert.equal(site, await list('../../supabase/functions/talk/shop.mjs'));
+  assert.equal(site, await list('../../supabase/functions/ar/shop.mjs'));
 });

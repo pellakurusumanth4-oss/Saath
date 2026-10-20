@@ -79,7 +79,7 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
     const next = [...historyRef.current, { role: 'user' as const, content: words }];
     try {
       // The talk function refuses any turn over 500 characters, and a long story reply would break every later ask.
-      const answer = await askFriend(mascot.id, next.slice(-12).map((m) => ({ ...m, content: m.content.slice(0, 500) })), shop.slug);
+      const answer = await askFriend(mascot.id, next.slice(-12).map((m) => ({ ...m, content: m.content.slice(0, 500) })), shop);
       if (mine !== turn.current) return;
       setHistory([...next, { role: 'assistant', content: answer }]);
       setReply(answer);

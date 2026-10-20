@@ -1,5 +1,6 @@
 // A shop's data for its mascot, loaded by the slug the page sends: the shape web/talk/prompts.mjs takes as `shop`
-// (mascotPrompt, shopData, mascotOf). Pages never send shop data, only the slug. db: a supabase-js client. Returns null
+// (mascotPrompt, shopData, mascotOf). Pages never send shop data, only the slug (and for a placed copy, below, its
+// street). db: a supabase-js client. Returns null
 // for a bad or unknown slug. Copied into the ar function by site/scripts/sync-ar-function.mjs.
 // The usual order the shop's card shows a saving for, the way the site's orderOf works it out (site/src/shops.ts):
 // undefined when an item is missing, sold out or has no app price, or when walking in saves nothing.
@@ -18,14 +19,23 @@ function usualOrder({ usual_order: lines, app_fee: fee, menu_items: menu }) {
   return apps > here ? { items: names.join(' + ').slice(0, 200), here: cents(here), apps: cents(apps), fee } : undefined;
 }
 
-export async function loadShop(db, slug) {
+// The demo shops were written in the demo city, and some stories name places there ("on FC Road", "by the Shaniwar
+// Wada gate"). A copy placed near a visitor anywhere else leaves out each sentence of its story naming one, so its
+// mascot never names that city or its streets there (prompts.mjs leaves out its area and says the copy's street).
+const DEMO_PLACES = /\b(?:pune|deccan|gymkhana|shivajinagar|erandwane|swargate|kothrud|koregaon|sarasbaug|shaniwar|parvati hill|(?:fc|jm|apte|prabhat|karve|law college) road)\b/i;
+const placeless = (story) => story.split(/(?<=[.!?])\s+/).filter((sentence) => !DEMO_PLACES.test(sentence)).join(' ');
+
+// page: what the page sent; with placed: true, the shop is such a copy and street its street there (checked by the prompts).
+export async function loadShop(db, slug, { placed, street } = {}) {
   if (typeof slug !== 'string' || !/^[a-z0-9-]{3,40}$/.test(slug)) return null;
   const { data, error } = await db
     .from('shops')
-    .select('slug,name,section,friend,area,hours,about,story,special,offers,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,note,sort)')
+    .select('slug,demo,name,section,friend,area,hours,about,story,special,offers,status,status_note,usual_order,app_fee,menu_items(id,name,price,app_price,available,note,sort)')
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return null;
+  const story = [data.about, data.story].map((text) => (text ?? '').trim()).filter(Boolean).join(' ');
+  const moved = placed === true && data.demo === true;   // only a demo shop is ever placed (relocate.ts): a page can't move a real one
   return {
     id: data.slug,
     name: data.name,
@@ -33,7 +43,7 @@ export async function loadShop(db, slug) {
     area: data.area,
     hours: data.hours ?? '',   // the owner's timings ("Mon–Sat, 8 am – 9 pm"): the mascot answers "when are you open?"
     // What the business does (the owner's line or two) opens its story: the prompts take both from the shop's block.
-    story: [data.about, data.story].map((text) => (text ?? '').trim()).filter(Boolean).join(' '),
+    story: moved ? placeless(story) : story,
     special: data.special,
     // The prompts take at most 5, each up to 200 characters (an owner could write more through the API).
     offers: data.offers.filter((offer) => offer.trim() && offer.length <= 200).slice(0, 5),
@@ -48,5 +58,6 @@ export async function loadShop(db, slug) {
       .slice(0, 60)
       .map((item) => ({ name: item.name, price: item.price, appPrice: item.app_price, available: item.available, note: item.note })),
     mascot: { id: data.friend },
+    ...(moved && { placed: true, street }),
   };
 }

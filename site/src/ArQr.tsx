@@ -1,13 +1,15 @@
-// A shop's AR link as a QR code and a copyable link: the AR page needs Android Chrome, so a laptop, an iPhone or another
-// browser hands the link to a phone that has it. The visitors' "Meet in AR" sheet and the owner's door sign share these.
+// A shop's AR link as a QR code and a copyable link: the AR page needs Android Chrome (or an iPhone, for AR Quick Look),
+// so a laptop or another browser hands the link to a phone that has it. The visitors' "Meet in AR" sheet and the owner's door sign share these.
 import { useEffect, useRef, useState } from 'react';
 import { hostOf, type Shop } from './shops';
 import { Icon } from './ui';
 
-/** The link to meet a shop's mascot in AR; absolute, so it still works scanned on another device. */
-export const arLinkOf = (shop: Pick<Shop, 'slug' | 'friend' | 'section'>) => {
+/** The link to meet a shop's mascot in AR; absolute, so it still works scanned on another device. A demo shop's copy
+ * placed near the visitor adds placed=1 and its street there, which the mascot says instead of the shop's own area. */
+export const arLinkOf = (shop: Pick<Shop, 'slug' | 'friend' | 'section' | 'placed' | 'street'>) => {
   const mascot = hostOf(shop);
-  const query = new URLSearchParams({ friend: mascot.id, shop: shop.slug, name: mascot.name.split(' ').pop()!, tall: String(mascot.tall) });
+  const query = new URLSearchParams({ friend: mascot.id, shop: shop.slug, name: mascot.name.split(' ').pop()!, tall: String(mascot.tall),
+    ...(shop.placed && { placed: '1', street: shop.street ?? '' }) });
   return `${window.location.origin}/ar/?${query}`;
 };
 

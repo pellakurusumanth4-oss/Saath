@@ -145,7 +145,8 @@ function playBlob(blob: Blob, rate: number): HTMLAudioElement {
 /** Split a reply into sentences so the first one can start playing quickly. */
 function splitSentences(text: string): string[] {
   const parts = text
-    .split(/(?<=[.!?])\s+|(?:\n)+/)
+    .replace(/([.!?])\s+/g, '$1\n')   // no lookbehind: Safari before 16.4 can't run one
+    .split(/\n+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   return parts.length > 0 ? parts : [text];

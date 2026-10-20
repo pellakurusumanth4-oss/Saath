@@ -301,7 +301,7 @@ export default function App() {
 
   return (
     <div className={`app ${desktop ? 'is-desktop' : 'is-phone'}`}>
-      <h1 className="sr-only">Saath: local shops near you</h1>
+      <h1 className="sr-only">Footfall: businesses near you</h1>
       <MapBoundary fallback={<div className="map-fallback"><p>The 3D city needs WebGL, which is off in this browser.</p><p>The list still works: tap a shop.</p></div>}>
         <Suspense fallback={null}>
           <MapView me={walkView?.me ?? me} shops={shops} visible={visible} selected={selected?.id ?? null} spotlight={!!selectedId && shown.some((shop) => shop.id === selectedId)}
@@ -314,10 +314,10 @@ export default function App() {
       </MapBoundary>
 
       {desktop ? (
-        <aside className="panel panel-left glass" aria-label="Saath">
+        <aside className="panel panel-left glass" aria-label="Footfall">
           <div className="brand">
-            <a className="brand-tile" href="/" aria-label="Saath home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
-            <div><b>saath</b><span>Local shops near you</span></div>
+            <a className="brand-tile" href="/" aria-label="Footfall home"><Icon name="walk" size={22} color="#5BE38F" stroke={2.4} /></a>
+            <div><b>footfall</b><span>Businesses near you</span></div>
             <a className="for-business" href="#/business">For businesses →</a>
           </div>
           <Search query={query} setQuery={setQuery} />
@@ -360,7 +360,7 @@ export default function App() {
       )}
       {placedNote && !error && (
         <div className="notice" role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'max-content' }}>
-          <span>Demo shops placed around you so you can try Saath here.</span>
+          <span>Demo shops placed around you so you can try Footfall here.</span>
           <button type="button" className="icon-btn" style={{ width: 28, height: 28, borderRadius: '50%', color: 'inherit' }} onClick={() => setPlacedNote(false)} aria-label="Dismiss"><Icon name="close" size={14} stroke={2.6} /></button>
         </div>
       )}
@@ -425,7 +425,7 @@ export default function App() {
 function Search({ query, setQuery, logo = false }: { query: string; setQuery: (q: string) => void; logo?: boolean }) {
   return (
     <label className="search glass">
-      {logo ? <a className="brand-tile small" href="/" aria-label="Saath home"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></a> : <Icon name="search" size={19} />}
+      {logo ? <a className="brand-tile small" href="/" aria-label="Footfall home"><Icon name="walk" size={18} color="#5BE38F" stroke={2.4} /></a> : <Icon name="search" size={19} />}
       <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shops, food, services" aria-label="Search shops, food, services" />
     </label>
   );

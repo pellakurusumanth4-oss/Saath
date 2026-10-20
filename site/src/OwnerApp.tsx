@@ -122,13 +122,13 @@ function OwnerGate() {
   };
   return (
     <main className="owner-gate">
-      <a className="owner-back" href="/visit/">← Saath map</a>
+      <a className="owner-back" href="/visit/">← Footfall map</a>
       <section className="owner-gate-card owner-form owner-section owner-signin">
         <div className="signin-sky" aria-hidden="true">
           {MASCOTS.slice(0, 5).map((mascot, i) => <img key={mascot.id} src={portraitOf(mascot)} alt="" style={{ '--i': i } as CSSProperties} />)}
         </div>
         <p className="signin-kicker">FOR BUSINESSES</p>
-        <h1 className="signin-title">Put your business on Saath</h1>
+        <h1 className="signin-title">Put your business on Footfall</h1>
         <p className="owner-help">Four short steps: your business and its timings, your mascot, your billboard, and where you are. Then your mascot greets visitors at your door, in its own voice.</p>
         {withEmail ? (
           <>

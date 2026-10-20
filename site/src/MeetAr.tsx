@@ -1,12 +1,14 @@
 // "Meet <name> in AR", always shown (the user, 20 Oct: the mascot in AR is the brand's draw, reveal it): on the shop
-// card, the shop page and at the door. Where the phone can (Android Chrome with ARCore) it opens the AR page in a new
+// card, the shop page and at the door. An iPhone or iPad opens Apple's AR Quick Look (its banner: the shop, the saving and
+// "Walk there" where walking makes sense); where the phone can (Android Chrome with ARCore) it opens the AR page in a new
 // tab; anywhere else a sheet hands the AR link over as a QR code, with what to do on this device.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
+import { canQuickLook, openQuickLook, prefetchQuickLook } from '../../web/ar/quicklook.mjs';
 import { ArLink, ArQr, arLinkOf } from './ArQr';
 import { isIOS } from './install';
 import Sheet from './Sheet';
-import { hostOf, portraitOf, sectionOf, type Shop } from './shops';
+import { dollars, hostOf, orderOf, portraitOf, sectionOf, type Shop, type ShopWithMenu } from './shops';
 import { Icon } from './ui';
 
 type XR = { isSessionSupported: (mode: 'immersive-ar') => Promise<boolean> };
@@ -19,8 +21,10 @@ const android = /Android/.test(navigator.userAgent);
 // Chrome itself: Samsung Internet, Edge, Opera, Brave and in-app browsers are Chromium too, but name their own brand.
 const chrome = !!(navigator as Navigator & { userAgentData?: { brands: { brand: string }[] } }).userAgentData?.brands.some((b) => b.brand === 'Google Chrome');
 
-export default function MeetAr({ shop, className, onTalk }: { shop: Shop; className: string; onTalk: () => void }) {
-  const first = hostOf(shop).name.split(' ').pop()!;
+/** onWalk: what the shop's Walk button does, for Quick Look's "Walk there" (none at the door, or when it's closed). */
+export default function MeetAr({ shop, className, onTalk, onWalk }: { shop: ShopWithMenu; className: string; onTalk: () => void; onWalk?: () => void }) {
+  const mascot = hostOf(shop);
+  const first = mascot.name.split(' ').pop()!;
   const [ar, setAr] = useState(arOk);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -28,7 +32,14 @@ export default function MeetAr({ shop, className, onTalk }: { shop: Shop; classN
     void arCheck?.then((ok) => { if (live) setAr(ok); });
     return () => { live = false; };
   }, []);
+  useEffect(() => { if (canQuickLook) prefetchQuickLook(mascot.id); }, [mascot.id]);   // in before the tap, which can't wait for it
   const label = <><Icon name="ar" size={19} />Meet {first} in AR</>;
+  if (canQuickLook) {
+    const order = orderOf(shop, shop.menu);
+    const quickLook = () => openQuickLook(mascot.id, { title: `${first} · ${shop.name}`,
+      subtitle: order ? `Save ${dollars(order.saving)}` : shop.special || sectionOf(shop).label, cta: onWalk && 'Walk there' }, onWalk);
+    return <button type="button" className={className} onClick={quickLook}>{label}</button>;
+  }
   if (ar) return <a className={className} href={arLinkOf(shop)} target="_blank" rel="noopener">{label}</a>;
   return (
     <>
@@ -40,12 +51,13 @@ export default function MeetAr({ shop, className, onTalk }: { shop: Shop; classN
 
 function ArSheet({ shop, first, onTalk, onClose }: { shop: Shop; first: string; onTalk: () => void; onClose: () => void }) {
   const link = arLinkOf(shop);
-  // This phone can't run AR here (an iPhone, or Android Chrome without ARCore): it can still talk on screen.
+  // Android Chrome without ARCore can't run AR here, but can still talk on screen. Most iPhones open Quick Look instead; one
+  // that can't (an app's own browser, such as Instagram's) is sent to Safari.
   const talk = isIOS || (android && chrome);
-  const text = isIOS ? `AR needs an Android phone with Chrome. Scan this with one, or talk to ${first} here.`
+  const text = isIOS ? `Open this page in Safari to meet ${first} in AR, or talk to ${first} here.`
     : android && !chrome ? `Open this page in Chrome to meet ${first} in AR.`
-    : android ? `This phone can’t run AR. Scan this with another Android phone, or talk to ${first} here.`
-    : 'Scan this with your Android phone’s camera or a QR scanner app, and open it in Chrome.';
+    : android ? `This phone can’t run AR. Scan this with another phone’s camera or a QR scanner app: on Android it opens in Chrome, on an iPhone tap “See ${first} in your room”. Or talk to ${first} here.`
+    : `Scan this with your phone’s camera or a QR scanner app. On Android it opens in Chrome; on iPhone tap “See ${first} in your room”.`;
   return (
     <Sheet label={`Meet ${first} in AR`} onClose={onClose} className="ar-sheet">
       <button type="button" className="icon-btn ar-close" onClick={onClose} aria-label="Close"><Icon name="close" size={18} /></button>

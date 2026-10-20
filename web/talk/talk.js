@@ -2,9 +2,11 @@
 // recording the server writes down where the browser can't hear), the reply from /api/talk (web/talk/server.mjs),
 // its voice, and the face to draw each frame. A plain ES module with no dependencies: the AR page uses it now, the
 // app's WebView or the website later.
-//   createTalk({ friend, shop?, onEvent, lip }) -> { listen(), send(text?), stop(), warm(), face(), cloud(), state }
+//   createTalk({ friend, shop?, place?, onEvent, lip }) -> { listen(), send(text?), stop(), warm(), face(), cloud(), state }
 //   shop: a shop's id, sent instead of friend: the server loads that shop and its mascot (never trusting the page for
 //   either) and may mark a reply's cue `menu` (it talks about the menu or prices) or `long` (a listening turn).
+//   place: {placed: true, street}, sent with the shop when it is a demo shop's copy placed near the visitor: the mascot
+//   says that street (the server checks it) instead of the shop's own area.
 //   onEvent(type, data): 'state' (idle | listening | thinking | speaking), 'heard' (text), 'cue' ({emotion, action, menu}: menu when he talks about the shop's menu or prices),
 //   'error' (a message to show), 'timing' ({name, ms} since letting go: heard, cue, audio, sound).
 //   face() -> {mood, mouth: 'closed'|'half'|'open'|'round'|'wide'} while he thinks or talks, for the rig's saath.face() each frame;
@@ -37,8 +39,8 @@ async function* lines(body) {
   if (buf.trim()) yield buf;
 }
 
-export function createTalk({ friend, shop = null, onEvent, lip = 0 }) {
-  const who = shop ? { shop } : { friend };
+export function createTalk({ friend, shop = null, place = null, onEvent, lip = 0 }) {
+  const who = shop ? { shop, ...place } : { friend };
   let state = 'idle', rec = null, recorder = null, held = false, heard = '', finished = false, cut = false, lateError = '';
   // Brave has the speech API but nothing behind it (it fails at once) and Firefox has none: both record.
   let noSR = 'brave' in navigator;

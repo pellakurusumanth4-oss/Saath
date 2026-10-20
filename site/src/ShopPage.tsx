@@ -92,7 +92,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {shop.story && <div className="story"><b>The story</b><p>{shop.story}</p></div>}
         </div>
         <div className="actions sticky">
-          <MeetAr shop={shop} className="btn-ghost ar-meet" onTalk={() => onTalk(shop.id)} />
+          <MeetAr shop={{ ...shop, menu }} className="btn-ghost ar-meet" onTalk={() => onTalk(shop.id)} onWalk={off ? undefined : () => onWalk(shop.id)} />
           <button type="button" className="btn-dark" onClick={() => onTalk(shop.id)}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
           {off
             ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>

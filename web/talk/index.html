@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Saath talk test</title>
+<title>Footfall talk test</title>
 <!--
   Talk to a friend without AR (a dark room, a laptop): the same talking engine (talk.js) and rig as the AR page, with
   the friend standing on screen. Clean on purpose (the user, 18 Oct: "my input doesn't need to appear", "speech like a
@@ -58,7 +58,7 @@ if (!Object.hasOwn(NAMES, FRIEND)) { document.body.textContent = `Unknown friend
 document.body.classList.toggle('debug', Q.has('debug'));
 document.getElementById('friends').innerHTML = Object.entries(NAMES)
   .map(([id, name]) => `<a href="?friend=${id}&debug"${id === FRIEND ? ' aria-current="page"' : ''}>${name}</a>`).join('');
-document.title = `Talk to ${NAMES[FRIEND]} · Saath`;
+document.title = `Talk to ${NAMES[FRIEND]} · Footfall`;
 // The mic prompt comes as the page opens, so the first hold of the button isn't cut short by it.
 navigator.permissions?.query({ name: 'microphone' }).then((p) => {
   if (p.state === 'prompt') navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()), () => {});
