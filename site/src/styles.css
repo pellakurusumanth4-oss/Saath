@@ -23,7 +23,8 @@ a { color: inherit; }
 :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.app { position: relative; height: 100dvh; overflow: hidden; }
+.app { position: relative; height: 100dvh; overflow: hidden; overflow: clip; }   /* clip: focusing a card mid-slide can't scroll the map away */
+h2[tabindex='-1']:focus, .walk-banner:focus { outline: none; }   /* focused for screen readers on open, not by a key: no ring after a tap */
 
 /* ---------- glass, buttons, chips ---------- */
 

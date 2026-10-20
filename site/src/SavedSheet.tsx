@@ -52,7 +52,7 @@ export default function SavedSheet({ shop, order, metres, minutes, visit, posted
   const box = useRef<HTMLDivElement>(null);
   useInert(box);
   const nice = useRef<HTMLButtonElement>(null);
-  useEffect(() => nice.current?.focus(), []); // after the review sheet's useInert cleanup lifts the inert from the page
+  useEffect(() => nice.current?.focus({ preventScroll: true }), []); // after the review sheet's useInert cleanup lifts the inert from the page
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);

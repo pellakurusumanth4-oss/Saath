@@ -27,7 +27,7 @@ export default function WalkHud({ shop, start, onView, onArrive, onStop }: {
   const handlers = useRef({ onView, onArrive });
   handlers.current = { onView, onArrive };
   const banner = useRef<HTMLDivElement>(null);
-  useEffect(() => banner.current?.focus(), []); // the walk opens on its directions, not at the top of the page
+  useEffect(() => banner.current?.focus({ preventScroll: true }), []); // the walk opens on its directions, not at the top of the page
 
   // The screen stays on while walking (Chrome; Safari 16.4+), and again whenever the tab comes back.
   useEffect(() => {

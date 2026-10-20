@@ -3,7 +3,7 @@ import { useMemo, useState, useSyncExternalStore, type CSSProperties } from 'rea
 import { distanceM, type LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
-import { hostOf, orderOf, portraitOf, sectionOf, walkMinutes, type ShopWithMenu } from './shops';
+import { hostOf, orderOf, portraitOf, sectionOf, walkText, type ShopWithMenu } from './shops';
 import { SaveChip } from './ui';
 
 const onNetwork = (changed: () => void) => {
@@ -64,7 +64,7 @@ export default function NearList({ shops, me, thumb = 92, loading = false, onPic
                   <b>{shop.name}{shop.demo && <em className="demo">DEMO</em>}</b>
                   <span className={`near-state is-${state}`}>
                     {state === 'busy' ? `Busy${shop.status_note ? ` · ${shop.status_note}` : ''}` : state === 'closed' ? (shop.status_note || 'Closed') : 'Open'}
-                    {me && <span className="near-walk"> · {walkMinutes(me, shop)} min</span>}
+                    {me && <span className="near-walk"> · {walkText(me, shop)}</span>}
                   </span>
                   {order && <Compare shop={shop} menu={shop.menu} mode="line" />}
                 </span>

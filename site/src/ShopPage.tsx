@@ -9,7 +9,7 @@ import Compare from './Compare';
 import MapBoundary from './MapBoundary';
 import MeetAr from './MeetAr';
 import Reviews from './Reviews';
-import { boardOf, hostOf, orderOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
+import { boardOf, hostOf, orderOf, sectionOf, updatedAt, useShop, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 import { useInert } from './useInert';
 
@@ -94,7 +94,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           <button type="button" className="btn-dark" onClick={() => onTalk(shop.id)}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
           {off
             ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>
-            : <button type="button" className="btn-go" onClick={() => onWalk(shop.id)}><Icon name="walk" size={19} />Walk{me ? ` · ${walkMinutes(me, shop)} min` : ''}</button>}
+            : <button type="button" className="btn-go" onClick={() => onWalk(shop.id)}><Icon name="walk" size={19} />Walk</button>}
         </div>
       </div>
     </div>

@@ -14,7 +14,7 @@ export default function ReviewSheet({ shop, visit, onDone }: { shop: ShopWithMen
   const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const box = useRef<HTMLDivElement>(null);
   useInert(box);
-  useEffect(() => box.current?.focus(), []);
+  useEffect(() => box.current?.focus({ preventScroll: true }), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onDone(false);
     window.addEventListener('keydown', onKey);

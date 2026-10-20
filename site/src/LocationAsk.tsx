@@ -6,7 +6,7 @@ import { useInert } from './useInert';
 export default function LocationAsk({ onAllow, onPick }: { onAllow: () => void; onPick: () => void }) {
   const box = useRef<HTMLDivElement | null>(null);
   useInert(box);
-  useEffect(() => box.current?.focus(), []);
+  useEffect(() => box.current?.focus({ preventScroll: true }), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onPick();
     window.addEventListener('keydown', onKey);

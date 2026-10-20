@@ -18,7 +18,7 @@ export default function CodeSheet({ shop, onBack, onVerified }: { shop: ShopWith
   const busy = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   useInert(box);
-  useEffect(() => box.current?.focus(), []);
+  useEffect(() => box.current?.focus({ preventScroll: true }), []);
 
   useEffect(() => {
     if (!shop.demo || shop.owner) return;

@@ -108,14 +108,12 @@ export function statusText(shop: Pick<Shop, 'status' | 'status_note'>): string {
   return shop.status_note ? `${word} · ${shop.status_note}` : word;
 }
 
-/** Minutes on foot at an easy 80 m a minute; × 1.3 because streets wind (the straight line said 5 min where the route said 8). */
-export const walkMinutes = (me: LatLng, shop: LatLng) => Math.max(1, Math.round((distanceM(me, shop) * 1.3) / 80));
 
-/** "2 min · 150 m" from where the visitor is, or null before we know. */
+/** "150 m away" in a straight line from the visitor, or null before we know (the route preview gives the walking time). */
 export function walkText(me: LatLng | null, shop: LatLng): string | null {
   if (!me) return null;
   const m = distanceM(me, shop);
-  return `${walkMinutes(me, shop)} min · ${m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`}`;
+  return `${m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`} away`;
 }
 
 /** Where a shop's billboard stands: its own spot, else about 40 m east of the shop. */

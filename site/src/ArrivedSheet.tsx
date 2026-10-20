@@ -14,7 +14,7 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
   const first = mascot.name.split(' ').pop()!;
   const box = useRef<HTMLDivElement>(null);
   useInert(box);
-  useEffect(() => box.current?.focus(), []);
+  useEffect(() => box.current?.focus({ preventScroll: true }), []);
   useEffect(() => {
     // Not while a page or sheet opened from here (the shop page) is over it: that one closes first.
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !box.current?.closest('[inert]') && onClose();
