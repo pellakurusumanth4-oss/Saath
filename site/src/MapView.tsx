@@ -58,8 +58,9 @@ const youFeature = (me: LatLng | null): FeatureCollection<Point> => ({
   features: me ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: [me.lng, me.lat] }, properties: {} }] : [],
 });
 
-/** Billboards scale with zoom: 1 at 17, 0.75 at 16.3, and they hide below 15.8 (the pins stay). */
-const boardScale = (zoom: number) => (zoom < 15.8 ? 0 : Math.max(0.6, Math.min(1.15, 0.75 + ((zoom - 16.3) / 0.7) * 0.25)));
+/** Billboards scale with zoom: 1 at 17, 0.75 at 16.3, and they hide below 15.8 (the pins stay). At 0.7 the face still
+ * clears the shop's own pin (at 0.6 the pin covered its bottom-left). */
+const boardScale = (zoom: number) => (zoom < 15.8 ? 0 : Math.max(0.7, Math.min(1.15, 0.75 + ((zoom - 16.3) / 0.7) * 0.25)));
 
 type Slot = { pin: HTMLElement; board: HTMLElement; markers: maplibregl.Marker[] };
 
@@ -120,6 +121,11 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
     map.touchZoomRotate.disableRotation();
     map.setPadding(latest.current.padding);
     map.on('load', () => {
+      // The sky fog sits under the markers too: over them it washed the top third's boards pale (red read salmon).
+      const fog = document.createElement('div');
+      fog.className = 'map-fog';
+      fog.setAttribute('aria-hidden', 'true');
+      map.getCanvasContainer().insertBefore(fog, map.getCanvas().nextSibling);
       // The spotlight sits between the city and the markers, so the open shop's billboard stays bright.
       const scrim = document.createElement('div');
       scrim.className = 'spotlight';
@@ -257,24 +263,28 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
       if (!shop) return;
       const p = map.project([boardOf(shop).lng, boardOf(shop).lat]);
       scrim.style.setProperty('--x', `${p.x}px`);
-      scrim.style.setProperty('--y', `${p.y - 110 * boardScale(map.getZoom())}px`);
+      scrim.style.setProperty('--y', `${p.y - 180 * boardScale(map.getZoom())}px`);   // between the lifted face and the pin
     };
     const declutter = () => {
       const { selected: id, shops: all, me: here } = latest.current;
+      // Boards make way for each other and for the phone's top bar and the desktop panels; pins draw over boards.
       const centre = map.getCenter();
       const from = here ?? { lat: centre.lat, lng: centre.lng };
       const ranked = [...all].sort((a, b) =>
         Number(b.id === id) - Number(a.id === id)
         || (orderOf(b, b.menu)?.saving ?? 0) - (orderOf(a, a.menu)?.saving ?? 0)
         || distanceM(from, a) - distanceM(from, b));
-      const kept: DOMRect[] = [];
+      const kept: DOMRect[] = [...document.querySelectorAll('.top, .panel')].map((bar) => bar.getBoundingClientRect());
       for (const shop of ranked) {
         const el = containerRef.current?.querySelector<HTMLElement>(`[data-board="${shop.id}"]`);
         if (!el) continue;
         el.classList.remove('is-crowded');
-        const r = el.getBoundingClientRect();
+        // The face, not the pole, from layout boxes: a board just shown again is still rising (scaled to 0).
+        const b = el.getBoundingClientRect(), face = el.querySelector<HTMLElement>('.board-panel')!, k = b.height / (el.offsetHeight || 1);
+        const r = new DOMRect(b.x + face.offsetLeft * k, b.y + face.offsetTop * k, face.offsetWidth * k, face.offsetHeight * k);
         if (!r.width) continue;
-        const hit = kept.some((k) => r.left < k.right - 8 && r.right > k.left + 8 && r.top < k.bottom - 8 && r.bottom > k.top + 8);
+        const over = (o: DOMRect) => r.left < o.right - 8 && r.right > o.left + 8 && r.top < o.bottom - 8 && r.bottom > o.top + 8;
+        const hit = kept.some(over);
         if (hit) el.classList.add('is-crowded');
         else kept.push(r);
       }
@@ -328,8 +338,9 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
       zoom: Math.max(map.getZoom(), 16.6),
       padding: latest.current.padding,
     };
-    if (reduced()) map.jumpTo(camera);
-    else map.flyTo({ ...camera, duration: 900, essential: true });
+    const offset: [number, number] = latest.current.selected ? [0, 50] : [0, 0];   // the picked board's lifted face stays in view
+    if (reduced()) map.easeTo({ ...camera, offset, duration: 0 });   // jumpTo has no offset
+    else map.flyTo({ ...camera, offset, duration: 900, essential: true });
     // focusKey re-triggers the flight even when the target is unchanged.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, focusKey]);
@@ -370,7 +381,6 @@ export default function MapView({ me, shops, visible, selected, spotlight, focus
   return (
     <div className="map-wrap" style={{ '--board-scale': scale } as CSSProperties}>
       <div ref={containerRef} className={`map${scale === 0 ? ' is-far' : ''}${selected ? ' has-selected' : ''}`} data-setting={settingSpot ? 'true' : undefined} />
-      <div className="map-fog" aria-hidden="true" />
       {shops.map((shop, index) => {
         const slot = slots[shop.id];
         if (!slot) return null;
@@ -407,24 +417,23 @@ const Pin = memo(function Pin({ shop, saving, selected, dim, hidden, index, onPi
   );
 });
 
-/** A roadside billboard running the shop's own ad: steel pole, catwalk with railing, a framed panel and three lamps. */
+/** A roadside digital billboard running the shop's own ad: a steel unipole, a black cabinet lit in the shop's colour, a skirt. */
 const Billboard = memo(function Billboard({ shop, saving, selected, dim, hidden, index, onPick }: {
   shop: ShopWithMenu; saving: number; selected: boolean; dim: boolean; hidden: boolean; index: number; onPick: (shop: ShopWithMenu) => void;
 }) {
   const off = shop.status === 'closed';
   // The same element while the shop is unchanged, so a dim or select toggle doesn't re-render the ad too.
-  const ad = useMemo(() => <Ad shop={shop} height={90} off={shop.status === 'closed'} radius={2} running saving={saving} />, [shop, saving]);
+  const ad = useMemo(() => <Ad shop={shop} height={90} off={shop.status === 'closed'} running saving={saving} />, [shop, saving]);
   return (
     <div data-board={shop.id} className={`board${off ? ' is-off' : ''}${selected ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
-      style={{ '--i': index, '--ad-delay': `${(index % 2) * 200}ms`, display: hidden ? 'none' : undefined } as CSSProperties} onClick={(event) => {
+      style={{ '--i': index, '--ad-delay': `${(index % 2) * 200}ms`, '--ad-c': shop.ad_color || sectionOf(shop).color, display: hidden ? 'none' : undefined } as CSSProperties} onClick={(event) => {
         event.stopPropagation();
         onPick(shop);
       }}>
       <span className="board-shadow" />
       <span className="board-pole" />
       <span className="board-panel">
-        <span className="board-lamps"><i /><i /><i /></span>
-        <span className="board-frame">{ad}</span>
+        <span className="board-cab">{ad}</span>
         <span className="board-walk" />
       </span>
     </div>

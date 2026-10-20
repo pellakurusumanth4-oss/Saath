@@ -74,7 +74,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {shop.offers.length > 0 && <ul className="offers">{shop.offers.map((offer) => <li key={offer}>{offer}</li>)}</ul>}
 
           <h2 className="block-title">Their billboard on the map</h2>
-          <MapBoundary fallback={<Ad shop={shop} height={160} width="100%" off={off} running saving={saving} />}>
+          <MapBoundary fallback={<span className={`board-cab board-screen${off ? ' is-off' : ''}`} style={{ '--ad-c': shop.ad_color || section.color } as CSSProperties}><Ad shop={shop} height={160} width="100%" off={off} running saving={saving} /></span>}>
             <BoardPreview shop={shop} off={off} saving={saving} />
           </MapBoundary>
 
@@ -113,7 +113,8 @@ function BoardPreview({ shop, off, saving }: { shop: Shop; off: boolean; saving:
       zoom: 16.9, pitch: 56, bearing: -17, interactive: false, attributionControl: false,
     });
     const element = document.createElement('div');
-    const marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 100] }).setLngLat([spot.lng, spot.lat]).addTo(map);
+    // Pushed down so the whole face fits the 210 px box and the pole runs out of its bottom.
+    const marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 150] }).setLngLat([spot.lng, spot.lat]).addTo(map);
     element.removeAttribute('aria-label');
     setSlot(element);
     return () => {
@@ -127,9 +128,9 @@ function BoardPreview({ shop, off, saving }: { shop: Shop; off: boolean; saving:
     <div className="board-preview">
       <div ref={box} className="board-preview-map" />
       {slot && createPortal(
-        <div className={`board is-still${off ? ' is-off' : ''}`}>
+        <div className={`board is-still${off ? ' is-off' : ''}`} style={{ '--ad-c': shop.ad_color || sectionOf(shop).color } as CSSProperties}>
           <span className="board-shadow" /><span className="board-pole" />
-          <span className="board-panel"><span className="board-lamps"><i /><i /><i /></span><span className="board-frame"><Ad shop={shop} height={90} off={off} radius={2} running saving={saving} /></span><span className="board-walk" /></span>
+          <span className="board-panel"><span className="board-cab"><Ad shop={shop} height={90} off={off} running saving={saving} /></span><span className="board-walk" /></span>
         </div>, slot)}
     </div>
   );

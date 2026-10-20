@@ -74,7 +74,10 @@ export function BillboardFields({ shop, onChange }: {
 }) {
   return (
     <>
-      <div className="wiz-ad-preview"><Ad shop={shop} height={170} width="100%" radius={16} running /></div>
+      {/* The board's own screen: its cabinet lit in the ad's colour, the ad turning inside. */}
+      <div className="wiz-ad-preview">
+        <span className="board-cab board-screen" style={{ '--ad-c': shop.ad_color || sectionOf(shop).color } as CSSProperties}><Ad shop={shop} height={170} width="100%" running /></span>
+      </div>
       <label className="wiz-field">
         <span>Headline <em>{shop.ad_headline.length}/24</em></span>
         <input name="ad_headline" value={shop.ad_headline} maxLength={24} placeholder="Chai like home." onChange={(e) => onChange({ ad_headline: e.target.value })} />
