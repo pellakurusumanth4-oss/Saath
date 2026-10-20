@@ -2,6 +2,7 @@
 // when it's open, its mascot (and a talk with it) and its billboard. Each change is saved 400 ms after the last one and
 // reaches visitors live. No prices: the mascot answers visitors from what the owner wrote.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { ArLink, ArQr, arLinkOf } from './ArQr';
 import TalkPanel from './TalkPanel';
 import { TodayCode, useOwnerDay } from './OwnerToday';
 import { plainError } from './net';
@@ -148,6 +149,14 @@ export default function OwnerDashboard({ shop: start, onSignOut }: { shop: Shop;
               <button type="button" className="btn-dark small dash-talk" onClick={() => setTalking(true)}><Icon name="mic" size={17} />Talk to {shortName(mascot)}</button>
             </MascotHero>
             <MascotPicker section={shop.section} value={mascot.id} onPick={(friend) => save({ friend })} />
+          </section>
+
+          {/* The brand at the door: a printed QR takes customers straight to the mascot in AR. */}
+          <section className="owner-section" aria-labelledby="dash-ar">
+            <h2 id="dash-ar">Your mascot in AR</h2>
+            <p className="j-text dash-ar-text">Print this at your door, so customers can scan it and meet {shortName(mascot)} in AR.</p>
+            <ArQr link={arLinkOf(shop)} />
+            <ArLink link={arLinkOf(shop)} />
           </section>
 
           <section className="owner-section" aria-labelledby="dash-billboard">

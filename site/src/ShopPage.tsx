@@ -7,6 +7,7 @@ import type { LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
 import MapBoundary from './MapBoundary';
+import MeetAr from './MeetAr';
 import Reviews from './Reviews';
 import { boardOf, hostOf, orderOf, sectionOf, updatedAt, useShop, walkMinutes, walkText, type Shop } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
@@ -89,6 +90,7 @@ export default function ShopPage({ slug, me, onTalk, onWalk }: {
           {shop.story && <div className="story"><b>The story</b><p>{shop.story}</p></div>}
         </div>
         <div className="actions sticky">
+          <MeetAr shop={shop} className="btn-ghost ar-meet" onTalk={() => onTalk(shop.id)} />
           <button type="button" className="btn-dark" onClick={() => onTalk(shop.id)}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
           {off
             ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>

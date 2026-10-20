@@ -1,16 +1,11 @@
-// J3d: arrived. The mascot stands at the door above the sheet: meet it in AR where the phone can (Android Chrome with
-// ARCore, in a new tab so this sheet stays), talk to it on screen, see the menu, or get the verified visit.
-// AR is the website's one way into /ar/ (the user's choice, 19 Oct); everyone else meets the mascot on screen.
-import { useEffect, useRef, useState } from 'react';
+// J3d: arrived. The mascot stands at the door above the sheet: meet it in AR (Android Chrome with ARCore opens it in a
+// new tab so this sheet stays; anywhere else a QR hands it to a phone that can), talk to it on screen, see the menu, or
+// get the verified visit.
+import { useEffect, useRef } from 'react';
+import MeetAr from './MeetAr';
 import { hostOf, sectionOf, statusText, type ShopWithMenu } from './shops';
 import { Icon, Podium } from './ui';
 import { useInert } from './useInert';
-
-type XR = { isSessionSupported: (mode: 'immersive-ar') => Promise<boolean> };
-// Asked once, as the page loads, so the door opens with the right buttons instead of growing a moment later.
-const arCheck = (navigator as Navigator & { xr?: XR }).xr?.isSessionSupported('immersive-ar').catch(() => false);
-let arOk = false;
-void arCheck?.then((ok) => { arOk = ok; });
 
 export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
   shop: ShopWithMenu; onTalk: () => void; onBought: () => void; onClose: () => void;
@@ -20,13 +15,6 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
   const box = useRef<HTMLDivElement>(null);
   useInert(box);
   useEffect(() => box.current?.focus(), []);
-  const [ar, setAr] = useState(arOk);
-  useEffect(() => {
-    let live = true;
-    void arCheck?.then((ok) => { if (live) setAr(ok); });
-    return () => { live = false; };
-  }, []);
-  const arLink = `/ar/?${new URLSearchParams({ friend: mascot.id, shop: shop.slug, name: first, tall: String(mascot.tall) })}`;
   useEffect(() => {
     // Not while a page or sheet opened from here (the shop page) is over it: that one closes first.
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !box.current?.closest('[inert]') && onClose();
@@ -41,9 +29,9 @@ export default function ArrivedSheet({ shop, onTalk, onBought, onClose }: {
         <p className="arrived-kicker">YOU’RE HERE</p>
         <h2 className="arrived-title">{first} is at the door</h2>
         <p className="arrived-sub">{shop.name} · {statusText(shop)}</p>
-        {ar && <a className="btn-go arrived-meet" href={arLink} target="_blank" rel="noopener"><Icon name="ar" size={20} />Meet {first}</a>}
+        <MeetAr shop={shop} className="btn-go arrived-meet" onTalk={onTalk} />
         <div className="arrived-actions">
-          <button type="button" className={ar ? 'btn-dark' : 'btn-go'} onClick={onTalk}><Icon name="mic" size={20} />Talk to {first}</button>
+          <button type="button" className="btn-dark" onClick={onTalk}><Icon name="mic" size={20} />Talk to {first}</button>
           <a className="btn-ghost" href={`#/shop/${shop.slug}`}><Icon name="list" size={19} />{shop.menu.length ? 'See the menu' : 'See the shop'}</a>
         </div>
         <button type="button" className="arrived-bought" onClick={onBought}>

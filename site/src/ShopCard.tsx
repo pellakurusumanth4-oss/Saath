@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { LatLng } from '../../src/geo';
 import Ad from './Ad';
 import Compare from './Compare';
+import MeetAr from './MeetAr';
 import { hostOf, portraitOf, sectionOf, updatedAt, walkMinutes, walkText, type ShopWithMenu } from './shops';
 import { Icon, LiveChip, MenuRow, Podium, StatusChip } from './ui';
 
@@ -47,6 +48,7 @@ export default function ShopCard({ shop, me, layout, onClose, onTalk, onWalk }: 
   const walk = walkText(me, shop);
   const actions = (
     <div className="actions">
+      <MeetAr shop={shop} className="btn-ghost ar-meet" onTalk={onTalk} />
       <button type="button" className="btn-dark" onClick={onTalk}><Icon name="mic" size={19} />Talk to {mascot.name.split(' ').pop()}</button>
       {off
         ? <button type="button" className="btn-ghost" disabled><Icon name="walk" size={19} />{shop.status_note || 'Closed now'}</button>
