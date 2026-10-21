@@ -6,7 +6,7 @@ import { askFriend, RateLimitError, type ChatMessage } from './talk';
 import { listenOnce, speechSupported, type RecognitionHandle } from './speech';
 import { loadSoundPref, saveSoundPref } from './voices';
 import { speakReply, stopAllSpeaking, type SpeakHandle } from './kokoro';
-import { hostOf, orderOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
+import { db, hostOf, orderOf, sectionOf, type MenuItem, type ShopWithMenu } from './shops';
 import { isFood } from './kinds';
 import { Icon, MenuRow } from './ui';
 import TalkingMascot, { type Speech } from './TalkingMascot';
@@ -84,6 +84,7 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
       if (mine !== turn.current) return;
       setHistory([...next, { role: 'assistant', content: answer }]);
       setReply(answer);
+      void db.rpc('hit', { p_page: 'talk' }).then(() => {}, () => {});   // the anonymous counter: one reply, nothing else
       setNamed(namedIn(answer, shop.menu));
       if (soundRef.current) {
         setState('talking');

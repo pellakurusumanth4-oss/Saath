@@ -312,6 +312,13 @@ const SHOP = /^[a-z0-9-]{3,40}$/.test(Q.get('shop') ?? '') ? Q.get('shop') : nul
 const PLACE = SHOP && Q.get('placed') === '1' ? { placed: true, street: (Q.get('street') ?? '').slice(0, 60) } : null;
 const apiMeta = document.querySelector('meta[name="saath-api"]');
 const REST = SHOP && apiMeta?.content ? `${new URL(apiMeta.content).origin}/rest/v1` : null;
+// Footfall's anonymous visit counter (migration 20261021113000): this page and the referring site's domain, nothing about the visitor.
+if (apiMeta?.content && apiMeta.dataset.key) {
+  let ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch { /* no referrer */ }
+  fetch(`${new URL(apiMeta.content).origin}/rest/v1/rpc/hit`, { method: 'POST', keepalive: true,
+    headers: { 'Content-Type': 'application/json', apikey: apiMeta.dataset.key, Authorization: `Bearer ${apiMeta.dataset.key}` },
+    body: JSON.stringify({ p_page: '/ar/', p_ref: ref === location.hostname ? '' : ref }) }).catch(() => {});
+}
 const menuEl = document.getElementById('menu');
 // naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
 let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;

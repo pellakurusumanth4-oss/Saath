@@ -29,6 +29,12 @@ function arPage(url: string, anonKey: string): Plugin {
 
 // The map page's HTML starts the shop list's query itself (useShops takes that answer first): it no longer waits for the
 // app's script to download and run. The key is the public anon key the bundle already carries; empty without a project.
+/** The visit counter's endpoint for the pages' inline script: the hit RPC and the public key, or nothing (no project). */
+function visitCounter(url: string, anonKey: string): Plugin {
+  const hit = url && anonKey ? `${url}/rest/v1/rpc/hit#${anonKey}` : '';
+  return { name: 'saath-visit-counter', transformIndexHtml: (html) => html.replace(/%SAATH_HIT%/g, () => hit) };
+}
+
 function earlyShops(url: string, anonKey: string): Plugin {
   const query = url && anonKey ? `${url}/rest/v1/shops?${SHOPS_LIST_QUERY}&apikey=${anonKey}` : '';
   return { name: 'saath-early-shops', transformIndexHtml: (html) => html.replace(/%SAATH_SHOPS%/g, () => query) };
@@ -40,7 +46,7 @@ export default defineConfig(({ mode }) => {
   const url = env.EXPO_PUBLIC_SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '';
   const anonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY ?? '';
   return {
-    plugins: [react(), arPage(url, anonKey), earlyShops(url, anonKey)],
+    plugins: [react(), arPage(url, anonKey), earlyShops(url, anonKey), visitCounter(url, anonKey)],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(url),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(anonKey),

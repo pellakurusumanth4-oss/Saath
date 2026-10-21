@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <script>
+      // Footfall's anonymous visit counter (migration 20261021113000): this page and the referring site's domain, nothing about the visitor.
+      (() => { const [u, k] = '%SAATH_HIT%'.split('#'); if (!k) return; let r = ''; try { r = document.referrer ? new URL(document.referrer).hostname : ''; } catch { /* no referrer */ }
+        fetch(u, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: k, Authorization: `Bearer ${k}` },
+          body: JSON.stringify({ p_page: location.pathname, p_ref: r === location.hostname ? '' : r }) }).catch(() => {}); })();
+    </script>
+    <script>
       // Old links to the map (/#/shop/<slug>, /#/business, …) now live on /visit/; the old in-app owner page is /owner/.
       const toMap = () => { if (location.hash) location.replace(location.hash === '#/owner' ? '/owner/' : '/visit/' + location.search + location.hash); };
       toMap();

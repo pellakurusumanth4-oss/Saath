@@ -2,6 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Footfall's anonymous visit counter (migration 20261021113000): this page and the referring site's domain, nothing about the visitor.
+      (() => { const [u, k] = '%SAATH_HIT%'.split('#'); if (!k) return; let r = ''; try { r = document.referrer ? new URL(document.referrer).hostname : ''; } catch { /* no referrer */ }
+        fetch(u, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: k, Authorization: `Bearer ${k}` },
+          body: JSON.stringify({ p_page: location.pathname, p_ref: r === location.hostname ? '' : r }) }).catch(() => {}); })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#CFEFFF" />
     <meta name="description" content="Businesses near you on a 3D map, each with its own mascot and billboard. Talk to the mascot, meet it at the door in AR, and walk in." />
