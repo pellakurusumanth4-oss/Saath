@@ -68,7 +68,7 @@ function offerOf(shop: AdShop, saving: number): { kick?: string; big: string; pr
   if (saving > 0) return { kick: 'Save', big: dollars(saving), price: true };
   if (shop.special) return { kick: 'Today', big: shop.special };
   if (shop.offers?.[0]) return { big: shop.offers[0] };
-  if (shop.hours) return { kick: 'Open', big: shop.hours };
+  if (shop.hours) return { kick: 'Hours', big: shop.hours };
   if (shop.status_note) return { kick: { open: 'Open now', busy: 'Busy now', closed: 'Closed' }[shop.status], big: shop.status_note };
   return null;
 }

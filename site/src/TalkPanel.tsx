@@ -186,12 +186,12 @@ export default function TalkPanel({ shop, onClose, greet, shopLink = true }: { s
         {pill}
       </div>
       <p className="sr-only" aria-live="polite">{reply ? `${name} said: ${reply}` : ''}</p>
-      {!soundOn && reply && <p className="talk-text">{reply}</p>}
+      {reply && <p className="talk-text">{reply}</p>}
       {error && <p className="talk-error" role="alert">{error}</p>}
 
       <div className="talk-hints">
         {/* The saving question is the food places' own (kinds.ts): a flat or a haircut has no delivery-app price. */}
-        {HINTS.filter((hint) => (priced && isFood(shop)) || hint !== HINTS[0]).map((hint) => (
+        {HINTS.filter((hint) => (hint !== HINTS[0] || (priced && isFood(shop))) && (hint !== HINTS[3] || isFood(shop))).map((hint) => (
           <button key={hint.label} type="button" className="glass" aria-disabled={state === 'thinking'} onClick={() => void ask(hint.send)}>{hint.label}</button>
         ))}
       </div>

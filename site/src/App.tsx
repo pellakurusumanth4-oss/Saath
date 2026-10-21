@@ -150,7 +150,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (me || page !== 'map') return;
+    if (me) return;
+    // A shop page opened directly (a shared link, a reload): read the location only if it is already allowed, so the
+    // shop stands where it does on the map for this visitor, with no card over the page.
+    if (page !== 'map') { void navigator.permissions?.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') whereAmI(); }, () => {}); return; }
     if (!stored(() => sessionStorage, 'saath:asked')) void startLocation();
     else void navigator.permissions?.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') whereAmI(); }, () => {});
     // On arriving at the map (also from the owner's pages), once a session; after that the locate button asks, except

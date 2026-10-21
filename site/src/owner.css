@@ -5,7 +5,7 @@
 /* ---------- the owner page: its sign-in ---------- */
 
 .owner-app { position: relative; height: 100dvh; overflow: hidden; }
-.owner-gate { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 16px 40px; background: var(--sky); }
+.owner-gate { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 16px 80px; background: var(--sky); }
 .owner-back { align-self: flex-start; padding: 6px 2px; font: 800 14.5px var(--body); color: var(--ink); text-decoration: none; }
 .owner-gate-card { width: 100%; max-width: 440px; margin-top: 0; padding: 0 18px 22px; border-radius: var(--r-panel); background: #fff; box-shadow: var(--glass-shadow); }
 .owner-gate-card .signin-sky { margin: 0 -18px 6px; }

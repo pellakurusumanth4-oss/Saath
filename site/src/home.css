@@ -2,7 +2,7 @@
    (the visitors' map at /visit/, the owner page at /owner/). */
 @import './styles.css';
 
-.home { min-height: 100dvh; padding: 16px max(16px, calc((100% - 1080px) / 2)) calc(24px + env(safe-area-inset-bottom)); background: var(--sky); }
+.home { min-height: 100dvh; padding: 16px max(16px, calc((100% - 1080px) / 2)) calc(72px + env(safe-area-inset-bottom));   /* clear of the host's badge */ background: var(--sky); }
 .home-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
 .home-brand b { font: 800 24px var(--display); letter-spacing: -.02em; }
 .home-title { margin: 16px 0 0; font: 800 38px/41px var(--display); letter-spacing: -.02em; }
@@ -32,7 +32,7 @@
 .home-fine { margin: 16px 0 0; text-align: center; font: 600 12.5px var(--body); color: var(--ink-3); }
 
 @media (min-width: 900px) {
-  .home { padding-top: 28px; padding-bottom: 40px; }
+  .home { padding-top: 28px; }
   .home-hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: end; margin-top: 36px; }
   .home-title { font-size: min(68px, 6.8vw); line-height: 1.03; }   /* 'Every business,' fits the hero column from 900 px */
   .home-lead { font-size: 18px; line-height: 27px; }

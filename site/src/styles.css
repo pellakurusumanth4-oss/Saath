@@ -331,7 +331,7 @@ h2[tabindex='-1']:focus, .walk-banner:focus { outline: none; }   /* focused for 
 .seg button { padding: 6px 10px; border: none; border-radius: 10px; background: none; color: var(--ink-3); font: 700 12.5px var(--body); cursor: pointer; }
 .seg button[aria-pressed='true'] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(14, 23, 38, .14); }
 .near-hint { margin: 0 0 4px; font: 600 12.5px var(--body); color: var(--ink-3); }
-.near-rows { list-style: none; margin: 0; padding: 0; }
+.near-rows { list-style: none; margin: 0; padding: 0 0 64px; }   /* the last row scrolls clear of the host's badge */
 .near-rows li + li { border-top: 1px solid var(--line); }
 .near-rows li.is-closed .near-thumb { opacity: .6; }
 .near-row { display: flex; gap: 12px; align-items: center; width: 100%; padding: 10px 0; border: none; background: none; text-align: left; cursor: pointer; }
@@ -420,6 +420,7 @@ h2[tabindex='-1']:focus, .walk-banner:focus { outline: none; }   /* focused for 
 .talk-who b { display: block; font: 800 20px var(--display); }
 .talk-who span { font: 600 13.5px var(--body); color: var(--ink-2); }
 .talk-stage { position: relative; display: flex; align-items: center; justify-content: center; width: min(340px, 86vw); aspect-ratio: 1; margin-top: 6px; flex: none; }
+@media (max-height: 820px) { .talk-stage { width: min(210px, 86vw); } }
 .ring { position: absolute; border-radius: 50%; background: color-mix(in srgb, var(--c) 14%, transparent); }
 .ring.r1 { inset: 0; } .ring.r2 { inset: 12%; } .ring.r3 { inset: 24%; }
 .talk-screen.is-talking .ring.r1 { animation: pulse 900ms ease-in-out infinite; }   /* one ring: three cost ~7 points of main thread per reply */

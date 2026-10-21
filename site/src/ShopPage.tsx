@@ -114,6 +114,8 @@ function BoardPreview({ shop, off, saving }: { shop: Shop; off: boolean; saving:
       container: box.current, style: MAP_STYLE as maplibregl.StyleSpecification, center: [spot.lng, spot.lat],
       zoom: 16.9, pitch: 56, bearing: -17, interactive: false, attributionControl: false,
     });
+    // Moving to the visitor's spot rebuilds this map as its style loads: that abort is expected, not an error.
+    map.on('error', (e) => { if ((e.error as Error | undefined)?.name !== 'AbortError') console.error(e.error); });
     const element = document.createElement('div');
     // Pushed down so the whole face fits the 210 px box and the pole runs out of its bottom.
     const marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 150] }).setLngLat([spot.lng, spot.lat]).addTo(map);

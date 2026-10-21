@@ -62,7 +62,8 @@ export function StatusChip({ shop }: { shop: Pick<Shop, 'status' | 'status_note'
 
 export function LiveChip({ updated, now, grey = false }: { updated: string; now: number; grey?: boolean }) {
   if (!updated) return null;
-  return <span className={`chip chip-live${grey ? ' is-grey' : ''}`}><i className="live-dot" />Live · {ago(updated, now)}</span>;
+  const fresh = now - Date.parse(updated) < 864e5;
+  return <span className={`chip chip-live${grey || !fresh ? ' is-grey' : ''}`}>{fresh && <i className="live-dot" />}{fresh ? 'Live · ' : 'Updated '}{ago(updated, now)}</span>;
 }
 
 /** The mascot standing on its podium in its colour; it appears only when a shop is opened, never on the map. */
