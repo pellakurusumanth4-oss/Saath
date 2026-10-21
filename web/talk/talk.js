@@ -12,7 +12,8 @@
 //   face() -> {mood, mouth: 'closed'|'half'|'open'|'round'|'wide'} while he thinks or talks, for the rig's saath.face() each frame;
 //   then null when he has finished (his own face; a gesture held back until he stopped talking plays now), or false
 //   when he was cut off or the reply failed (his own face, and that gesture is dropped).
-//   cloud() -> {thinking: true} | {text} | null: what he is doing or saying, for tests (since 18 Oct the AR page shows no words).
+//   cloud() -> {thinking: true} | {text, all, said} | null: what he is doing or saying (all: the sentence as his voice says it;
+//   said: the part it has reached, by its letter timings; both the whole sentence without them), for the AR menu card and tests.
 //   lip: seconds added to the audio clock, to line the mouth up by hand (e.g. Bluetooth earbuds).
 import { MOUTH, closures, loudness, mouthAt, vowels } from './mouth.mjs';
 
@@ -223,7 +224,11 @@ export function createTalk({ friend, shop = null, place = null, onEvent, lip = 0
       if (state === 'thinking') return { thinking: true };
       if (state !== 'speaking') return null;
       const t = heardAt(), s = sounds.findLast((x) => x && x.at <= t);
-      return s ? { text: s.text } : { thinking: true };
+      if (!s) return { thinking: true };
+      const { chars, starts } = s.timing;
+      let n = 0;
+      while (n < starts.length && starts[n] <= t - s.at + 0.1) n++;   // a tenth early: the row lights as the word begins
+      return chars.length ? { text: s.text, all: chars.join(''), said: chars.slice(0, n).join('') } : { text: s.text, all: s.text, said: s.text };
     },
   };
   return talk;

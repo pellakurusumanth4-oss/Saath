@@ -126,7 +126,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { createTalk } from '../talk/talk.js?v=2026-10-20-place';   // bump on each talk.js change: the host caches it for 4 h
+import { createTalk } from '../talk/talk.js?v=2026-10-21-said';   // bump on each talk.js change: the host caches it for 4 h
 import { canQuickLook, openQuickLook, prefetchQuickLook } from './quicklook.mjs?v=2026-10-20-ql';   // bump on each change, as talk.js
 
 const Q = new URLSearchParams(location.search), PREVIEW = Q.has('preview'), DEBUG = Q.has('debug');
@@ -321,7 +321,7 @@ if (apiMeta?.content && apiMeta.dataset.key) {
 }
 const menuEl = document.getElementById('menu');
 // naming: the item his current sentence names (its row is lit); menuTurn: bumped by each menu answer and each press of the mic.
-let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0;
+let shop = null, naming = null, menuUntil = Infinity, menuTurn = 0, mentioned = [];   // mentioned: the items this answer has named
 // The food sections (site/src/kinds.ts): only their card shows delivery-app prices and the walk-in saving.
 const FOOD = ['restaurant', 'cafe', 'juice', 'bakery', 'streetfood', 'grocery'];
 // Fetched as the page opens and again on each menu answer, so a price the owner just changed is the one on the card.
@@ -338,15 +338,24 @@ const SECTION_COLOURS = { restaurant: '#E5533D', cafe: '#14897C', juice: '#7CB82
 const SECTION_LABELS = { restaurant: 'Restaurant', cafe: 'Café & Chai', juice: 'Juice & Smoothies', bakery: 'Bakery & Sweets', grocery: 'Grocery & Kirana',
   streetfood: 'Street Food', boutique: 'Fashion Boutique', mall: 'Shopping Mall', realestate: 'Real Estate', salon: 'Salon & Spa', pharmacy: 'Pharmacy',
   books: 'Bookshop', electronics: 'Electronics & Mobile', gym: 'Gym', hotel: 'Hotel' };
-// The one item a sentence names: the longest full name in it, else the only item whose last word (4+ letters) is in it
-// ("the brownie" names Walnut brownie, but "chai" names nothing when two items end in chai). Whole words, in any script.
+// Every item a text names, in the order they are said: full names (longest first, so "Masala chai" isn't also "chai"),
+// else a last word (4+ letters) only one item ends in ("the brownie" names Walnut brownie; "chai" names nothing when two
+// items end in chai). Whole words, in any script.
 const words = (t) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
-const namedIn = (text, items) => {
+const namesIn = (text, items) => {
   const t = words(text), lastWord = (i) => words(i.name.split(',')[0]).trim().split(' ').pop();
-  const full = [...items].sort((a, b) => b.name.length - a.name.length).find((i) => words(i.name).trim() && t.includes(words(i.name)));
-  if (full) return full;
-  const byWord = items.filter((i) => lastWord(i).length >= 4 && t.includes(` ${lastWord(i)} `));
-  return byWord.length === 1 ? byWord[0] : null;
+  // found: each item's letters in t, without the spaces round them (names in a list share the one between them)
+  const found = new Map(), free = (a, b) => [...found.values()].every(([s, e]) => b <= s || a >= e);
+  const first = (w) => { for (let at = t.indexOf(w); at >= 0; at = t.indexOf(w, at + 1)) if (free(at + 1, at + w.length - 1)) return at + 1; return -1; };   // its first mention outside a name found
+  for (const i of [...items].sort((a, b) => b.name.length - a.name.length)) {
+    const w = [words(i.name), words(i.name.split(',')[0])].find((x) => x.trim() && first(x) >= 0);   // "gulab jamun" names "Gulab jamun, two pieces"
+    if (w) found.set(i, [first(w), first(w) + w.length - 2]);
+  }
+  for (const i of items) {
+    const w = ` ${lastWord(i)} `, at = first(w);
+    if (!found.has(i) && w.length >= 6 && items.filter((x) => lastWord(x) === lastWord(i)).length === 1 && at >= 0) found.set(i, [at, at + w.length - 2]);
+  }
+  return [...found].sort((a, b) => a[1][0] - b[1][0]).map(([i, [at]]) => [i, at]);   // each item and where its name starts in words(text)
 };
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 // The usual order's sum, as the site works it out (site/src/shops.ts orderOf): the shop's app prices + typical app fees
@@ -372,8 +381,9 @@ const rowOf = (i) => {
 };
 const drawMenu = () => {
   const items = shop?.menu_items ?? [];
-  // Three rows, the one he is naming among them, kept in the menu's order.
-  const show = [...items.filter((i) => i.name === naming), ...items.filter((i) => i.name !== naming)].slice(0, 3).sort((a, b) => a.sort - b.sort);
+  // Three rows: the items this answer has named (the last three), then the menu's first ones, kept in the menu's order.
+  const named = mentioned.map((n) => items.find((i) => i.name === n)).filter(Boolean).slice(-3);
+  const show = [...named, ...[...items].sort((a, b) => a.sort - b.sort).filter((i) => !named.includes(i))].slice(0, 3).sort((a, b) => a.sort - b.sort);
   if (!show.length) { menuEl.hidden = true; return; }
   const head = el('div', 'head'), chip = el('span', `chip ${shop.status ?? 'open'}`, statusWord(shop));
   if (shop.status === 'busy') chip.insertAdjacentHTML('afterbegin', HOURGLASS);   // a fixed icon; the shop's own text is set as text above
@@ -391,22 +401,29 @@ const drawMenu = () => {
   menuEl.hidden = false;
 };
 // A menu fetch that lands after the mic was pressed draws nothing: the card would show while you talk.
-const openMenu = () => { if (!REST) return; naming = null; menuUntil = Infinity; const turn = ++menuTurn; loadShop().then(() => { if (turn === menuTurn) drawMenu(); }); };
+const openMenu = () => { if (!REST) return; naming = null; mentioned = []; menuUntil = Infinity; const turn = ++menuTurn; if (shop) drawMenu(); loadShop().then(() => { if (turn === menuTurn) drawMenu(); }); };
 // It goes when you ask the next question, or 8 s after he finishes. While you hold the mic it only turns invisible, so the
 // mic stays under your thumb; it folds away once you let go.
 const menuState = (s) => {
-  if (s === 'listening') { menuTurn++; naming = null; menuUntil = Infinity; menuEl.style.visibility = 'hidden'; }
+  if (s === 'listening') { menuTurn++; naming = null; mentioned = []; menuUntil = Infinity; menuEl.style.visibility = 'hidden'; }
   else if (s === 'thinking') menuEl.hidden = true;
   else if (s === 'idle') { if (menuEl.style.visibility) menuEl.hidden = true; menuUntil = performance.now() + 8000; }
 };
 const cardShown = () => !menuEl.hidden && !menuEl.style.visibility;
-const menuTick = () => {   // each frame while the card shows: highlight what his current sentence names
+const menuTick = () => {   // each frame while the card shows: every item he has said joins it, the one he says now lights
   if (menuEl.hidden) return;
   if (performance.now() > menuUntil) { menuEl.hidden = true; return; }
-  const text = talk.cloud()?.text;
-  if (!text || !shop) return;
-  const item = namedIn(text, shop.menu_items);
-  if (item && item.name !== naming) { naming = item.name; drawMenu(); }
+  const cloud = talk.cloud();
+  if (!cloud?.text || !shop) return;
+  const all = cloud.all ?? cloud.text, said = cloud.said ?? all;
+  // The items this sentence names, each from the moment his voice reaches the start of its name, in that order.
+  const reached = words(said).trimEnd().length;   // said, in namesIn's words() positions (a prefix of all's)
+  const named = namesIn(all, shop.menu_items).filter(([, at]) => at < reached).map(([i]) => i);
+  if (!named.length) return;
+  const added = named.filter((i) => !mentioned.includes(i.name));
+  for (const i of added) mentioned.push(i.name);
+  const now = named[named.length - 1].name;
+  if (added.length || now !== naming) { naming = now; drawMenu(); }
 };
 
 // Talking: hold the mic to ask; web/talk/talk.js listens, fetches the reply and times his face to his voice. No words
